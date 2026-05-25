@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD033 MD041 -->
 <p align="center">
   <img alt="HAP-Revival — Modernizing Sony's audiophile HDD players" src=".github/banner.png" width="100%">
 </p>
@@ -13,6 +14,7 @@
   <img alt="license code" src="https://img.shields.io/badge/license%20(code)-MIT-green">
   <img alt="license docs" src="https://img.shields.io/badge/license%20(docs)-CC--BY--SA%204.0-lightgrey">
 </p>
+<!-- markdownlint-enable MD033 MD041 -->
 
 ---
 
@@ -115,7 +117,7 @@ Mainline kernel where feasible, new control plane, multi-device fleet management
 
 ## Architecture (target end state)
 
-```
+```text
        ┌────────────────────────────────────┐
        │  iOS / iPad / Android / Web client │
        │  (modern UI, hi-res streaming UX)  │

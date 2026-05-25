@@ -13,6 +13,7 @@ The current state of mapping for the Sony HAP-Z1ES / HAP-S1 ScalarWebAPI on port
 ## Critical correction to the APK agent's report
 
 The APK decompile agent claimed:
+
 - `/avContent` is the endpoint, not `/sony/avContent` → **WRONG** (live: `/avContent` → 404)
 - `x-hap-device-id` is mandatory → **WRONG** (live: optional)
 - Plain HTTP `/turnOn`, `/turnOff`, `/turnOn?type=replay` exist → **WRONG** on firmware 19404R (404)
@@ -104,6 +105,7 @@ Each method row shows:
 `seekStreamingContent`, `getContentCount`, `setActiveTerminal`, `getSupportedPlaybackFunction`, `getAvailablePlaybackFunction`, `getBluetoothSettings`, `setBluetoothSettings`, `getFavoriteList`, `setFavoriteContent`, `getApplicationStatusList` — all `[12, "No Such Method"]`.
 
 **Notable absences**:
+
 - `seekStreamingContent` → solved by APK: seek is actually done by re-calling `setPlayContent` with **only** `positionSec` (plus a tiny `+0.01` jitter Sony adds to force re-trigger). No separate seek method.
 - `getFavoriteList` / `setFavoriteContent` → favorites management is via `editContentInfo` per APK (with `method: "editFavorite"` or similar dispatch). `getPlayingContentInfo` returns `favoriteType: "normal"` showing favorites exist conceptually.
 - `getBluetoothSettings` → BlueZ is in firmware (per GPL bundle), but BT receiver/transmitter is front-panel only — no API surface.
@@ -142,6 +144,7 @@ WebSocket upgrade probe on port 60200 returned **405 Method Not Allowed** on `/s
 These have not been tested against the HAP but are documented for similar Sony devices. Add them to the fuzzer queue:
 
 From [python-songpal/songpal/device.py](https://github.com/rytilahti/python-songpal/blob/master/songpal/device.py):
+
 - `getSWUpdateInfo`, `actSWUpdate`
 - `getCustomEqualizerSettings`, `setCustomEqualizerSettings`
 - `getSupportedPlaybackFunction`, `getAvailablePlaybackFunction`
@@ -151,6 +154,7 @@ From [python-songpal/songpal/device.py](https://github.com/rytilahti/python-song
 - `getWuTangInfo` (Wi-Fi config — tried, `No Such Method` on HAP)
 
 From [Sony BRAVIA spec](https://pro-bravia.sony.net/develop/integrate/rest-api/spec/):
+
 - `setActiveApp`
 - `terminateApps`
 - `getApplicationList`
@@ -176,6 +180,7 @@ To add a method to this catalog:
 | (none) | (no `error` key) | Success — `result` field has the payload. |
 
 **Status legend used in tables above:**
+
 - ✅ Working, return shape known
 - 🟡 Method confirmed to exist, but correct params not yet known (returns `Any` / `illegal Argument` / `illegal Request`)
 - ❓ Untested, hypothesized
@@ -193,7 +198,7 @@ Once we know the param shape, status moves from 🟡 to ✅.
 
 ---
 
-# Live validation log — 2026-05-25 (post-APK-decompile)
+## Live validation log — 2026-05-25 (post-APK-decompile)
 
 Master record of methods validated live against the HAP-Z1ES on firmware 19404R, using Sony shapes from the APK decompile. This section supersedes the older 🟡 hypotheses in the per-service tables above when in conflict.
 

@@ -47,6 +47,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hap_client import HAP, HAPError  # noqa: E402
 
 
+def _live_html_template() -> str | None:
+    """Re-read the HTML_PAGE constant out of our own source file on each
+    request. Lets contributors iterate on the template/CSS without having
+    to bounce the server. Returns None if anything goes wrong; caller
+    falls back to the module-level constant.
+    """
+    try:
+        src = Path(__file__).resolve().read_text(encoding="utf-8")
+        start = src.find('HTML_PAGE = """')
+        if start < 0:
+            return None
+        start += len('HTML_PAGE = """')
+        end = src.find('"""', start)
+        if end < 0:
+            return None
+        return src[start:end]
+    except OSError:
+        return None
+
+
 HTML_PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -60,7 +80,7 @@ HTML_PAGE = """<!doctype html>
   --accent: rgb(__ACCENT_R__, __ACCENT_G__, __ACCENT_B__);
   --accent-soft: rgba(__ACCENT_R__, __ACCENT_G__, __ACCENT_B__, 0.35);
   --card-bg: rgba(20,20,24,0.55); --hover: rgba(255,255,255,0.12);
-  --cover-url: none;
+  --cover-url: __INITIAL_COVER_URL__;
 }
 html, body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; min-height: 100vh; overflow-x: hidden; }
 body { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; position: relative; }
@@ -339,17 +359,29 @@ class HAPHandler(BaseHTTPRequestHandler):
             try:
                 np = self.hap.now_playing()
                 bg = np.background_color_rgba or (60, 60, 80, 255)
+                cover = np.cover_art_url or ""
             except HAPError:
                 bg = (60, 60, 80, 255)
+                cover = ""
+            # Re-read the source on each request — lets us iterate on the
+            # template without restarting the server process. The HTML_PAGE
+            # constant defined at module top is just the fallback if we
+            # can't find ourselves on disk for any reason.
+            template = _live_html_template() or HTML_PAGE
+            cover_css = f'url("{cover}")' if cover else "none"
             html = (
-                HTML_PAGE.replace("__ACCENT_R__", str(bg[0]))
+                template.replace("__ACCENT_R__", str(bg[0]))
                 .replace("__ACCENT_G__", str(bg[1]))
                 .replace("__ACCENT_B__", str(bg[2]))
+                .replace("__INITIAL_COVER_URL__", cover_css)
             )
             body = html.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
             self.end_headers()
             self.wfile.write(body)
             return

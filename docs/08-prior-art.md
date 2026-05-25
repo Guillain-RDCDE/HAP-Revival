@@ -8,15 +8,15 @@ Total count: **7**. That's the entire world's HAP-specific output across a decad
 
 ### 1. Sony GPL source release
 
-- **URL (latest)**: https://oss.sony.net/Products/Linux/Audio/HAP-S1.html (covers HAP-S1 and HAP-Z1ES; HAP-Z1ES has no separate page)
-- **URL (older firmwares)**: `HAP-S1_19226R.html`, `HAP-S1_18777R.html`, `HAP-S1_18444R.html` under https://oss.sony.net/Products/Linux/Audio/
+- **URL (latest)**: <https://oss.sony.net/Products/Linux/Audio/HAP-S1.html> (covers HAP-S1 and HAP-Z1ES; HAP-Z1ES has no separate page)
+- **URL (older firmwares)**: `HAP-S1_19226R.html`, `HAP-S1_18777R.html`, `HAP-S1_18444R.html` under <https://oss.sony.net/Products/Linux/Audio/>
 - **What**: Sony's mandatory open-source release. Kernel, U-Boot, BusyBox, Samba 3.0.37, Dropbear 2012.55, lighttpd 1.4.35, GStreamer 0.10.36, Python 2.7.3, web.py, Tokyo Cabinet, SQLite, DirectFB, **`forza_snd_driver`** (the custom audio kernel module).
 - **Why it matters**: tells us exactly what's running on the device. The `forza_snd_driver` source is the most valuable single file in the entire prior-art corpus.
 - **What it doesn't have**: the proprietary application-layer (control daemon, custom GStreamer elements, UPnP daemon, library indexer, FPGA bitstream).
 
 ### 2. `danielrweber/HAPxFer`
 
-- **URL**: https://github.com/danielrweber/HAPxFer
+- **URL**: <https://github.com/danielrweber/HAPxFer>
 - **What**: macOS Swift app (99.2% Swift, 0.8% C) that replaces the discontinued Sony "HAP Music Transfer." Bundles `libsmbclient` to speak SMB1 against the `HAP_Internal` share. Implements transfer, folder sync, Wake-on-LAN, artist tag override, scheduled sync. **GPLv3.**
 - **Author**: Daniel Weber.
 - **Stars**: 0. **Forks**: 0. **Issues**: 0. **PRs**: 0. The repository has had zero community engagement since creation.
@@ -28,7 +28,7 @@ Total count: **7**. That's the entire world's HAP-specific output across a decad
 
 ### 3. `frazei/09d69242a8beed0cf0a1c193a45a650a` (gist)
 
-- **URL**: https://gist.github.com/frazei/09d69242a8beed0cf0a1c193a45a650a
+- **URL**: <https://gist.github.com/frazei/09d69242a8beed0cf0a1c193a45a650a>
 - **Date**: July 26, 2022
 - **What**: 10-line markdown documenting the JSON-RPC control surface. The **only** prior public documentation of the API before HAP-Revival.
 - **Concrete content**:
@@ -40,7 +40,7 @@ Total count: **7**. That's the entire world's HAP-specific output across a decad
 
 ### 4. `rytilahti/python-songpal#29`
 
-- **URL**: https://github.com/rytilahti/python-songpal/issues/29
+- **URL**: <https://github.com/rytilahti/python-songpal/issues/29>
 - **Date**: opened September 2018 by `wouzzie`, still open in 2026
 - **What**: Issue titled "Missing support for devices without getSupportedApiInfo (Sony BDV-N5200, HAP-S1, BDV-N9200W)." Confirms HAP-S1 returns `{'error': [12, 'getSupportedApiInfo'], 'id': 1}` and reports the API at `:10000/sony` (likely an older firmware version, since current 19404R uses :60200 exclusively — verified empirically).
 - **Status**: no workaround merged. python-songpal does not work with HAP devices as-is.
@@ -48,14 +48,14 @@ Total count: **7**. That's the entire world's HAP-specific output across a decad
 
 ### 5. `outmyth/music-organizer`
 
-- **URL**: https://github.com/outmyth/music-organizer
+- **URL**: <https://github.com/outmyth/music-organizer>
 - **What**: Python tool to organize music files and generate M3U playlists for "audiophile DAPs — Sony HAP-Z1ES/Walkman, Chord Poly, Lotoo PAW Gold 2017."
 - **HAP relevance**: just knows about DSD support and the standard `<Artist>/<Album>/<Track>.flac` path convention. No protocol code, no API.
 - **Stars**: 0. **Forks**: 0.
 
 ### 6. Crestron HAP-Z1ES control module
 
-- **URL**: https://applicationmarket.crestron.com/sony-hap-z1es/
+- **URL**: <https://applicationmarket.crestron.com/sony-hap-z1es/>
 - **Date**: last updated 2016-07-26
 - **What**: SIMPL Windows TCP/IP control module for the HAP-Z1ES. Closed source. The accompanying Help PDF documents the wire protocol Crestron uses.
 - **Access**: requires a Crestron developer account. Not freely scraped.
@@ -63,7 +63,7 @@ Total count: **7**. That's the entire world's HAP-specific output across a decad
 
 ### 7. `com.sony.HAP.HDDAudioRemote` Android APK
 
-- **URL**: https://www.apkmirror.com/apk/sony-corporation/hdd-audio-remote/hdd-audio-remote-4-3-1-release/
+- **URL**: <https://www.apkmirror.com/apk/sony-corporation/hdd-audio-remote/hdd-audio-remote-4-3-1-release/>
 - **Version**: 4.3.1
 - **Size**: 12.88 MB
 - **Last updated**: 2022-12-12
