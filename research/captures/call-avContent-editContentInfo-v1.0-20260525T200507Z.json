@@ -1,0 +1,30 @@
+{
+  "tool": "HAP-Revival/tools/call.py",
+  "target": "192.168.1.28",
+  "port": 60200,
+  "request": {
+    "service": "avContent",
+    "method": "editContentInfo",
+    "version": "1.0",
+    "params": [
+      {
+        "method": "editTrackInfo",
+        "target": [
+          {
+            "uri": "audio:track?id=163756",
+            "tagUri": "meta:favorite",
+            "value": "normal"
+          }
+        ]
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "result": [],
+      "id": 1
+    }
+  },
+  "timestamp": "2026-05-25T20:05:07.609243+00:00"
+}
