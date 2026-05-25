@@ -1,0 +1,23 @@
+{
+  "tool": "HAP-Revival/tools/call.py",
+  "target": "192.168.1.28",
+  "port": 60200,
+  "request": {
+    "service": "avContent",
+    "method": "setPlayContent",
+    "version": "1.1",
+    "params": [
+      {
+        "positionSec": 17.01
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "result": [],
+      "id": 1
+    }
+  },
+  "timestamp": "2026-05-25T19:31:09.371848+00:00"
+}
