@@ -1,0 +1,309 @@
+{
+  "tool": "HAP-Revival/tools/discover.py",
+  "timestamp": "2026-05-25T18:39:45.504327+00:00",
+  "devices": [
+    {
+      "ip": "192.168.1.28",
+      "timestamp": "2026-05-25T18:39:44.783400+00:00",
+      "hap_xml": "<?xml version=\"1.0\"?>\n<root xmlns=\"urn:schemas-upnp-org:device-1-0\">\n  <specVersion>\n    <major>1</major>\n    <minor>0</minor>\n  </specVersion>\n  <device>\n    <deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>\n    <friendlyName>HAP-Z1ES</friendlyName>\n    <manufacturer>Sony Corporation</manufacturer>\n    <manufacturerURL>http://www.sony.net/</manufacturerURL>\n    <modelDescription></modelDescription>\n    <modelName>HAP-Z1ES</modelName>\n    <UDN>uuid:00000000-0000-1010-8000-104FA86F4B84</UDN>\n    <iconList>\n      <icon>\n        <mimetype>image/png</mimetype>\n        <width>120</width>\n        <height>120</height>\n        <depth>24</depth>\n        <url>/HAP-Z1ES_120.png</url>\n      </icon>\n      <icon>\n        <mimetype>image/jpeg</mimetype>\n        <width>120</width>\n        <height>120</height>\n        <depth>24</depth>\n        <url>/HAP-Z1ES_120.jpg</url>\n      </icon>\n      <icon>\n        <mimetype>image/png</mimetype>\n        <width>48</width>\n        <height>48</height>\n        <depth>24</depth>\n        <url>/HAP-Z1ES_48.png</url>\n      </icon>\n      <icon>\n        <mimetype>image/jpeg</mimetype>\n        <width>48</width>\n        <height>48</height>\n        <depth>24</depth>\n        <url>/HAP-Z1ES_48.jpg</url>\n      </icon>\n    </iconList>\n    <serviceList>\n      <service>\n        <serviceType>urn:schemas-sony-com:service:ScalarWebAPI:1</serviceType>\n        <serviceId>urn:schemas-sony-com:serviceId:ScalarWebAPI</serviceId>\n        <SCPDURL>/ScalarWebAPI_SCPD.xml</SCPDURL>\n        <controlURL>/ScalarWebAPI/control</controlURL>\n        <eventSubURL>/ScalarWebAPI/event</eventSubURL>\n      </service>\n      <service>\n        <serviceType>urn:schemas-sony-com:service:MusicConnect:1</serviceType>\n        <serviceId>urn:schemas-sony-com:serviceId:MusicConnect</serviceId>\n        <SCPDURL>/MusicConnect_SCPD.xml</SCPDURL>\n        <controlURL>/MusicConnect/control</controlURL>\n        <eventSubURL>/MusicConnect/event</eventSubURL>\n      </service>\n    </serviceList>\n    <av:X_ScalarWebAPI_DeviceInfo xmlns:av=\"urn:schemas-sony-com:av\">\n      <av:X_ScalarWebAPI_Version>1.0</av:X_ScalarWebAPI_Version>\n      <av:X_ScalarWebAPI_BaseURL>http://192.168.1.28:60200/sony</av:X_ScalarWebAPI_BaseURL>\n      <av:X_ScalarWebAPI_ServiceList>\n        <av:X_ScalarWebAPI_ServiceType>guide</av:X_ScalarWebAPI_ServiceType>\n        <av:X_ScalarWebAPI_ServiceType>system</av:X_ScalarWebAPI_ServiceType>\n        <av:X_ScalarWebAPI_ServiceType>audio</av:X_ScalarWebAPI_ServiceType>\n        <av:X_ScalarWebAPI_ServiceType>avContent</av:X_ScalarWebAPI_ServiceType>\n      </av:X_ScalarWebAPI_ServiceList>\n    </av:X_ScalarWebAPI_DeviceInfo>\n    <av:X_HAP_DeviceInfo xmlns:av=\"urn:schemas-sony-com:av\">\n      <av:X_HAP_Version>0019404R</av:X_HAP_Version>\n      <av:X_HAP_MACAddr>80:56:f2:85:0e:27</av:X_HAP_MACAddr>\n    </av:X_HAP_DeviceInfo>\n    <presentationURL>HAP.html</presentationURL>\n  </device>\n</root>\n",
+      "modelName": "HAP-Z1ES",
+      "friendlyName": "HAP-Z1ES",
+      "X_HAP_Version": "0019404R",
+      "api_probe": [
+        {
+          "service": "system",
+          "method": "getSystemInformation",
+          "version": "1.2",
+          "params": [],
+          "response": {
+            "result": [
+              {
+                "product": "HA",
+                "macAddr": "80:56:f2:85:0e:27",
+                "name": "HAP",
+                "language": "fre",
+                "area": "",
+                "generation": "10.0.0",
+                "region": "",
+                "cid": "B00004AC4049",
+                "updatableVersion": "",
+                "version": "0019404R",
+                "model": "HAP-Z1ES",
+                "serial": ""
+              }
+            ],
+            "id": 1
+          }
+        },
+        {
+          "service": "system",
+          "method": "getPowerStatus",
+          "version": "1.1",
+          "params": [],
+          "response": {
+            "result": [
+              {
+                "status": "active",
+                "standbyDetail": ""
+              }
+            ],
+            "id": 1
+          }
+        },
+        {
+          "service": "system",
+          "method": "getInterfaceInformation",
+          "version": "1.0",
+          "params": [],
+          "response": {
+            "result": [
+              {
+                "serverName": "",
+                "modelName": "HAP-Z1ES",
+                "interfaceVersion": "1.0.0",
+                "productCategory": "audioServer",
+                "productName": "HAP"
+              }
+            ],
+            "id": 1
+          }
+        },
+        {
+          "service": "system",
+          "method": "getStorageList",
+          "version": "1.0",
+          "params": [],
+          "response": {
+            "result": [],
+            "id": 1
+          }
+        },
+        {
+          "service": "audio",
+          "method": "getVolumeInformation",
+          "version": "1.1",
+          "params": [],
+          "response": {
+            "result": [
+              {
+                "minVolume": -1,
+                "target": "",
+                "mute": "toggle",
+                "volume": -1,
+                "step": 1,
+                "maxVolume": -1
+              }
+            ],
+            "id": 1
+          }
+        },
+        {
+          "service": "audio",
+          "method": "getSoundSettings",
+          "version": "1.1",
+          "params": [
+            {
+              "target": ""
+            }
+          ],
+          "response": {
+            "result": [
+              [
+                {
+                  "currentValue": "auto",
+                  "target": "dsee",
+                  "candidate": [
+                    {
+                      "max": -1,
+                      "isAvailable": true,
+                      "step": -1,
+                      "value": "auto",
+                      "min": -1
+                    },
+                    {
+                      "max": -1,
+                      "isAvailable": true,
+                      "step": -1,
+                      "value": "off",
+                      "min": -1
+                    }
+                  ]
+                },
+                {
+                  "currentValue": "on",
+                  "target": "dsdRemastering",
+                  "candidate": [
+                    {
+                      "max": -1,
+                      "isAvailable": true,
+                      "step": -1,
+                      "value": "on",
+                      "min": -1
+                    },
+                    {
+                      "max": -1,
+                      "isAvailable": true,
+                      "step": -1,
+                      "value": "off",
+                      "min": -1
+                    }
+                  ]
+                },
+                {
+                  "currentValue": "auto",
+                  "target": "gaplessPlayback",
+                  "candidate": [
+                    {
+                      "max": -1,
+                      "isAvailable": true,
+                      "step": -1,
+                      "value": "auto",
+                      "min": -1
+                    },
+                    {
+                      "max": -1,
+                      "isAvailable": true,
+                      "step": -1,
+                      "value": "off",
+                      "min": -1
+                    }
+                  ]
+                },
+                {
+                  "currentValue": "auto",
+                  "target": "volumeNormalization",
+                  "candidate": [
+                    {
+                      "max": -1,
+                      "isAvailable": true,
+                      "step": -1,
+                      "value": "auto",
+                      "min": -1
+                    },
+                    {
+                      "max": -1,
+                      "isAvailable": true,
+                      "step": -1,
+                      "value": "off",
+                      "min": -1
+                    }
+                  ]
+                },
+                {
+                  "currentValue": "precision",
+                  "target": "oversampling",
+                  "candidate": [
+                    {
+                      "max": -1,
+                      "isAvailable": true,
+                      "step": -1,
+                      "value": "precision",
+                      "min": -1
+                    },
+                    {
+                      "max": -1,
+                      "isAvailable": true,
+                      "step": -1,
+                      "value": "normal",
+                      "min": -1
+                    }
+                  ]
+                }
+              ]
+            ],
+            "id": 1
+          }
+        },
+        {
+          "service": "avContent",
+          "method": "getPlayingContentInfo",
+          "version": "1.2",
+          "params": [],
+          "response": {
+            "result": [
+              {
+                "storageUri": "storage:usb1",
+                "albumName": "La grande cantatrice Malienne vol. 3",
+                "bandwidth": "16",
+                "listCount": 4,
+                "composer": "Nahawa Doumbia",
+                "playlistModifiedVersion": 7,
+                "favoriteType": "normal",
+                "title": "Dan té dinyé la",
+                "backgroundColorR": 93,
+                "audioFrequency": [
+                  "44100"
+                ],
+                "audioInfo": [
+                  {
+                    "frequency": "44100",
+                    "bandwidth": "16",
+                    "codec": "flac",
+                    "bitrate": "1001000"
+                  }
+                ],
+                "state": "PAUSED",
+                "positionMsec": 112000,
+                "playbackControlMode": "folder",
+                "backgroundColorB": 80,
+                "backgroundColorA": 255,
+                "playlistUri": "audio:playinglist?id=69",
+                "backgroundColorG": 160,
+                "audioCodec": [
+                  "flac"
+                ],
+                "shuffleType": "off",
+                "positionSec": 112.0,
+                "durationSec": 274.0,
+                "fileName": "02 - Nahawa Doumbia -  Dan té dinyé la.flac",
+                "durationMsec": 274000,
+                "bitrate": "1001000",
+                "coverArtUrl": "http://192.168.1.28:60200/sony/avContent/storage/cover_art/A0002E05",
+                "listIndex": 1,
+                "artist": "Nahawa Doumbia",
+                "uri": "audio:track?id=163756",
+                "albumID": "audio:album?id=11781",
+                "repeatType": "off"
+              }
+            ],
+            "id": 1
+          }
+        },
+        {
+          "service": "avContent",
+          "method": "getCurrentExternalTerminalsStatus",
+          "version": "1.0",
+          "params": [],
+          "response": {
+            "result": [],
+            "id": 1
+          }
+        },
+        {
+          "service": "avContent",
+          "method": "getPlaybackModeSettings",
+          "version": "1.0",
+          "params": [
+            {
+              "target": ""
+            }
+          ],
+          "response": {
+            "result": [],
+            "id": 1
+          }
+        },
+        {
+          "service": "avContent",
+          "method": "getSchemeList",
+          "version": "1.0",
+          "params": [],
+          "response": {
+            "result": [],
+            "id": 1
+          }
+        }
+      ]
+    }
+  ]
+}
