@@ -1,0 +1,89 @@
+name: "API method discovered"
+description: "Report a working JSON-RPC method (or a new working version of a known method) on a HAP-Z1ES / HAP-S1."
+title: "[api] <service>.<method> v<version>"
+labels: ["api", "research"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for advancing the API catalog. Please fill in everything you can — the more concrete data, the more useful the contribution.
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device model
+      options:
+        - HAP-Z1ES
+        - HAP-S1
+        - Other (specify in notes)
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version
+      description: "Found in Settings → System Information, or via system.getSystemInformation"
+      placeholder: "0019404R"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: Service
+      options:
+        - system
+        - audio
+        - avContent
+        - guide
+        - other (specify in notes)
+    validations:
+      required: true
+
+  - type: input
+    id: method
+    attributes:
+      label: Method name
+      placeholder: "getContentList"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Working version
+      placeholder: "1.2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: request
+    attributes:
+      label: Full JSON-RPC request
+      description: "The complete request body you sent (with parameters that worked)."
+      placeholder: |
+        {
+          "method": "getContentList",
+          "id": 1,
+          "params": [{"uri": "audio:album", "stIdx": 0, "cnt": 5}],
+          "version": "1.2"
+        }
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: response
+    attributes:
+      label: Full JSON-RPC response
+      description: "The complete response body. Sanitize any personal info (IPs, MAC addresses) if you want, but try to keep the response shape intact."
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: "Side effects? Edge cases? Did the device front-panel display change? Any version that didn't work? How did you find this method (APK decompile, fuzzing, Wireshark)?"

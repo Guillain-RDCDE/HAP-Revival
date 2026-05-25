@@ -1,0 +1,69 @@
+{
+  "_comment": "Annotated example. The real call returns a similar shape with the user's currently-playing track.",
+  "_endpoint": "POST http://<hap-ip>:60200/sony/avContent",
+  "_headers": {
+    "Content-Type": "application/json"
+  },
+  "_request": {
+    "method": "getPlayingContentInfo",
+    "id": 1,
+    "params": [],
+    "version": "1.2"
+  },
+  "_response_when_playing": {
+    "id": 1,
+    "result": [
+      {
+        "title": "Track title",
+        "artist": "Artist name",
+        "albumName": "Album name",
+        "composer": "Composer name",
+        "fileName": "01 - Filename.flac",
+        "uri": "audio:track?id=NNNNN",
+        "albumID": "audio:album?id=NNNNN",
+        "playlistUri": "audio:playinglist?id=NN",
+        "storageUri": "storage:usb1 or storage:internal",
+        "audioInfo": [
+          {
+            "codec": "flac",
+            "frequency": "44100",
+            "bandwidth": "16",
+            "bitrate": "1001000"
+          }
+        ],
+        "audioCodec": ["flac"],
+        "audioFrequency": ["44100"],
+        "bandwidth": "16",
+        "bitrate": "1001000",
+        "durationMsec": 274000,
+        "positionMsec": 110000,
+        "durationSec": 274.0,
+        "positionSec": 110.0,
+        "state": "PLAYING",
+        "shuffleType": "off",
+        "repeatType": "off",
+        "playbackControlMode": "folder",
+        "playlistModifiedVersion": 7,
+        "favoriteType": "normal",
+        "listCount": 4,
+        "listIndex": 1,
+        "coverArtUrl": "http://<hap-ip>:60200/sony/avContent/storage/cover_art/A0002E05",
+        "backgroundColorR": 93,
+        "backgroundColorG": 160,
+        "backgroundColorB": 80,
+        "backgroundColorA": 255
+      }
+    ]
+  },
+  "_response_when_stopped": {
+    "id": 1,
+    "result": [{ "state": "STOPPED" }],
+    "_note": "Shape when device is idle — most fields absent"
+  },
+  "_notes": [
+    "Note the typo 'playinglist' (instead of 'playlist') in the playlistUri — preserved verbatim in code.",
+    "state values: STOPPED, PLAYING, PAUSED_PLAYBACK, NO_MEDIA_PRESENT (per MusicConnect SCPD).",
+    "coverArtUrl uses an opaque 8-hex ID that does NOT map directly to albumID.",
+    "backgroundColor* fields are RGBA — the front panel uses this to color the now-playing screen background based on cover art."
+  ]
+}

@@ -1,0 +1,62 @@
+name: "Hardware finding"
+description: "Report a hardware observation: chip identification, UART probe result, JTAG behavior, HDD/SSD compatibility, mod result."
+title: "[hw] <short summary>"
+labels: ["hardware", "research"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hardware findings are gold. Please include photos where possible — they verify the finding and help the rest of the community.
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device model
+      options:
+        - HAP-Z1ES
+        - HAP-S1
+        - Other (specify)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Finding category
+      options:
+        - Chip identification (visible part number)
+        - UART probe (baud, pinout, boot log)
+        - JTAG probe
+        - HDD/SSD swap result
+        - DIAG / Special Mode menu detail
+        - Op-amp / clock / analog mod
+        - Power consumption / fan / thermal
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: "What did you do, what did you observe, what's the conclusion?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: photos
+    attributes:
+      label: Photos / data
+      description: "Attach photos (drag-and-drop into this textarea), oscilloscope traces, log files. Required for chip identification claims."
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: "Step-by-step. If this involves opening the case or probing, mention safety considerations."
+
+  - type: input
+    id: source
+    attributes:
+      label: Source / reference
+      description: "If you're transcribing from a blog, forum post, or service-manual page, link it here. (Use the empty field if this is your own original finding.)"
