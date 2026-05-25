@@ -38,10 +38,12 @@ The hardware deserves better. **HAP-Revival** is the open project to give it bet
 
 We are currently:
 
-- ✅ Mapping the network API surface (ports 60100/60200, ScalarWebAPI methods, MusicConnect UPnP service).
-- ✅ Documenting the internal hardware stack from Sony's published GPL sources, service manuals, and community teardowns.
-- ✅ Cataloging every public prior-art artefact so contributors don't re-do work.
-- ⏳ Decompiling the `com.sony.HAP.HDDAudioRemote` Android APK to recover the full API method dictionary.
+- ✅ Mapped the network API surface (ports 60100/60200, ScalarWebAPI methods, MusicConnect UPnP service).
+- ✅ Documented the internal hardware stack from Sony's published GPL sources, service manuals, and community teardowns.
+- ✅ Catalogued every public prior-art artefact so contributors don't re-do work.
+- ✅ Decompiled the `com.sony.HAP.HDDAudioRemote` Android APK (first public decompile of this client) and live-validated ~30 API methods from it.
+- ✅ Shipped a Python client library + browser-based web UI.
+- ⏳ Closing in on the `downloadByDiff` flow to enable full library DB sync.
 - ⏳ Probing the UART debug port on the main board for a root shell.
 - ⏳ Format-analyzing the 19404R firmware blob.
 
@@ -71,7 +73,7 @@ The two devices share the same i.MX6 SoC, same firmware images, same network pro
 | Set DSEE / DSD-remastering / gapless / volume-normalization / oversampling | ✅ | `setSoundSettings` v1.1 round-trip validated |
 | Set sleep timer, buffer time, repeat, shuffle (per-source: HDD vs Spotify) | ✅ | All round-trip validated |
 | Toggle favorites on tracks | ✅ | `editContentInfo` v1.0 with `tagUri:"meta:favorite"` |
-| Spotify Connect detection + cover art via Spotify CDN | ✅ | Auto-rendered in the web UI |
+| Spotify Connect detection + cover art rendering | ✅ | Cover comes from the device for HDD tracks, from Spotify CDN for Spotify Connect — both handled transparently |
 | Web UI: ambient cover background, theme switcher, adaptive contrast | ✅ | 4 themes (Ambient / Solid-from-cover / Dark / Custom). Choice persisted in `localStorage`. Text color auto-flips based on perceptual luminance. |
 | On-device library DB schema fully decoded | ✅ | 11 tables, ~60 PROP-codes — see [DB schema note](research/notes/2026-05-25-database-service-and-db-schema.md) |
 | Library DB live download via `downloadByDiff` | 🟡 | Service responds; `location` field empty pending mitmproxy capture of Sony's app during real sync |
@@ -99,7 +101,7 @@ python tools/hap_client.py <hap-ip> sound
 python tools/webui.py <hap-ip>
 ```
 
-The web UI polls every 3 seconds (matching Sony's own polling cadence — the HAP has no push-notification mechanism). Cover art renders inline. The UI's accent color follows the cover art's dominant color (the HAP itself computes and exposes this RGB hint via the API). Click the progress bar to seek. The ⚙ icon top-right opens a theme switcher (Ambient cover / Solid color from cover / Dark / Custom color picker), with adaptive text contrast that flips between light and dark text based on background luminance.
+The web UI polls every 3 seconds — slightly tighter than Sony's own 5 s cadence for snappier feedback, but well within what the device handles. (The HAP has no push-notification mechanism; polling is the only option, as confirmed from the decompiled Sony app.) Cover art renders inline. The UI's accent color follows the cover art's dominant color (the HAP itself computes and exposes this RGB hint via the API). Click the progress bar to seek. The ⚙ icon top-right opens a theme switcher (Ambient cover / Solid color from cover / Dark / Custom color picker), with adaptive text contrast that flips between light and dark text based on background luminance.
 
 **Nothing in this UI can damage the device.** Reads are pure. Playback control is bounded. The "standby" button asks for confirmation before sending. The library shipping the calls is at `tools/hap_client.py` — stdlib only, well-commented, importable as a module or used as a CLI.
 
@@ -127,7 +129,10 @@ Mainline kernel where feasible, new control plane, multi-device fleet management
        │  iOS / iPad / Android / Web client │
        │  (modern UI, hi-res streaming UX)  │
        └─────────────────┬──────────────────┘
-                         │ HTTPS + WebSocket
+                         │ HTTPS + SSE (no WebSocket — the HAP
+                         │              itself polls; our future
+                         │              daemon can speak SSE
+                         │              upstream)
        ┌─────────────────▼──────────────────┐
        │  HAP-Revival control daemon        │
        │  (Python / FastAPI on the device)  │

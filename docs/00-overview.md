@@ -21,9 +21,9 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 
 | Domain | Status | See |
 |---|---|---|
-| Hardware identification | SoC, DAC, DSP, ethernet PHY confirmed; FPGA part number TBD | [`01-hardware.md`](01-hardware.md) |
+| Hardware identification | SoC, DAC, DSP, ethernet PHY confirmed. FPGA documented from service manual (Altera EP4CGX30) but not photo-verified | [`01-hardware.md`](01-hardware.md) |
 | OS and userland | OpenWrt + Linux 3.0.35 + Python 2.7 daemon, all confirmed via GPL release | [`02-software-stack.md`](02-software-stack.md) |
-| Network API | Port 60100 (UPnP) + 60200 (JSON-RPC), several methods working | [`03-network-api.md`](03-network-api.md) |
+| Network API | Port 60100 (UPnP) + 60200 (JSON-RPC); ~30 methods live-validated, full catalog at [`research/api-method-catalog.md`](../research/api-method-catalog.md) | [`03-network-api.md`](03-network-api.md) |
 | File transfer | SMB1 / NT1, share `HAP_Internal`, auto library rescan | [`04-smb.md`](04-smb.md) |
 | Diagnostic modes | DIAG (4-key combo) + Special Mode (SMB version selector) | [`05-diag-modes.md`](05-diag-modes.md) |
 | HDD/SSD swap | Validated SSD list, sector-clone recipe, 2TB internal cap | [`06-hdd-swap.md`](06-hdd-swap.md) |
@@ -36,7 +36,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 - The on-device UART pinout and U-Boot console behavior (no community probe published).
 - The firmware container format (no public binwalk output).
 - The FPGA bitstream programming model (we have the `forza_snd_driver` source, but the FPGA logic itself is closed).
-- The protocol used by the official iOS app for *real-time* updates (likely WebSocket on port 60200, but unverified).
+- The exact protocol used by the official **iOS** app for real-time updates. The **Android** equivalent has been confirmed (APK decompile, 2026-05-25) to use plain HTTP polling at 5 s cadence — no WebSocket, no push, four background threads polling four endpoints. The iOS app likely behaves identically, pending Wireshark capture.
 
 Filling these gaps is the work of Phase 1 — see [`README.md`](../README.md#roadmap).
 

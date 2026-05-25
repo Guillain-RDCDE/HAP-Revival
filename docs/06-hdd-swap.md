@@ -30,7 +30,7 @@ Consequence: **swapping the HDD cannot brick the bootloader**. The device will a
 - **Best choice 2026**: Crucial MX500 1 TB or 2 TB. Validated, widely available, reasonable price.
 - **Avoid**: Samsung 870/860 EVO and 860 PRO (unexplained vendor-specific incompatibility, likely related to firmware ID strings or TRIM behavior).
 - **Maximum internal size**: 2 TB. The firmware uses MBR partitioning. Larger drives are recognized by the SATA controller but only the first 2 TB is addressable.
-- **For >2 TB**: use the USB external port. The user's HAP-Z1ES is currently playing from `storage:usb1`, confirmed working with at least 4 TB external drives.
+- **For >2 TB**: use the USB external port. Our reference HAP-Z1ES plays from `storage:usb1` daily with a 4 TB external — confirmed working.
 
 ## Two valid procedures
 
