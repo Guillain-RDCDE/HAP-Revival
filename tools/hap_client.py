@@ -41,7 +41,6 @@ import socket
 import sys
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
