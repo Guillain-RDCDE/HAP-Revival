@@ -207,10 +207,11 @@ Master record of methods validated live against the HAP-Z1ES on firmware 19404R,
 | `audio` | `setSoundSettings` | 1.1 | `[{settings:[{target, value}]}]` | `{result:[]}` — accepted dsee=auto (no-change) live |
 | `avContent` | `getBufferTime` | 1.0 | `[{}]` | `{bufferTimeSec:60, candidate:[15,30,60,180]}` |
 | `avContent` | `setBufferTime` | 1.0 | `[{bufferTimeSec:<int>}]` | `{result:[]}` — accepted 60s (no-change) live |
-| `avContent` | `getRepeatType` | 1.0 | `[{target:"audio"}]` (or `"spotify"`) | `{type:"off", target:"track"}` — **settings are PER SOURCE** |
-| `avContent` | `setRepeatType` | 1.0 | `[{target:"audio"\|"spotify", type:"off"\|"one"\|"all"\|"track"}]` | `{result:[]}` — accepted no-change live |
-| `avContent` | `getShuffleType` | 1.0 | `[{target:"audio"}]` | same per-source pattern |
-| `avContent` | `setShuffleType` | 1.0 | `[{target:"audio"\|"spotify", type:"off"\|"track"\|"album"\|"folder"}]` | `{result:[]}` — accepted no-change live |
+| `avContent` | `getRepeatType` | 1.0 | `[{target:"track"}]` for HDD/USB or `[{target:""}]` for Spotify | `{type:"off", target:"track"}` — **settings are PER SOURCE**. Sony's APK sends `"track"` not `"audio"`; both work but `"track"` is canonical. |
+| `avContent` | `setRepeatType` | 1.0 | `[{target:"track"\|"", type:"off"\|"one"\|"all"\|"track"}]` | `{result:[]}` — accepted no-change live |
+| `avContent` | `getShuffleType` | 1.0 | `[{target:"track"}]` for HDD or `[{target:""}]` for Spotify | Same per-source pattern. Canonical Sony value: `"track"`. |
+| `avContent` | `setShuffleType` | 1.0 | `[{target:"track"\|"", type:"off"\|"track"\|"album"\|"folder"}]` | `{result:[]}` — accepted no-change live |
+| `avContent` | `editContentInfo` | 1.0 | `[{method:"editTrackInfo", target:[{uri,tagUri:"meta:favorite",value:"favorite"\|"dislike"\|"normal"}]}]` | `{result:[]}` — **THIS is how favorites are toggled** (no separate setFavorite method exists). Live-tested with `value:"normal"` (clear). |
 | `avContent` | `getPlaylistInfo` | 1.0 | `[{uri:"audio:list?id=N&originalVersion=M"}]` | `{type:"all", location:"http://<ip>:60200/sony/avContent/recfile/requestN.data"}` |
 | `avContent` | `getContentInfo` | 1.1 | `[{uri:"audio:track?id=N"}]` | `{title, coverArtUrl, backgroundColorR/G/B/A}` (subset of getPlayingContentInfo — track URIs only) |
 | `avContent` | `setPlayContent` | 1.1 | `[{positionSec:N}]` | `{result:[]}` — seeks to N seconds in current track |

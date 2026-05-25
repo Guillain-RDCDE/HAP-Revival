@@ -153,15 +153,35 @@ class HAPTransportError(HAPError):
     """HTTP / socket-level error."""
 
 
+DEFAULT_CLIENT_ID = "HAP-Revival:0.1:python_client"
+
+
 class HAP:
     """A connection to one Sony HAP-Z1ES or HAP-S1 device on the LAN."""
 
-    def __init__(self, ip: str, port: int = 60200, timeout: float = 6.0):
+    def __init__(
+        self,
+        ip: str,
+        port: int = 60200,
+        timeout: float = 6.0,
+        client_id: str = DEFAULT_CLIENT_ID,
+    ):
+        """
+        Args:
+            ip: device IP address on the local network
+            port: ScalarWebAPI port (always 60200 on HAP-Z1ES firmware 19404R)
+            timeout: per-request HTTP timeout in seconds
+            client_id: value sent in the `x-hap-device-id` header. Sony's
+                Android client format is `Android:<os>:<app_ver>:<yyyymmddHHMMSS>_<mac>`
+                — we send a stable identifier instead. Optional on most calls
+                but required by some database-service methods (per APK).
+        """
         if not ip:
             raise ValueError("ip is required")
         self.ip = ip
         self.port = port
         self.timeout = timeout
+        self.client_id = client_id
         self._base = f"http://{ip}:{port}/sony"
 
     # ---- Raw JSON-RPC ----
@@ -191,6 +211,7 @@ class HAP:
             headers={
                 "Content-Type": "application/json",
                 "Accept": "application/json",
+                "x-hap-device-id": self.client_id,
             },
         )
         try:
@@ -462,6 +483,36 @@ class HAP:
     def mute_toggle(self) -> None:
         """Toggle mute. On HAP-Z1ES, Sony's code forces 'toggle' regardless of intent — there is no stateful mute."""
         self.call("audio", "setAudioMute", "1.1", [{"mute": "toggle"}])
+
+    def set_favorite(self, track_id: int, status: str = "favorite") -> None:
+        """Set or clear a track's favorite status.
+
+        Wraps Sony's `editContentInfo` with `method=editTrackInfo`.
+
+        Args:
+            track_id: the integer track id (PROP3601 in the on-device DB)
+            status: 'favorite' (mark as favorite), 'dislike' (mark disliked),
+                'normal' (clear both flags)
+        """
+        if status not in ("favorite", "dislike", "normal"):
+            raise ValueError(f"status must be favorite|dislike|normal, got {status!r}")
+        self.call(
+            "avContent",
+            "editContentInfo",
+            "1.0",
+            [
+                {
+                    "method": "editTrackInfo",
+                    "target": [
+                        {
+                            "uri": f"audio:track?id={int(track_id)}",
+                            "tagUri": "meta:favorite",
+                            "value": status,
+                        }
+                    ],
+                }
+            ],
+        )
 
     # ---- database ----
 
