@@ -8,6 +8,45 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-05-25, web UI second pass — themes, ambient bg, adaptive contrast)
+
+Building on the first web UI commit (b7e3eb4), a focused polish round driven by live user feedback during the session:
+
+- **Ambient cover background** (Apple Music / Tidal style). The current cover image fills the viewport, blurred to 60 px and saturated 1.8×, behind the now-playing card. Cards switch to frosted-glass over it. The cover element itself gets a soft glow tinted by the HAP-extracted dominant color.
+- **Bug fix: `body` was opaque**, hiding `body::before` (the ambient layer) completely. Split the `html, body` shorthand so `html` keeps the dark fallback and `body` becomes transparent. The ambient mode actually shows up now — earlier "ambient" screenshots were pure black because of this.
+- **Theme switcher** (⚙ icon top-right). Four modes:
+  - **Ambient cover** (default)
+  - **Solid (from cover)** — flat color = the RGB the HAP itself extracts from the cover
+  - **Dark** — the original
+  - **Custom** — native HTML5 color picker, choice persisted via `localStorage`
+  Active selection visually highlighted (accent-tinted row + border). Selected theme + custom color survive reload (per-browser).
+- **Adaptive text contrast**: when the background is bright (perceptual luminance > 0.6 via Rec. 601 weights), the UI switches to dark text + light frosted-glass cards. Auto-flipping `--fg`, `--muted`, `--card-bg`, `--hover`, and `--text-shadow` CSS variables. Header + footer also get an adaptive `text-shadow` for the worst-case mid-luminance covers. Recomputed both on cover change and on theme change.
+- **`pausePlayingContent` is a TOGGLE, not just pause** — discovered when the user reported play not working after pause. The "naming-true" `pause()` / `resume()` library methods now check state first; the web UI uses `/api/toggle-playback` (direct toggle, single round-trip).
+- **`setPowerStatus({status:"play"})` does NOT reliably resume Spotify Connect playback** — only the `pausePlayingContent` toggle does. The library's `resume()` documents this and uses the toggle.
+- **Web UI live-reload**: the HTML template is re-read from the source file on every request via sentinel comments. Means iterating on CSS / JS no longer requires bouncing the server — F5 in the browser is enough. Cache-Control no-store + Pragma no-cache + Expires 0 on the HTML response so the browser cannot cache between reloads.
+- **Server-side initial-cover URL**: the `--cover-url` CSS variable is now pre-populated server-side from the current `getPlayingContentInfo`, so the ambient background renders on the very first paint instead of waiting for the JS refresh tick.
+
+### Added (2026-05-25, +5 ✅ set\* methods round-trip-validated; favorites unlocked)
+
+- **5 setter methods** live-validated via round-trip ("set to current value = no net change"):
+  - `audio.setSoundSettings` v1.1 `[{settings:[{target,value}]}]`
+  - `avContent.setBufferTime` v1.0 `[{bufferTimeSec:N}]`
+  - `avContent.setRepeatType` v1.0 `[{target,type}]`
+  - `avContent.setShuffleType` v1.0 `[{target,type}]`
+  - `system.setSleepTimer` v1.0 `[{status,sleepTimerSec}]`
+- **Favorites unlocked** via `editContentInfo` v1.0 with `{method:"editTrackInfo", target:[{uri,tagUri:"meta:favorite",value:"favorite"|"dislike"|"normal"}]}` — Sony's `setFavorite` does not exist as a separate call.
+- **Per-source repeat/shuffle**: `target:"track"` for HDD/USB, `target:""` for Spotify (Sony's canonical values from the APK).
+- **`x-hap-device-id` header now sent by default** on every `hap_client.py` request (matching Sony's Android client; optional in practice but good hygiene).
+- New library methods: `set_sound_setting`, `set_repeat`, `set_shuffle`, `set_buffer_time`, `set_sleep_timer`, `set_volume`, `mute_toggle`, `set_favorite`, `toggle_playback`.
+
+### Added (2026-05-25, /sony/database service + on-device DB schema decoded + recfile transport)
+
+- **`/sony/database` service confirmed live**. `checkSameDatabase` v1.0 returns `{isSameVersion, isSameName, type}` with the correct `database:<short_uuid>?dbType=hdd&...` URI.
+- **`downloadByDiff` v1.0**: same shape; live still returns empty `location` even with Sony's exact request (header + `originalVersion=-1` + preflight `checkSameDatabase`). Pending mitmproxy capture of Sony's Android client during a real sync.
+- **Complete on-device DB schema decoded** from `assets/demo_browse.db` (79 KB SQLite shipped in the Android APK, never publicly extracted before). 11 tables — `FT0000` (root), `FT0002` (tracks, 37+ columns), `FT000A` (albums with thumbnail BLOB), `FT4502` (genres), `FT5202` (artists), `FT6F02` (composers), `FT7002` (lyricists), `FTF003` (playlists), `FTF004` (playlist contents). ~60 PROP-code hex constants decoded (PROP3601 = id, PROP304B = codec, PROP3048 = sample rate, PROP10DE = bit width, PROP6844 = release date, etc.). Full breakdown in [`research/notes/2026-05-25-database-service-and-db-schema.md`](research/notes/2026-05-25-database-service-and-db-schema.md).
+- **`recfile` generic transport mechanism** discovered. Some JSON-RPC methods (`getPlaylistInfo`, `downloadByDiff`, probably others) return `{location: "http://<ip>:60200/sony/avContent/recfile/requestN.data"}` instead of the payload itself. A plain HTTP GET on that URL returns the binary/text payload as `application/x-www-form-urlencoded` data (e.g. `newVersion=9&types=2&ids=-1&positions=...`). Confirmed via `getPlaylistInfo` on a freshly-created playlist.
+- **APK deep-dive #2** (research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md, ~600 lines): full Java code paths for `downloadByDiff`, `getRichMetaInfo`, `editContentInfo` dispatch, the polling state machine, etc.
+
 ### Added (2026-05-25, first working client + web UI)
 
 - **`tools/hap_client.py`** — clean Python client library wrapping every confirmed API method. Stdlib-only (no `requests`). Typed dataclasses (`SystemInfo`, `NowPlaying`, `SoundSettings`, `SleepTimer`). Doubles as a CLI: `python tools/hap_client.py <ip> now-playing | pause | resume | seek N | play-track N | system | sound | sleep-timer | next | prev`.
