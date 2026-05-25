@@ -202,15 +202,22 @@ Master record of methods validated live against the HAP-Z1ES on firmware 19404R,
 | Service | Method | Version | Confirmed params | Sample response |
 |---|---|---|---|---|
 | `system` | `getSleepTimer` | 1.0 | `[{}]` | `{status:"off", remainTimerSec:-1, sleepTimerSec:-1, candidateStatus:["on","off"], candidateSec:[600,1200,1800,2400,3000,3600,5400,7200]}` |
+| `system` | `setSleepTimer` | 1.0 | `[{status:"on"\|"off", sleepTimerSec:<int>}]` | `{result:[]}` — accepted no-change call live |
 | `system` | `setPowerStatus` | 1.1 | `[{status:"play"}]` | `{result:[]}` — wakes + resumes |
+| `audio` | `setSoundSettings` | 1.1 | `[{settings:[{target, value}]}]` | `{result:[]}` — accepted dsee=auto (no-change) live |
 | `avContent` | `getBufferTime` | 1.0 | `[{}]` | `{bufferTimeSec:60, candidate:[15,30,60,180]}` |
+| `avContent` | `setBufferTime` | 1.0 | `[{bufferTimeSec:<int>}]` | `{result:[]}` — accepted 60s (no-change) live |
 | `avContent` | `getRepeatType` | 1.0 | `[{target:"audio"}]` (or `"spotify"`) | `{type:"off", target:"track"}` — **settings are PER SOURCE** |
+| `avContent` | `setRepeatType` | 1.0 | `[{target:"audio"\|"spotify", type:"off"\|"one"\|"all"\|"track"}]` | `{result:[]}` — accepted no-change live |
 | `avContent` | `getShuffleType` | 1.0 | `[{target:"audio"}]` | same per-source pattern |
+| `avContent` | `setShuffleType` | 1.0 | `[{target:"audio"\|"spotify", type:"off"\|"track"\|"album"\|"folder"}]` | `{result:[]}` — accepted no-change live |
 | `avContent` | `getPlaylistInfo` | 1.0 | `[{uri:"audio:list?id=N&originalVersion=M"}]` | `{type:"all", location:"http://<ip>:60200/sony/avContent/recfile/requestN.data"}` |
 | `avContent` | `getContentInfo` | 1.1 | `[{uri:"audio:track?id=N"}]` | `{title, coverArtUrl, backgroundColorR/G/B/A}` (subset of getPlayingContentInfo — track URIs only) |
 | `avContent` | `setPlayContent` | 1.1 | `[{positionSec:N}]` | `{result:[]}` — seeks to N seconds in current track |
 | `avContent` | `createPlayingListAndQuickPlay` | 1.0 | `[{uri:"audio:track?id=N", listIndex:0, listCount:1, playbackControlMode:"folder"}]` | `{playbackControlMode, uri:"audio:playinglist?id=<new>"}` — primary HDD play primitive |
 | `database` | `checkSameDatabase` | 1.0 | `[{uri:"database:<short_uuid>?dbType=hdd&dbSerial=N&originalVersion=M"}]` | `{isSameVersion:bool, isSameName:bool, type:""}` |
+
+**Note on `getRichMetaInfo`**: tested 4 shape variants (`{uri}`, `{uri,types:[]}`, `{uri,types:["all"]}`, `{uri:"",types}`) — 3 returned `[1,"Any"]`. A fourth shape with `{uri,target:""}` triggered an HTTP **500 Internal Server Error** ("internal server error") — the device crashed internally on that param combination. Notable robustness concern. Method remains 🟡 pending APK re-read or mitmproxy capture.
 
 ## ❌ Confirmed NOT implemented on firmware 19404R (despite APK references)
 

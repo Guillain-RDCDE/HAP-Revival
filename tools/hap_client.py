@@ -414,6 +414,55 @@ class HAP:
         """Get shuffle mode. target: 'audio' (HDD/USB) or 'spotify'."""
         return self.call("avContent", "getShuffleType", "1.0", [{"target": target}])
 
+    # ---- setters (state-changing) ----
+
+    def set_sound_setting(self, target: str, value: str) -> None:
+        """Set one of the proprietary audio toggles.
+
+        Valid `target` / `value` combinations:
+            dsee                / auto, off
+            dsdRemastering      / on, off
+            gaplessPlayback     / auto, off
+            volumeNormalization / auto, off
+            oversampling        / precision, normal
+        """
+        self.call(
+            "audio",
+            "setSoundSettings",
+            "1.1",
+            [{"settings": [{"target": target, "value": value}]}],
+        )
+
+    def set_repeat(self, target: str = "audio", type: str = "off") -> None:
+        """Set repeat mode. type: 'off', 'one', 'all', 'track'. target: 'audio' or 'spotify'."""
+        self.call("avContent", "setRepeatType", "1.0", [{"target": target, "type": type}])
+
+    def set_shuffle(self, target: str = "audio", type: str = "off") -> None:
+        """Set shuffle mode. type: 'off', 'track', 'album', 'folder'. target: 'audio' or 'spotify'."""
+        self.call("avContent", "setShuffleType", "1.0", [{"target": target, "type": type}])
+
+    def set_buffer_time(self, buffer_sec: int) -> None:
+        """Set audio playback buffer length. Must be one of getBufferTime's candidate values (15, 30, 60, 180)."""
+        self.call("avContent", "setBufferTime", "1.0", [{"bufferTimeSec": int(buffer_sec)}])
+
+    def set_sleep_timer(self, status: str = "off", sleep_sec: int = 0) -> None:
+        """Set sleep timer. status: 'on' or 'off'. sleep_sec: one of candidateSec
+        from getSleepTimer (typically 600, 1200, 1800, 2400, 3000, 3600, 5400, 7200)."""
+        self.call(
+            "system",
+            "setSleepTimer",
+            "1.0",
+            [{"status": status, "sleepTimerSec": int(sleep_sec)}],
+        )
+
+    def set_volume(self, volume: int) -> None:
+        """Set audio volume. On HAP-Z1ES this is a no-op (no internal amp); on HAP-S1 it actually sets the volume."""
+        self.call("audio", "setAudioVolume", "1.0", [{"volume": str(int(volume))}])
+
+    def mute_toggle(self) -> None:
+        """Toggle mute. On HAP-Z1ES, Sony's code forces 'toggle' regardless of intent — there is no stateful mute."""
+        self.call("audio", "setAudioMute", "1.1", [{"mute": "toggle"}])
+
     # ---- database ----
 
     def db_same_version(
