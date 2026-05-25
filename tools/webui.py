@@ -256,7 +256,9 @@ footer a { color: var(--muted); text-decoration: underline; }
 .settings-panel {
   position: absolute;
   top: 44px; right: 0;
-  width: 240px;
+  width: 300px;
+  max-height: 85vh;
+  overflow-y: auto;
   background: rgba(20,20,24,0.92);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 12px;
@@ -266,6 +268,12 @@ footer a { color: var(--muted); text-decoration: underline; }
   box-shadow: 0 12px 40px rgba(0,0,0,0.5);
   display: none;
   font-size: 13px;
+}
+.settings-panel + .settings-panel-section,
+.settings-panel section + section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
 }
 .settings-panel.open { display: block; }
 .settings-panel h3 {
@@ -307,6 +315,53 @@ footer a { color: var(--muted); text-decoration: underline; }
   border-radius: 6px;
   cursor: pointer;
 }
+
+/* === Settings rows (sound / playback / favorite) === */
+.set-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0; gap: 12px; font-size: 12px;
+}
+.set-row .k { color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px; flex: 1; }
+.set-row select, .set-row input[type=range] {
+  color: var(--fg); background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;
+  padding: 3px 6px; font-size: 12px;
+}
+.set-row select { min-width: 110px; }
+.set-row input[type=range] { width: 130px; accent-color: var(--accent); }
+html.bg-is-light .set-row select, html.bg-is-light .set-row input[type=range] {
+  background: rgba(255,255,255,0.6); border-color: rgba(0,0,0,0.1);
+}
+/* Two-state pill toggle */
+.pill-toggle {
+  display: inline-flex; background: rgba(0,0,0,0.25); border-radius: 999px;
+  padding: 2px; border: 1px solid rgba(255,255,255,0.08);
+}
+.pill-toggle button {
+  background: transparent; color: var(--muted); border: 0;
+  padding: 4px 10px; font-size: 11px; border-radius: 999px;
+  cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.pill-toggle button.active { background: var(--accent); color: white; font-weight: 600; }
+html.bg-is-light .pill-toggle { background: rgba(255,255,255,0.6); border-color: rgba(0,0,0,0.1); }
+/* Three-button row for favorite */
+.fav-row { display: flex; gap: 6px; }
+.fav-row button {
+  flex: 1; background: rgba(0,0,0,0.25); color: var(--fg);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 6px 0; font-size: 14px; border-radius: 8px; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.fav-row button:disabled { opacity: 0.35; cursor: not-allowed; }
+.fav-row button.active { background: var(--accent); color: white; }
+html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-color: rgba(0,0,0,0.1); }
+.set-note { font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+/* Section dividers inside the settings panel */
+.settings-panel section { margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); }
+.settings-panel section h3 {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+}
 </style>
 </head>
 <body>
@@ -332,6 +387,73 @@ footer a { color: var(--muted); text-decoration: underline; }
       <input type="color" id="custom-color" value="#1a1f2c" oninput="setCustomColor(this.value)">
     </div>
     <div class="theme-debug" id="theme-debug">current: ambient</div>
+
+    <section>
+      <h3>Sound</h3>
+      <div class="set-row">
+        <span class="k">DSEE</span>
+        <span class="pill-toggle" id="snd-dsee">
+          <button data-v="auto" onclick="setSound('dsee','auto')">auto</button>
+          <button data-v="off" onclick="setSound('dsee','off')">off</button>
+        </span>
+      </div>
+      <div class="set-row">
+        <span class="k">DSD remastering</span>
+        <span class="pill-toggle" id="snd-dsdRemastering">
+          <button data-v="on" onclick="setSound('dsdRemastering','on')">on</button>
+          <button data-v="off" onclick="setSound('dsdRemastering','off')">off</button>
+        </span>
+      </div>
+      <div class="set-row">
+        <span class="k">Gapless</span>
+        <span class="pill-toggle" id="snd-gaplessPlayback">
+          <button data-v="auto" onclick="setSound('gaplessPlayback','auto')">auto</button>
+          <button data-v="off" onclick="setSound('gaplessPlayback','off')">off</button>
+        </span>
+      </div>
+      <div class="set-row">
+        <span class="k">Volume normalize</span>
+        <span class="pill-toggle" id="snd-volumeNormalization">
+          <button data-v="auto" onclick="setSound('volumeNormalization','auto')">auto</button>
+          <button data-v="off" onclick="setSound('volumeNormalization','off')">off</button>
+        </span>
+      </div>
+      <div class="set-row">
+        <span class="k">Oversampling</span>
+        <span class="pill-toggle" id="snd-oversampling">
+          <button data-v="precision" onclick="setSound('oversampling','precision')">precision</button>
+          <button data-v="normal" onclick="setSound('oversampling','normal')">normal</button>
+        </span>
+      </div>
+    </section>
+
+    <section>
+      <h3>Playback</h3>
+      <div class="set-row">
+        <span class="k">Volume</span>
+        <input type="range" id="vol-slider" min="0" max="100" value="50" oninput="onVolumeChange(this.value)" disabled>
+      </div>
+      <div class="set-note" id="vol-note">HAP-Z1ES has no internal amp — volume is fixed.</div>
+      <div class="set-row">
+        <span class="k">Sleep timer</span>
+        <select id="sleep-sel" onchange="onSleepChange(this.value)">
+          <option value="off">Off</option>
+        </select>
+      </div>
+    </section>
+
+    <section>
+      <h3>Current track</h3>
+      <div class="set-row">
+        <span class="k">Favorite</span>
+        <div class="fav-row" id="fav-row">
+          <button data-v="favorite" onclick="setFavorite('favorite')" title="Mark as favorite">♥</button>
+          <button data-v="normal" onclick="setFavorite('normal')" title="Clear">—</button>
+          <button data-v="dislike" onclick="setFavorite('dislike')" title="Dislike">👎</button>
+        </div>
+      </div>
+      <div class="set-note" id="fav-note">Favorites only work on HDD tracks (not Spotify Connect).</div>
+    </section>
   </div>
 </div>
 <header>
@@ -453,6 +575,96 @@ function toggleSettings() {
   document.getElementById("gear-btn").classList.toggle("open");
 }
 
+/* ===== Sound / Playback / Favorite controls ===== */
+
+async function setSound(target, value) {
+  await hapCall("set-sound", {target: target, value: value});
+}
+
+function onVolumeChange(v) {
+  // Debounce: only fire on release? For now, fire on each change but throttle.
+  clearTimeout(window._volTimer);
+  window._volTimer = setTimeout(() => hapCall("set-volume", {volume: parseInt(v)}), 200);
+}
+
+async function onSleepChange(secStr) {
+  if (secStr === "off") {
+    await hapCall("set-sleep-timer", {status: "off", sleep_sec: 0});
+  } else {
+    await hapCall("set-sleep-timer", {status: "on", sleep_sec: parseInt(secStr)});
+  }
+}
+
+async function setFavorite(value) {
+  await hapCall("set-favorite", {value: value});
+}
+
+function applySoundUI(snd) {
+  if (!snd) return;
+  const targets = {
+    "dsee": snd.dsee, "dsdRemastering": snd.dsd_remastering,
+    "gaplessPlayback": snd.gapless_playback, "volumeNormalization": snd.volume_normalization,
+    "oversampling": snd.oversampling
+  };
+  for (const t in targets) {
+    const cur = targets[t];
+    const wrap = document.getElementById("snd-" + t);
+    if (!wrap) continue;
+    wrap.querySelectorAll("button").forEach(b => {
+      b.classList.toggle("active", b.getAttribute("data-v") === cur);
+    });
+  }
+}
+
+function applySleepUI(timer) {
+  const sel = document.getElementById("sleep-sel");
+  if (!sel || !timer) return;
+  // Build option list once from candidate_sec
+  if (sel.options.length <= 1 && timer.candidate_sec && timer.candidate_sec.length) {
+    timer.candidate_sec.forEach(sec => {
+      const opt = document.createElement("option");
+      opt.value = String(sec);
+      const min = Math.round(sec / 60);
+      opt.textContent = min + " min";
+      sel.appendChild(opt);
+    });
+  }
+  // Reflect current value
+  if (timer.status === "off") sel.value = "off";
+  else if (timer.sleep_sec > 0) sel.value = String(timer.sleep_sec);
+}
+
+function applyVolumeUI(vol) {
+  const slider = document.getElementById("vol-slider");
+  const note = document.getElementById("vol-note");
+  if (!slider || !vol) return;
+  if (vol.maxVolume <= 0) {
+    slider.disabled = true;
+    note.textContent = "HAP-Z1ES has no internal amp — volume is fixed (use external amp / preamp).";
+  } else {
+    slider.disabled = false;
+    slider.min = vol.minVolume || 0;
+    slider.max = vol.maxVolume;
+    slider.step = vol.step || 1;
+    if (vol.volume >= 0) slider.value = vol.volume;
+    note.textContent = "HAP-S1 / amp output. Step: " + (vol.step || 1) + ".";
+  }
+}
+
+function applyFavoriteUI(np) {
+  const row = document.getElementById("fav-row");
+  const note = document.getElementById("fav-note");
+  if (!row || !np) return;
+  const isHddTrack = np.uri && np.uri.startsWith("audio:track?id=");
+  row.querySelectorAll("button").forEach(b => {
+    b.disabled = !isHddTrack;
+    b.classList.toggle("active", isHddTrack && b.getAttribute("data-v") === (np.favorite_type || "normal"));
+  });
+  note.textContent = isHddTrack
+    ? "Acts on the current track in the HAP library."
+    : "Favorites only work on HDD tracks (current source: " + (np.storage_uri || "external") + ").";
+}
+
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".gear-wrap")) {
     document.getElementById("settings-panel").classList.remove("open");
@@ -540,6 +752,12 @@ function apply(d) {
     // Recompute text contrast: cover changed, so the dominant color did too
     applyContrast(currentBgRgb());
   }
+
+  // Update gear-panel settings UI from the same state payload
+  applySoundUI(d.sound);
+  applySleepUI(d.sleep_timer);
+  applyVolumeUI(d.volume);
+  applyFavoriteUI(np);
   // Ambient cover background: hand the cover URL to the CSS variable used by body::before
   if (np.cover_art_url) {
     document.documentElement.style.setProperty("--cover-url", `url("${np.cover_art_url}")`);
@@ -643,46 +861,72 @@ class HAPHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/state":
+            # Each call is best-effort: if one sub-fetch fails we still return
+            # the rest so the UI stays usable.
+            payload: dict = {}
             try:
                 np = self.hap.now_playing()
-                sys_info = self.hap.system_info()
-                snd = self.hap.sound_settings()
+                payload["now_playing"] = {
+                    "state": np.state,
+                    "title": np.title,
+                    "artist": np.artist,
+                    "album": np.album,
+                    "uri": np.uri,
+                    "storage_uri": np.storage_uri,
+                    "position_sec": np.position_sec,
+                    "duration_sec": np.duration_sec,
+                    "progress": np.progress,
+                    "codec": np.codec,
+                    "sample_rate_hz": np.sample_rate_hz,
+                    "bit_depth": np.bit_depth,
+                    "cover_art_url": np.cover_art_url,
+                    "background_color_rgba": np.background_color_rgba,
+                    "favorite_type": np.favorite_type,
+                }
             except HAPError as e:
-                self._send_json(200, {"error": str(e)})
-                return
-            self._send_json(
-                200,
-                {
-                    "now_playing": {
-                        "state": np.state,
-                        "title": np.title,
-                        "artist": np.artist,
-                        "album": np.album,
-                        "uri": np.uri,
-                        "storage_uri": np.storage_uri,
-                        "position_sec": np.position_sec,
-                        "duration_sec": np.duration_sec,
-                        "progress": np.progress,
-                        "codec": np.codec,
-                        "sample_rate_hz": np.sample_rate_hz,
-                        "bit_depth": np.bit_depth,
-                        "cover_art_url": np.cover_art_url,
-                        "background_color_rgba": np.background_color_rgba,
-                    },
-                    "system": {
-                        "model": sys_info.model,
-                        "version": sys_info.version,
-                        "power": self.hap.power_status(),
-                    },
-                    "sound": {
-                        "dsee": snd.dsee,
-                        "dsd_remastering": snd.dsd_remastering,
-                        "gapless_playback": snd.gapless_playback,
-                        "volume_normalization": snd.volume_normalization,
-                        "oversampling": snd.oversampling,
-                    },
-                },
-            )
+                payload["now_playing"] = {"state": "STOPPED", "error": str(e)}
+            try:
+                sys_info = self.hap.system_info()
+                payload["system"] = {
+                    "model": sys_info.model,
+                    "version": sys_info.version,
+                    "power": self.hap.power_status(),
+                }
+            except HAPError as e:
+                payload["system"] = {"error": str(e)}
+            try:
+                snd = self.hap.sound_settings()
+                payload["sound"] = {
+                    "dsee": snd.dsee,
+                    "dsd_remastering": snd.dsd_remastering,
+                    "gapless_playback": snd.gapless_playback,
+                    "volume_normalization": snd.volume_normalization,
+                    "oversampling": snd.oversampling,
+                }
+            except HAPError as e:
+                payload["sound"] = {"error": str(e)}
+            try:
+                t = self.hap.sleep_timer()
+                payload["sleep_timer"] = {
+                    "status": t.status,
+                    "remain_sec": t.remain_sec,
+                    "sleep_sec": t.sleep_sec,
+                    "candidate_sec": t.candidate_sec,
+                }
+            except HAPError as e:
+                payload["sleep_timer"] = {"error": str(e)}
+            try:
+                vol = self.hap.volume_information()
+                payload["volume"] = {
+                    "volume": vol.get("volume", -1),
+                    "minVolume": vol.get("minVolume", -1),
+                    "maxVolume": vol.get("maxVolume", -1),
+                    "step": vol.get("step", 1),
+                    "mute": vol.get("mute", "off"),
+                }
+            except HAPError as e:
+                payload["volume"] = {"error": str(e)}
+            self._send_json(200, payload)
             return
 
         self.send_error(404)
@@ -719,6 +963,27 @@ class HAPHandler(BaseHTTPRequestHandler):
                 self.hap.seek_seconds(float(params.get("position_sec", 0)))
             elif path == "/api/play-track":
                 self.hap.play_track(int(params["track_id"]))
+            elif path == "/api/set-sound":
+                target = str(params["target"])
+                value = str(params["value"])
+                self.hap.set_sound_setting(target, value)
+            elif path == "/api/set-volume":
+                self.hap.set_volume(int(params["volume"]))
+            elif path == "/api/mute-toggle":
+                self.hap.mute_toggle()
+            elif path == "/api/set-sleep-timer":
+                self.hap.set_sleep_timer(
+                    status=str(params.get("status", "off")),
+                    sleep_sec=int(params.get("sleep_sec", 0)),
+                )
+            elif path == "/api/set-favorite":
+                # Need the current track URI. Re-fetch since the JS may not pass it.
+                np = self.hap.now_playing()
+                if not (np.uri and np.uri.startswith("audio:track?id=")):
+                    self._send_json(400, {"error": "favorite only works on HDD tracks"})
+                    return
+                track_id = int(np.uri.split("=", 1)[1])
+                self.hap.set_favorite(track_id, str(params.get("value", "favorite")))
             else:
                 self.send_error(404)
                 return
