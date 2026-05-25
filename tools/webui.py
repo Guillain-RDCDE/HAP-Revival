@@ -135,36 +135,38 @@ body::after {
   transition: background 0.4s ease;
 }
 
-/* ===== Theme overrides (data-theme on <html>) ===== */
+/* ===== Theme overrides (data-theme on <html>) =====
+   !important kept on every override so no specificity surprise can shadow them
+   (the body::before rule above uses CSS variables which can otherwise win
+   when set inline on documentElement). */
 
 /* "cover-solid" — single solid color = the RGB the HAP extracts from the cover.
    Disables the blurred image, keeps the accent color as the flat background. */
 html[data-theme="cover-solid"] body::before {
-  background-image: none;
-  filter: none;
-  opacity: 1;
+  background-image: none !important;
+  background-color: var(--accent) !important;
+  filter: none !important;
+  opacity: 1 !important;
 }
-html[data-theme="cover-solid"] body::after {
-  background: none;
-}
+html[data-theme="cover-solid"] body::after { background: none !important; }
 
 /* "dark" — pure dark, no ambient at all. */
 html[data-theme="dark"] body::before {
-  background-image: none;
-  background-color: var(--bg);
-  filter: none;
-  opacity: 1;
+  background-image: none !important;
+  background-color: var(--bg) !important;
+  filter: none !important;
+  opacity: 1 !important;
 }
-html[data-theme="dark"] body::after { background: none; }
+html[data-theme="dark"] body::after { background: none !important; }
 
 /* "custom" — single solid color picked by the user via the color picker. */
 html[data-theme="custom"] body::before {
-  background-image: none;
-  background-color: var(--custom-bg);
-  filter: none;
-  opacity: 1;
+  background-image: none !important;
+  background-color: var(--custom-bg) !important;
+  filter: none !important;
+  opacity: 1 !important;
 }
-html[data-theme="custom"] body::after { background: none; }
+html[data-theme="custom"] body::after { background: none !important; }
 header { text-align: center; margin-bottom: 24px; }
 header h1 { font-size: 18px; font-weight: 500; letter-spacing: 0.04em; opacity: 0.7; }
 header .device { font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -266,10 +268,23 @@ footer a { color: var(--muted); text-decoration: underline; }
   cursor: pointer;
   transition: background 0.12s;
   gap: 10px;
+  border: 1px solid transparent;
 }
 .theme-option:hover { background: var(--hover); }
+.theme-option.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
 .theme-option input[type=radio] { accent-color: var(--accent); cursor: pointer; }
 .theme-option label { cursor: pointer; flex: 1; }
+.theme-debug {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+}
 .theme-option input[type=color] {
   width: 28px; height: 28px;
   border: 0; padding: 0;
@@ -284,23 +299,24 @@ footer a { color: var(--muted); text-decoration: underline; }
   <button class="gear-btn" id="gear-btn" onclick="toggleSettings()" title="Settings" aria-label="Settings">⚙</button>
   <div class="settings-panel" id="settings-panel">
     <h3>Background</h3>
-    <div class="theme-option">
+    <div class="theme-option" id="opt-ambient">
       <input type="radio" name="theme" id="t-ambient" value="ambient" onchange="setTheme('ambient')">
       <label for="t-ambient">Ambient cover</label>
     </div>
-    <div class="theme-option">
+    <div class="theme-option" id="opt-cover-solid">
       <input type="radio" name="theme" id="t-cover-solid" value="cover-solid" onchange="setTheme('cover-solid')">
       <label for="t-cover-solid">Solid (from cover)</label>
     </div>
-    <div class="theme-option">
+    <div class="theme-option" id="opt-dark">
       <input type="radio" name="theme" id="t-dark" value="dark" onchange="setTheme('dark')">
       <label for="t-dark">Dark</label>
     </div>
-    <div class="theme-option">
+    <div class="theme-option" id="opt-custom">
       <input type="radio" name="theme" id="t-custom" value="custom" onchange="setTheme('custom')">
       <label for="t-custom">Custom</label>
       <input type="color" id="custom-color" value="#1a1f2c" oninput="setCustomColor(this.value)">
     </div>
+    <div class="theme-debug" id="theme-debug">current: ambient</div>
   </div>
 </div>
 <header>
@@ -366,6 +382,15 @@ function setTheme(name) {
   localStorage.setItem(THEME_KEY, name);
   const radio = document.getElementById("t-" + name);
   if (radio) radio.checked = true;
+  // Visual: highlight the active option's row + reset the others
+  VALID_THEMES.forEach(t => {
+    const el = document.getElementById("opt-" + t);
+    if (el) el.classList.toggle("active", t === name);
+  });
+  // Debug indicator in the panel + console log so it's easy to see what's firing
+  const dbg = document.getElementById("theme-debug");
+  if (dbg) dbg.textContent = "current: " + name + " · data-theme=" + (document.documentElement.getAttribute("data-theme") || "(none)");
+  console.log("[HAP-Revival] setTheme:", name, "| <html data-theme> =", document.documentElement.getAttribute("data-theme"));
 }
 
 function setCustomColor(hex) {
