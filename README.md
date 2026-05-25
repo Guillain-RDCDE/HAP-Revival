@@ -61,15 +61,20 @@ The two devices share the same i.MX6 SoC, same firmware images, same network pro
 | Capability | Status | Notes |
 |---|---|---|
 | SSDP discovery of HAP devices on the LAN | ✅ | `tools/discover.py` |
-| **Python client library** (typed dataclasses, importable) | ✅ | `tools/hap_client.py` — stdlib only |
-| **Web UI control surface** (browser-based) | ✅ | `tools/webui.py` — see [Try it now](#try-it-now-5-minutes-zero-risk) |
+| **Python client library** (typed dataclasses, importable) | ✅ | `tools/hap_client.py` — stdlib only, ~30 methods exposed |
+| **Web UI control surface** (browser-based, single page) | ✅ | `tools/webui.py` — see [Try it now](#try-it-now-5-minutes-zero-risk) |
 | Now-playing read (title/artist/codec/position/cover/RGB hint) | ✅ | `avContent.getPlayingContentInfo` v1.2 |
-| System info, volume, sound settings, sleep timer, buffer time | ✅ | See [api-method-catalog](research/api-method-catalog.md) |
-| Play track by ID / pause / resume / seek / next / previous | ✅ | `createPlayingListAndQuickPlay`, `setPlayContent`, etc. |
-| Power control: wake / wake-and-play / standby | ✅ | `setPowerStatus` with `active` / `play` / `off` |
+| Play / pause toggle, seek, next, previous, standby | ✅ | `pausePlayingContent` is a true toggle (counter-intuitive but reliable) |
+| Play track by ID (HDD content) | ✅ | `createPlayingListAndQuickPlay` v1.0 |
+| Power control: wake / wake-and-play / standby | ✅ | `setPowerStatus` with `active` / `play` / `off` / `standby` |
+| Read system info, volume, sound settings, sleep timer, buffer time | ✅ | See [api-method-catalog](research/api-method-catalog.md) |
+| Set DSEE / DSD-remastering / gapless / volume-normalization / oversampling | ✅ | `setSoundSettings` v1.1 round-trip validated |
+| Set sleep timer, buffer time, repeat, shuffle (per-source: HDD vs Spotify) | ✅ | All round-trip validated |
+| Toggle favorites on tracks | ✅ | `editContentInfo` v1.0 with `tagUri:"meta:favorite"` |
 | Spotify Connect detection + cover art via Spotify CDN | ✅ | Auto-rendered in the web UI |
+| Web UI: ambient cover background, theme switcher, adaptive contrast | ✅ | 4 themes (Ambient / Solid-from-cover / Dark / Custom). Choice persisted in `localStorage`. Text color auto-flips based on perceptual luminance. |
 | On-device library DB schema fully decoded | ✅ | 11 tables, ~60 PROP-codes — see [DB schema note](research/notes/2026-05-25-database-service-and-db-schema.md) |
-| Library DB live download via `downloadByDiff` | 🟡 | Service responds; `location` field empty pending more reverse-engineering |
+| Library DB live download via `downloadByDiff` | 🟡 | Service responds; `location` field empty pending mitmproxy capture of Sony's app during real sync |
 | Native iOS / iPad app | ❌ | Web UI works in Safari on iPad today; native app planned |
 | Modern streaming services (Tidal, Qobuz, Roon) | ❌ | Requires custom userland on the device (Phase 4) |
 | Custom OS replacement | ❌ | Long-term goal; UART + firmware unpack required first |
@@ -94,9 +99,9 @@ python tools/hap_client.py <hap-ip> sound
 python tools/webui.py <hap-ip>
 ```
 
-The web UI polls every 3 seconds (matching Sony's own polling cadence — the HAP has no push-notification mechanism). Cover art renders inline. The UI's accent color follows the cover art's dominant color (the HAP itself computes and exposes this RGB hint via the API). Click the progress bar to seek.
+The web UI polls every 3 seconds (matching Sony's own polling cadence — the HAP has no push-notification mechanism). Cover art renders inline. The UI's accent color follows the cover art's dominant color (the HAP itself computes and exposes this RGB hint via the API). Click the progress bar to seek. The ⚙ icon top-right opens a theme switcher (Ambient cover / Solid color from cover / Dark / Custom color picker), with adaptive text contrast that flips between light and dark text based on background luminance.
 
-**Nothing in this UI can damage the device.** Reads are pure. Playback control is bounded. The "standby" button asks for confirmation before sending. The library shipping the calls is at `tools/hap_client.py` — 350 lines, well-commented, stdlib only.
+**Nothing in this UI can damage the device.** Reads are pure. Playback control is bounded. The "standby" button asks for confirmation before sending. The library shipping the calls is at `tools/hap_client.py` — stdlib only, well-commented, importable as a module or used as a CLI.
 
 ## Roadmap
 
