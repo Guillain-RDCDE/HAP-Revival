@@ -81,7 +81,7 @@ Each method row shows:
 | Method | Working version | Status | Params | Notes |
 |---|---|---|---|---|
 | `getPlayingContentInfo` | **1.2** | ✅ | `[]` | The gold method. Returns title, artist, album, codec, bitrate, frequency, position, duration, URIs, coverArtUrl, RGB background color. See [`docs/03-network-api.md`](../docs/03-network-api.md) for full response shape. |
-| `pausePlayingContent` | **1.0** | 🟡 | `[{}]` per APK | APK shows empty object `[{}]` (NOT empty array `[]`). The `[1, "Any"]` we saw earlier was because we sent `[]`. Untested with `[{}]` yet — should ✅ on next pass. |
+| `pausePlayingContent` | **1.0** | ✅ | `[{}]` | **LIVE-CONFIRMED 2026-05-25 + this is a TOGGLE**, not just pause. Called from PLAYING → goes PAUSED. Called from PAUSED → goes PLAYING. Misleadingly named. Use this single call for play/pause buttons in any UI. The naming-true `pause()` / `resume()` helpers in `tools/hap_client.py` check state first to enforce direction semantics. `setPowerStatus({status:"play"})` does NOT reliably resume Spotify Connect playback — only this toggle does. |
 | `stopPlayingContent` | **1.0** | 🟡 | `[{}]` | Sony's app never calls this; method exists on device. Try `[{}]` first. |
 | `setPlayNextContent` | **1.0** | 🟡 | `[{}]` per APK | APK confirms empty object. Should ✅ on retest. |
 | `setPlayPreviousContent` | **1.0** | 🟡 | `[{}]` per APK | Same as above. |

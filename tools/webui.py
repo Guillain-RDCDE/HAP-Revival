@@ -215,7 +215,10 @@ function apply(d) {
 }
 
 function togglePlay() {
-  hapCall(lastState === "PLAYING" ? "pause" : "resume");
+  // The HAP's `pausePlayingContent` is a true toggle (pause<->play).
+  // The state-based branching we used to do here was racy + unreliable
+  // for Spotify Connect; the toggle endpoint is rock solid.
+  hapCall("toggle-playback");
 }
 
 async function hapCall(action, params) {
@@ -349,7 +352,11 @@ class HAPHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            if path == "/api/pause":
+            if path == "/api/toggle-playback":
+                # The reliable play/pause control. Sony's pausePlayingContent
+                # is a toggle, so we just fire it and let the device flip.
+                self.hap.toggle_playback()
+            elif path == "/api/pause":
                 self.hap.pause()
             elif path == "/api/resume":
                 self.hap.resume()
