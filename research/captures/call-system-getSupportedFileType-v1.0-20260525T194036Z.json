@@ -1,0 +1,23 @@
+{
+  "tool": "HAP-Revival/tools/call.py",
+  "target": "192.168.1.28",
+  "port": 60200,
+  "request": {
+    "service": "system",
+    "method": "getSupportedFileType",
+    "version": "1.0",
+    "params": []
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "id": 1,
+      "result": [],
+      "error": [
+        12,
+        "No Such Method"
+      ]
+    }
+  },
+  "timestamp": "2026-05-25T19:40:36.950258+00:00"
+}

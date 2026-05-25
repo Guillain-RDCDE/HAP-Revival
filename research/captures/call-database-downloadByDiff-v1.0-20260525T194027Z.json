@@ -1,0 +1,29 @@
+{
+  "tool": "HAP-Revival/tools/call.py",
+  "target": "192.168.1.28",
+  "port": 60200,
+  "request": {
+    "service": "database",
+    "method": "downloadByDiff",
+    "version": "1.0",
+    "params": [
+      {
+        "uri": "database:=hdd&dbSerial=0&originalVersion=0"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "result": [
+        {
+          "dbType": "",
+          "type": "all",
+          "location": ""
+        }
+      ],
+      "id": 1
+    }
+  },
+  "timestamp": "2026-05-25T19:40:27.033475+00:00"
+}

@@ -1,0 +1,29 @@
+{
+  "tool": "HAP-Revival/tools/call.py",
+  "target": "192.168.1.28",
+  "port": 60200,
+  "request": {
+    "service": "database",
+    "method": "checkSameDatabase",
+    "version": "1.0",
+    "params": [
+      {
+        "uri": "database:=hdd&dbSerial=0&originalVersion=0"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "result": [
+        {
+          "isSameVersion": false,
+          "type": "",
+          "isSameName": false
+        }
+      ],
+      "id": 1
+    }
+  },
+  "timestamp": "2026-05-25T19:39:20.351119+00:00"
+}

@@ -1,0 +1,26 @@
+{
+  "tool": "HAP-Revival/tools/call.py",
+  "target": "192.168.1.28",
+  "port": 60200,
+  "request": {
+    "service": "avContent",
+    "method": "getRichMetaInfo",
+    "version": "1.0",
+    "params": [
+      {
+        "uri": "audio:album?id=11781"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "id": 1,
+      "error": [
+        1,
+        "Any"
+      ]
+    }
+  },
+  "timestamp": "2026-05-25T19:39:18.641614+00:00"
+}
