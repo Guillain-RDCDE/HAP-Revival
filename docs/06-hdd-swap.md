@@ -26,6 +26,7 @@ Consequence: **swapping the HDD cannot brick the bootloader**. The device will a
 | Seagate ST2000LM003 2 TB HDD | ✅ works in HAP-S1 (9.5 mm) | [Head-Fi #801939](https://www.head-fi.org/threads/sony-hap-s1.801939/) |
 
 **Recommendations**:
+
 - **Best choice 2026**: Crucial MX500 1 TB or 2 TB. Validated, widely available, reasonable price.
 - **Avoid**: Samsung 870/860 EVO and 860 PRO (unexplained vendor-specific incompatibility, likely related to firmware ID strings or TRIM behavior).
 - **Maximum internal size**: 2 TB. The firmware uses MBR partitioning. Larger drives are recognized by the SATA controller but only the first 2 TB is addressable.

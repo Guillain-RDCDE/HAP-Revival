@@ -28,8 +28,8 @@ To download: visit one of the pages in a real browser, accept the terms, and gra
 
 This is the big one. Because the firmware contains GPL-licensed software (the Linux kernel, BusyBox, Samba, etc.), Sony must publish the source code for those components. They do, at:
 
-- **Index page**: <https://oss.sony.net/Products/Linux/Audio/HAP-S1.html> (covers HAP-S1 and HAP-Z1ES — they share a page)
-- **Older firmwares**: <https://oss.sony.net/Products/Linux/Audio/HAP-S1_19226R.html>, `.../HAP-S1_18777R.html`, `.../HAP-S1_18444R.html`
+- **Index page**: https://oss.sony.net/Products/Linux/Audio/HAP-S1.html (covers HAP-S1 and HAP-Z1ES — they share a page)
+- **Older firmwares**: https://oss.sony.net/Products/Linux/Audio/HAP-S1_19226R.html, `.../HAP-S1_18777R.html`, `.../HAP-S1_18444R.html`
 - **Tarball CDN**: `https://prodgpl.blob.core.windows.net/download/Audio/HAP-S1, HAP-Z1ES(<ver>)/<package>.tar.<ext>` — note the literal space and parentheses in the path; URL-encode when scripting.
 
 ### What's included in the GPL drop
@@ -93,7 +93,7 @@ Unverified — pending UART shell or firmware extraction:
 
 The exact partition table can be obtained the moment we have shell:
 
-```bash
+```
 cat /proc/partitions
 cat /proc/mtd  # SPI flash partitions
 mount
@@ -114,7 +114,7 @@ The HAP has no documented recovery USB stick / recovery partition mechanism. The
 
 Crestron sells a control module for the HAP-Z1ES, last updated 2016-07-26:
 
-- <https://applicationmarket.crestron.com/sony-hap-z1es/>
+- https://applicationmarket.crestron.com/sony-hap-z1es/
 
 The module ships with a Help PDF documenting the TCP/IP command set Crestron uses. Access requires a Crestron account; we have not yet obtained or analyzed this PDF. If you have access, the PDF is the closest thing to an official Sony protocol document that exists in 2026.
 

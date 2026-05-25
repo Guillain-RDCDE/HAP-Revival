@@ -77,6 +77,6 @@ We don't know if such an entry exists. But we haven't checked exhaustively eithe
 
 ## References
 
-- HAP-S1 Service Manual, page 25 (cleanest PDF: https://riverparkinc.com/wp-content/uploads/2015/01/HAPS1_SERVICE_MANUAL.pdf)
+- HAP-S1 Service Manual, page 25 (cleanest PDF: <https://riverparkinc.com/wp-content/uploads/2015/01/HAPS1_SERVICE_MANUAL.pdf>)
 - [electro-medical.blogspot.com](https://electro-medical.blogspot.com) — JP-language hobbyist walkthrough
 - [Sony Asia support page documenting Special Mode for SMB](https://www.sony-asia.com/electronics/support/audio-components-hdd-audio-network-audio-players/hap-z1es/software/00279155)
