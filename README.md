@@ -1,3 +1,7 @@
+<p align="center">
+  <img alt="HAP-Revival — Modernizing Sony's audiophile HDD players" src=".github/banner.png" width="100%">
+</p>
+
 # HAP-Revival
 
 > **Modernizing the Sony HAP-Z1ES and HAP-S1 audiophile HDD players.**

@@ -8,6 +8,12 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-05-25, first working client + web UI)
+
+- **`tools/hap_client.py`** — clean Python client library wrapping every confirmed API method. Stdlib-only (no `requests`). Typed dataclasses (`SystemInfo`, `NowPlaying`, `SoundSettings`, `SleepTimer`). Doubles as a CLI: `python tools/hap_client.py <ip> now-playing | pause | resume | seek N | play-track N | system | sound | sleep-timer | next | prev`.
+- **`tools/webui.py`** — minimal stdlib HTTP server (no Flask, no aiohttp) serving an HTML5 single-page control panel at `http://localhost:8080`. Features: now-playing with cover art, dynamic accent color from the device's RGB hint, seek by clicking the progress bar, pause/resume/next/previous/standby buttons, live sound-settings display, 3-second polling matching Sony's own app. The first working third-party HAP control web app ever shipped.
+- Live-validated against firmware 19404R: end-to-end functional with Spotify Connect playback (cover art from Spotify CDN renders correctly).
+
 ### Research (2026-05-25, post-APK-decompile)
 
 - **Decompiled `com.sony.HAP.HDDAudioRemote` v4.3.1** (12.88 MB APK from APKCombo). First public decompile of this client. Full findings: `research/notes/2026-05-25-apk-decompile-findings.md` (370 lines). Toolchain: OpenJDK 21 (winget) + jadx 1.5.5.
