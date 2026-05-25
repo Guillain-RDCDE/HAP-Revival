@@ -190,3 +190,71 @@ These methods *exist on the device* — the server didn't reject them as "No Suc
 3. **Try shapes from cousin Sony devices** (BRAVIA spec, python-songpal device.py) — many work as-is.
 
 Once we know the param shape, status moves from 🟡 to ✅.
+
+---
+
+# Live validation log — 2026-05-25 (post-APK-decompile)
+
+Master record of methods validated live against the HAP-Z1ES on firmware 19404R, using Sony shapes from the APK decompile. This section supersedes the older 🟡 hypotheses in the per-service tables above when in conflict.
+
+## ✅ Newly validated working methods
+
+| Service | Method | Version | Confirmed params | Sample response |
+|---|---|---|---|---|
+| `system` | `getSleepTimer` | 1.0 | `[{}]` | `{status:"off", remainTimerSec:-1, sleepTimerSec:-1, candidateStatus:["on","off"], candidateSec:[600,1200,1800,2400,3000,3600,5400,7200]}` |
+| `system` | `setPowerStatus` | 1.1 | `[{status:"play"}]` | `{result:[]}` — wakes + resumes |
+| `avContent` | `getBufferTime` | 1.0 | `[{}]` | `{bufferTimeSec:60, candidate:[15,30,60,180]}` |
+| `avContent` | `getRepeatType` | 1.0 | `[{target:"audio"}]` (or `"spotify"`) | `{type:"off", target:"track"}` — **settings are PER SOURCE** |
+| `avContent` | `getShuffleType` | 1.0 | `[{target:"audio"}]` | same per-source pattern |
+| `avContent` | `getPlaylistInfo` | 1.0 | `[{uri:"audio:list?id=N&originalVersion=M"}]` | `{type:"all", location:"http://<ip>:60200/sony/avContent/recfile/requestN.data"}` |
+| `avContent` | `getContentInfo` | 1.1 | `[{uri:"audio:track?id=N"}]` | `{title, coverArtUrl, backgroundColorR/G/B/A}` (subset of getPlayingContentInfo — track URIs only) |
+| `avContent` | `setPlayContent` | 1.1 | `[{positionSec:N}]` | `{result:[]}` — seeks to N seconds in current track |
+| `avContent` | `createPlayingListAndQuickPlay` | 1.0 | `[{uri:"audio:track?id=N", listIndex:0, listCount:1, playbackControlMode:"folder"}]` | `{playbackControlMode, uri:"audio:playinglist?id=<new>"}` — primary HDD play primitive |
+| `database` | `checkSameDatabase` | 1.0 | `[{uri:"database:<short_uuid>?dbType=hdd&dbSerial=N&originalVersion=M"}]` | `{isSameVersion:bool, isSameName:bool, type:""}` |
+
+## ❌ Confirmed NOT implemented on firmware 19404R (despite APK references)
+
+- `system.getSupportedFileType` — Sony app references it; HAP-Z1ES returns `No Such Method`. Probably HAP-S1 only or removed.
+- `avContent.getStorageInformation` — same. Use the older `getStorageList` instead.
+- `GET /turnOn`, `GET /turnOff` — APK references these plain-HTTP endpoints; HAP-Z1ES returns 404 with or without `/sony/` prefix.
+
+## 🟡 Confirmed exists but params still unknown after live test
+
+- `database.downloadByDiff` — endpoint accepted, but returned `{dbType:"", type:"all", location:""}` with empty `location` across all tested variants (`dbSerial=0/1, originalVersion=0/1, no version params`). Likely needs a preflight handshake or a different `dbType` value. **Highest-leverage unblock pending.**
+- `avContent.getRichMetaInfo` — Sony shape from APK is complex; our simple `[{uri}]` returned `[1, "Any"]`. Needs APK re-read for the full param object.
+- `system.setSleepTimer`, `avContent.setBufferTime`, `setRepeatType`, `setShuffleType`, `setAudioVolume`, `setAudioMute`, `setSoundSettings`, `setAudioInput` — shapes known from APK but UNTESTED (deliberately, to avoid side effects on user listening).
+
+## 🎯 The `recfile` generic transport mechanism (NEW)
+
+Many JSON-RPC methods don't return the actual payload in the response. Instead they return `{location: "http://<ip>:60200/sony/avContent/recfile/requestN.data"}`. A plain HTTP GET on this URL returns the binary/text payload as **`application/x-www-form-urlencoded`** data.
+
+Example from `getPlaylistInfo` on playlist id=70 (which we created earlier via `createPlayingListAndQuickPlay`):
+
+```
+GET http://<ip>:60200/sony/avContent/recfile/request4.data
+→ 40 bytes: newVersion=9&types=2&ids=-1&positions=...
+```
+
+The `requestN` counter is monotonic per device session.
+
+**Implication for client code**: any method returning `{type: "all"\|"diff", location: "<URL>"}` is using this pattern. Parse JSON, GET location, parse form-urlencoded payload.
+
+## 📐 On-device DB schema (extracted from APK's `demo_browse.db`)
+
+The Android APK ships a 79 KB SQLite (`assets/demo_browse.db`) with the **complete on-device library DB schema**. Tables:
+
+| Table | Purpose | Notable columns (Sony PROP-codes) |
+|---|---|---|
+| `FT0000` | Root catalog | PROP3601 (id), PROP1086 (import type), PROP7020 (name) |
+| `FT0002` | **Tracks** (37+ columns) | PROP304B (codec), PROP3047 (duration), PROP3048 (sample rate), PROP304C (bitrate), PROP10DE (bit width), PROP7045 (genre id), PROP7052 (artist id), PROP706F (composer id), PROP7070 (lyricist id), PROPB2BB (album id), PROP6844 (release date), PROP087E (rating) |
+| `FT000A` | **Albums** | PROP78D9 (thumbnail BLOB!), PROP7055 (album artist), PROP6844 (release date) |
+| `FT4502` | Genres | PROP7020 (name) + variants (yomi/sort/initial) |
+| `FT5202` | Artists | same pattern |
+| `FT6F02` | Composers | same |
+| `FT7002` | Lyricists | same |
+| `FTF003` | Playlists | PROP106E (track count), PROPAA70 (modify number — matches `newVersion=N` in recfile!) |
+| `FTF004` | Playlist contents (track ↔ list) | composite key (PROP3601, PROP3006, PROP2053) |
+
+Full PROP-code dictionary (~60 codes decoded) in [`research/notes/2026-05-25-database-service-and-db-schema.md`](notes/2026-05-25-database-service-and-db-schema.md).
+
+**Implication**: once `downloadByDiff` returns a real `location`, we can sync the entire HAP library DB into a local SQLite using this exact schema, and build a complete library browser without ever asking the device.
