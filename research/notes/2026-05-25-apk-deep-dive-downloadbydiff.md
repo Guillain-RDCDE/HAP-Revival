@@ -135,7 +135,7 @@ private static final String BY_DIFF_RADIO = "radio";
 
 Note `BY_DIFF_RADIO = "radio"` exists but is never used anywhere in `CommonControl.createMsg…`. Searching, the only callers ever pass `SAME_DATABASE_TYPE_HDD`:
 
-```
+```text
 CommonControl.java:590:   JSONObject get = downLoadByDiff(con, SAME_DATABASE_TYPE_HDD, localDbSerial, localDbNo);
 CommonControl.java:603:   JSONObject obj = downLoadByDiff(con, SAME_DATABASE_TYPE_HDD, "0", 0);
 CommonControl.java:2879:  JSONObject get = downLoadByDiff(context, SAME_DATABASE_TYPE_HDD, localDbSerial, localDbNo);
@@ -224,6 +224,7 @@ URL url = new URL(location);
 1. **Missing `x-hap-device-id` header** — every request the app sends carries this. If HAP-Revival is omitting it, the device may be entering a "blocked" mode that returns valid-shaped-but-empty payloads. The header value is just `"Android:<os>:<app_ver>:<yyyymmddhhmmss>_<mac>"` — there's no signing, no token, no validation other than "non-empty". (`MainActivity.java:432`)
 2. **Bad `uri` shape** — the URI is built by concatenation; if the UUID we strip off has a different prefix (e.g. `urn:` rather than `uuid:`) then `substring(5)` removes wrong characters and `dbType` may parse as malformed. The HAP-Z1ES typically advertises `UDN: uuid:00000000-…`; verify what `getResultObject` of `getSystemInformation` returns and what was learned during discovery.
 3. **`originalVersion=-1` from `TableInfoDao.getModifyNo()`'s default**, never normalized in either the diff or all path (line 13-35 of `TableInfoDao.java`):
+
    ```java
    public static int getModifyNo() {
        int no = -1;
@@ -231,6 +232,7 @@ URL url = new URL(location);
        return no;
    }
    ```
+
    Note the app's `updateLocalDatabase` driver (line 582-586) normalizes empty `dbSerial` to `"0"` but **never** normalizes `localDbNo` from `-1` to `0`. So the very first request the app sends, with no local DB present, is literally `dbSerial=0&originalVersion=-1`. If we're sending `originalVersion=0` we are NOT replicating what the app does. The other call site (line 603) explicitly sends `"0", 0`. **Try `originalVersion=-1` — that's what the 4.3.1 app sends on first contact.**
 
 ### 1.7 The `define` table — what the local DB has at fields 0 and 1
@@ -488,13 +490,13 @@ The Java reads exactly these keys off `result[0]`:
 | Key | Type | Notes |
 |-----|------|-------|
 | `coverArtUrl` | string | URL — used to fetch JPEG separately |
-| `albumTitle` | string |
-| `albumGenre` | string |
-| `albumReleaseYear` | string |
-| `albumArtist` | string |
-| `albumTrackCount` | string |
+| `albumTitle` | string | |
+| `albumGenre` | string | |
+| `albumReleaseYear` | string | |
+| `albumArtist` | string | |
+| `albumTrackCount` | string | |
 | `annotation` | string | one of `acquired` / `acquiring` / `allAcquired` |
-| `acquireErrorCode` | int |
+| `acquireErrorCode` | int | |
 | `trackInfo` | array | each has `number`, `title`, `artist`, `genre`, `releaseYear`, `fileName`, `updateType` |
 
 ---
@@ -620,6 +622,7 @@ jSONObject.put(API_METHOD, METHOD_SET_SOUND_SETTINGS);
 ```
 
 So:
+
 ```json
 {"method": "setSoundSettings", "params": [{"settings":[{"target":"dsdRemastering","value":"on"}]}], "id":1, "version":"1.0"}
 ```
@@ -664,6 +667,7 @@ public static int getTrackShuffleType(Context con) {
 So the 4.3.1 app **only ever sends `target:""` (omitted) or `target:"track"`**. It does **not** send `"audio"` or `"spotify"` despite `SHUFFLE_TARGET_SPOTIFY = "spotify"` being declared as a constant (line 443). The `SHUFFLE_TARGET_*` constants appear unused in this APK. The device evidently accepts other strings (your `"audio"` and `"spotify"` empirical results), but the app doesn't exercise them.
 
 Set-side shuffle values (line 2076):
+
 ```java
 case 0: type = "off"; break;
 case 1: type = "track"; break;
@@ -682,6 +686,7 @@ public static final String TUNEIN = "tunein";
 ```
 
 Spotify is treated as just-another-`netService`. URI shape: `netService:audio?serviceName=spotify_connect&id=<id>` (or with `&type=streams` per line 2738). The only branching:
+
 - `setFavorite` uses `editPresetInfo` instead of `editTrackInfo` (line 2246-2248).
 - `createMsgForResetPlaylist` resets Spotify connect specifically using `resetPresetInfo` against URI `netService:audio?serviceName=spotify_connect` (line 2274). This is the "log out / clear" function for Spotify.
 - `PlaybackActivity.java:591` allows the `"download"` playbackType for Spotify specifically.

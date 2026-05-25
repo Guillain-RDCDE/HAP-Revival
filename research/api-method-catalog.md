@@ -243,7 +243,7 @@ Many JSON-RPC methods don't return the actual payload in the response. Instead t
 
 Example from `getPlaylistInfo` on playlist id=70 (which we created earlier via `createPlayingListAndQuickPlay`):
 
-```
+```text
 GET http://<ip>:60200/sony/avContent/recfile/request4.data
 → 40 bytes: newVersion=9&types=2&ids=-1&positions=...
 ```

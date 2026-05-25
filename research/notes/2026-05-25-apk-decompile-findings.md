@@ -83,7 +83,7 @@ The fuzzer should be re-run against **`/avContent`** etc. instead of (only) `/so
 
 Required request headers on every call (per `CommonHTTP.execHttpRequest`):
 
-```
+```http
 Accept-Encoding: *
 Content-Type: application/json
 x-hap-device-id: <UUID per-installation>
@@ -429,6 +429,7 @@ Instead, the app uses **four background polling threads** (`jp/co/sony/lfx/anap/
 | `thGetDBStatus` | library sync state | `POST /database` | `checkSameDatabase` v1.0 | every 5 s |
 
 Each thread:
+
 1. Builds its query JSON once at startup.
 2. Loops: sleep 5 s → POST → diff result against last-seen value → if changed, fire local `notifyChange*` listener to update UI.
 

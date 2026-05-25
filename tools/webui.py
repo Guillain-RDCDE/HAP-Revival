@@ -47,26 +47,43 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hap_client import HAP, HAPError  # noqa: E402
 
 
+_TEMPLATE_OPEN = "# >>> HTML_PAGE TEMPLATE BEGIN >>>"
+_TEMPLATE_CLOSE = "# <<< HTML_PAGE TEMPLATE END <<<"
+
+
 def _live_html_template() -> str | None:
     """Re-read the HTML_PAGE constant out of our own source file on each
     request. Lets contributors iterate on the template/CSS without having
-    to bounce the server. Returns None if anything goes wrong; caller
-    falls back to the module-level constant.
+    to bounce the server.
+
+    Looks for the explicit `_TEMPLATE_OPEN` / `_TEMPLATE_CLOSE` sentinel
+    comments around the assignment — using the assignment text itself as a
+    search anchor would falsely match the literal string written *here*
+    (this very `find()` call). Returns None on any failure; the caller
+    then falls back to the module-level constant.
     """
     try:
         src = Path(__file__).resolve().read_text(encoding="utf-8")
-        start = src.find('HTML_PAGE = """')
-        if start < 0:
+        # Find the LAST occurrence of the open sentinel so we never match
+        # an in-source reference to it (e.g. this docstring).
+        open_idx = src.rfind(_TEMPLATE_OPEN)
+        close_idx = src.rfind(_TEMPLATE_CLOSE)
+        if open_idx < 0 or close_idx < 0 or close_idx <= open_idx:
             return None
-        start += len('HTML_PAGE = """')
-        end = src.find('"""', start)
-        if end < 0:
+        block = src[open_idx:close_idx]
+        # Now extract the """...""" body inside that block.
+        q1 = block.find('"""')
+        if q1 < 0:
             return None
-        return src[start:end]
+        q2 = block.find('"""', q1 + 3)
+        if q2 < 0:
+            return None
+        return block[q1 + 3 : q2]
     except OSError:
         return None
 
 
+# >>> HTML_PAGE TEMPLATE BEGIN >>>
 HTML_PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -332,6 +349,7 @@ setInterval(refresh, 3000);
 </body>
 </html>
 """
+# <<< HTML_PAGE TEMPLATE END <<<
 
 
 class HAPHandler(BaseHTTPRequestHandler):
