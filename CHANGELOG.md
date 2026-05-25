@@ -55,7 +55,7 @@ Building on the first web UI commit (b7e3eb4), a focused polish round driven by 
 
 ### Research (2026-05-25, post-APK-decompile)
 
-- **Decompiled `com.sony.HAP.HDDAudioRemote` v4.3.1** (12.88 MB APK from APKCombo). First public decompile of this client. Full findings: `research/notes/2026-05-25-apk-decompile-findings.md` (370 lines). Toolchain: OpenJDK 21 (winget) + jadx 1.5.5.
+- **Decompiled `com.sony.HAP.HDDAudioRemote` v4.3.1** (12.88 MB APK from APKCombo). First public decompile of this client. Full findings: `research/notes/2026-05-25-apk-decompile-findings.md` plus a deep-dive at `research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md` (~1100 lines combined). Toolchain: OpenJDK 21 (winget) + jadx 1.5.5.
 - **Live-validated 3 new methods** with Sony shapes:
   - `system.setPowerStatus v1.1` `[{status:"play"}]` ✅ resumes playback (wake + play, 4th status value)
   - `avContent.setPlayContent v1.1` `[{positionSec:N}]` ✅ seek-within-track (NOT a separate `seekStreamingContent`)

@@ -77,7 +77,7 @@ Recipe for the first contributor to attempt:
    binwalk -e HAPZ1ES_19404R.SonyAP -C extracted/
    ```
 
-3. Look for: tar magic, squashfs magic, ext2/3/4 magic, gzip / xz / bzip2 / lzo / lz4 streams, ELF headers, certificate / signature blocks, U-Boot image headers (`unblock` magic `0x27051956`).
+3. Look for: tar magic, squashfs magic, ext2/3/4 magic, gzip / xz / bzip2 / lzo / lz4 streams, ELF headers, certificate / signature blocks, U-Boot legacy image headers (`uImage` magic `0x27051956`).
 4. Diff the older + newer firmware byte-for-byte at offsets that look like metadata to identify version markers and any update mechanism.
 5. **Do not commit the raw blob or its extracted contents.** Document findings in a markdown note under `research/notes/firmware-format-analysis.md`. Reference the file size and SHA-256 of what you analyzed for reproducibility.
 

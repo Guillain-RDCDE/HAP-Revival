@@ -89,7 +89,7 @@ Services exposed:
 
 - **Per-method versioning is non-uniform.** Each method advertises its own version, and the server returns `error: [14, "Unsupported Version"]` if you call the wrong one. There is no `1.0` for everything. See [`research/api-method-catalog.md`](../research/api-method-catalog.md) for the working version of each known method.
 - **HTTP `Expect: 100-continue` triggers `417 Expectation Failed`.** Most Python and PowerShell clients send this header by default; you must disable it. In Python with `requests`: `session = requests.Session(); session.headers.update({'Expect': ''})`.
-- **Introspection is neutered.** `getMethodTypes` returns `{"results": []}` at every version on every service, and `getSupportedApiInfo` returns `[12, "No Such Method"]`. The full method dictionary must be discovered by APK decompile or fuzzing against the BRAVIA/python-songpal method names.
+- **Introspection is neutered.** `getMethodTypes` returns `{"results": []}` at every version on every service, and `getSupportedApiInfo` returns `[12, "No Such Method"]`. The full method dictionary has been recovered via APK decompile (see [`research/notes/2026-05-25-apk-decompile-findings.md`](../research/notes/2026-05-25-apk-decompile-findings.md) and [`research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md`](../research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md)) plus live fuzzing.
 - **Response bytes are UTF-8 JSON.** Some libraries return them as `byte[]` — decode with UTF-8 before parsing.
 
 ### Sample working call
@@ -156,9 +156,20 @@ Notice the typo `playinglist` (instead of `playlist`) — preserved here verbati
 
 `http://<ip>:60200/sony/avContent/storage/cover_art/<8-hex-id>` returns the album art as JPEG (probably). The 8-hex ID is opaque — it does not match the album ID in `audio:album?id=NNN` directly.
 
-## WebSocket notifications
+## Real-time updates — polling, not WebSocket
 
-Sony's [official example code](https://github.com/sonydevworld/audio_control_api_examples) demonstrates `switchNotifications` for real-time updates: subscribe to `notifyPlayingContentInfo`, `notifyVolumeInformation`, `notifyPowerStatus`, `notifySettingsUpdate`, `notifySWUpdateInfo`. We **have not yet verified** which of these are reachable on the HAP (the WebSocket upgrade probe returned 405 on `/sony/avContent` — likely needs a different endpoint or upgrade flow).
+**The HAP exposes no push-notification mechanism.** Confirmed via APK decompile (2026-05-25): Sony's own Android client uses **four background polling threads at 5 s cadence** rather than subscribing to events. There is no `switchNotifications` call anywhere in the client. No `ws://` URLs. No WebSocket upgrade handshake. The phrase "WebSocket" appears in zero decompiled source files. Our earlier WebSocket upgrade probe on port 60200 returned 405 because the device doesn't speak WebSocket on that port at all.
+
+Sony's polling endpoints (replicate this model in any third-party client):
+
+| Thread | Endpoint | Method | Cadence |
+|---|---|---|---|
+| Volume + mute | `POST /sony/audio` | `getVolumeInformation` v1.1 | 5 s |
+| Now-playing | `POST /sony/avContent` | `getPlayingContentInfo` v1.2 | 5 s |
+| Power | `POST /sony/system` | `getPowerStatus` v1.1 | 5 s |
+| Library sync state | `POST /sony/database` | `checkSameDatabase` v1.0 | 5 s |
+
+Sony's "official example code" repo (`sonydevworld/audio_control_api_examples`) **does** demonstrate `switchNotifications` over WebSocket, but for *cousin* devices (BRAVIA TVs, STR-DN receivers, SRS speakers). The HAP family is a different generation and never picked up that capability.
 
 ## Methods we've confirmed working
 

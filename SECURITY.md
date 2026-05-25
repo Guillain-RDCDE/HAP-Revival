@@ -10,8 +10,7 @@ If you find a security issue in HAP-Revival code (e.g. a tool that leaks credent
 
 Instead, contact the maintainer directly:
 
-- **GitHub**: open a [private security advisory](https://github.com/Guillain-RDCDE/HAP-Revival/security/advisories/new).
-- **Email**: TBD (will be added when the project is public).
+- **GitHub**: open a [private security advisory](https://github.com/Guillain-RDCDE/HAP-Revival/security/advisories/new) — the maintainer is notified privately and the report stays off the public issue tracker until coordinated disclosure.
 
 Include:
 

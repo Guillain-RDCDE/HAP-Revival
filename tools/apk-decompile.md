@@ -2,14 +2,14 @@
 
 The official `com.sony.HAP.HDDAudioRemote` Android app contains the **complete method dictionary** the HAP family understands — every name, every version, every JSON parameter shape Sony has wired through their own iOS/Android client.
 
-**Nobody has ever publicly decompiled it.** Doing so is the highest-leverage unblocking work in the whole HAP-Revival project. Estimated effort: one evening.
+**First publicly decompiled by HAP-Revival on 2026-05-25** (commits 899b999 + 8ebca38, two analysis notes in `research/notes/`). This recipe documents how to repeat or extend the work — e.g. for a future Sony app update, a different APK version, or to sanity-check our findings on your own machine. Estimated effort for a first pass: one evening. A second pass digging into a single tricky flow (we did one for `downloadByDiff`) can easily take another evening.
 
 ## What you'll need
 
 - A computer with **8 GB+ RAM** (jadx is JVM-heavy).
-- **Java JDK 11 or newer**.
-- **apktool 2.9.0+** — <https://apktool.org/>
+- **Java JDK 11 or newer** (we used Microsoft OpenJDK 21 via `winget install Microsoft.OpenJDK.21`).
 - **jadx 1.5.0+** — <https://github.com/skylot/jadx> (the GUI build is easiest)
+- **apktool 2.9.0+** is **optional** — <https://apktool.org/>. Per our 2026-05-25 run, jadx 1.5.5 already extracts the manifest *and* the `assets/` directory cleanly. We never actually needed apktool. Keep it as a fallback if jadx ever fails on a future APK build.
 - The APK itself.
 
 ## Step 1 — Get the APK
@@ -72,11 +72,15 @@ Grep for:
 
 ```bash
 grep -r 'getPlayingContentInfo' HDDAudioRemote-jadx/
+grep -r 'createPlayingListAndQuickPlay' HDDAudioRemote-jadx/
+grep -r 'pausePlayingContent' HDDAudioRemote-jadx/
 grep -r '60200' HDDAudioRemote-jadx/
-grep -r 'switchNotifications' HDDAudioRemote-jadx/
 grep -r '/sony/' HDDAudioRemote-jadx/
 grep -r 'audio:track' HDDAudioRemote-jadx/
+grep -r 'x-hap-device-id' HDDAudioRemote-jadx/
 ```
+
+(Note: `switchNotifications` returns zero hits on v4.3.1 — Sony's HAP client polls rather than subscribing to events. Don't bother grepping for WebSocket / `ws://` either.)
 
 This will surface every API call site. From each one you can read backward to find:
 

@@ -62,7 +62,7 @@ This is the part Sony invested in. The Linux SoC does not touch the audio sample
 
 - **Internal**: 1 TB 2.5" SATA HDD (factory). Holds the rootfs + the music library + the Tokyo Cabinet metadata DB.
 - **Maximum supported internal**: 2 TB (MBR limit on Sony's firmware).
-- **External**: USB drives up to 4 TB (the user's machine plays music from `storage:usb1` daily — confirmed working).
+- **External**: USB drives up to 4 TB — our reference HAP-Z1ES on firmware 19404R plays from `storage:usb1` daily, confirmed working.
 - **U-Boot and kernel** live on an **SoC-side SPI flash** chip, **not on the HDD**. This is why HDD swaps don't brick the bootloader, and why factory-reset always works regardless of disk state. See [`06-hdd-swap.md`](06-hdd-swap.md).
 
 ## Front panel

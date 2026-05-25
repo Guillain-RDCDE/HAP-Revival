@@ -119,25 +119,22 @@ Each method row shows:
 | `getMethodTypes` | 1.0 | ✅ but empty | `["<version>"]` | Returns `{results: []}` — same |
 | `getServiceProtocols` | **1.0** | 🟡 | unknown | Exists; `[5, "illegal Request"]` with empty params. Should return supported transports (xhrpost, websocket). |
 | `getSupportedApiInfo` | n/a | ❌ | — | `No Such Method` — confirms [python-songpal#29](https://github.com/rytilahti/python-songpal/issues/29) finding. HAP family deliberately does not expose this. |
-| `switchNotifications` | n/a | ❌ | — | `No Such Method` on this service. Real-time notifications may be exposed on a per-service endpoint instead (e.g. `/sony/avContent` with method `switchNotifications`). To investigate. |
+| `switchNotifications` | n/a | ❌ | — | **`No Such Method` — confirmed absent from the HAP entirely** by APK decompile (2026-05-25). Sony's own Android client never calls `switchNotifications` anywhere, and there is no `ws://` URL anywhere in the binary. The HAP is a polling-only device. |
 
-**Note**: `switchNotifications` not being on `/sony/guide` is a clue that the HAP notification flow differs from cousin Sony devices. Try POSTing `switchNotifications` to `/sony/avContent` and `/sony/audio` directly — that's the python-songpal pattern.
+## Real-time updates — polling, not WebSocket
 
-## Notification methods (WebSocket — not yet verified)
+**The HAP exposes no push-notification mechanism.** Confirmed via APK decompile (2026-05-25): Sony's own Android client uses **four background polling threads at 5 s cadence** rather than subscribing to events. There is no `switchNotifications` call anywhere in the client. No `ws://` URLs. No WebSocket upgrade handshake. Our earlier WebSocket upgrade probe on port 60200 returned 405 because the device doesn't speak WebSocket on that port at all.
 
-Sony's [official examples](https://github.com/sonydevworld/audio_control_api_examples) document these notification subscriptions for real-time updates. We have NOT yet verified which work on the HAP. Pending:
+Sony's polling endpoints (replicate this model in any third-party client):
 
-- `notifyPowerStatus`
-- `notifyVolumeInformation`
-- `notifyPlayingContentInfo`
-- `notifySettingsUpdate`
-- `notifySWUpdateInfo`
-- `notifyExternalTerminalStatus`
-- `notifyAvailablePlaybackFunction`
+| Thread | Endpoint | Method | Cadence |
+|---|---|---|---|
+| Volume + mute | `POST /sony/audio` | `getVolumeInformation` v1.1 | 5 s |
+| Now-playing | `POST /sony/avContent` | `getPlayingContentInfo` v1.2 | 5 s |
+| Power | `POST /sony/system` | `getPowerStatus` v1.1 | 5 s |
+| Library sync state | `POST /sony/database` | `checkSameDatabase` v1.0 | 5 s |
 
-Subscription mechanism (on cousin devices): `POST /sony/<service>` with `method: "switchNotifications"`, then upgrade the connection to WebSocket via `ws://<ip>:<port>/sony/<service>`.
-
-WebSocket upgrade probe on port 60200 returned **405 Method Not Allowed** on `/sony/avContent` — likely needs a specific upgrade flow or different endpoint. To investigate.
+Sony's "official example code" repo (`sonydevworld/audio_control_api_examples`) **does** demonstrate `switchNotifications` over WebSocket — but for *cousin* devices (BRAVIA TVs, STR-DN receivers, SRS speakers). The HAP family is a different generation and never picked up that capability. The `notify*` method names listed in those examples (`notifyPowerStatus`, `notifyVolumeInformation`, etc.) do not exist on the HAP.
 
 ## Method names to try (from cousin devices)
 
@@ -237,7 +234,7 @@ Master record of methods validated live against the HAP-Z1ES on firmware 19404R,
 - `avContent.getRichMetaInfo` — Sony shape from APK is complex; our simple `[{uri}]` returned `[1, "Any"]`. Needs APK re-read for the full param object.
 - `system.setSleepTimer`, `avContent.setBufferTime`, `setRepeatType`, `setShuffleType`, `setAudioVolume`, `setAudioMute`, `setSoundSettings`, `setAudioInput` — shapes known from APK but UNTESTED (deliberately, to avoid side effects on user listening).
 
-## 🎯 The `recfile` generic transport mechanism (NEW)
+## 🎯 The `recfile` generic transport mechanism
 
 Many JSON-RPC methods don't return the actual payload in the response. Instead they return `{location: "http://<ip>:60200/sony/avContent/recfile/requestN.data"}`. A plain HTTP GET on this URL returns the binary/text payload as **`application/x-www-form-urlencoded`** data.
 

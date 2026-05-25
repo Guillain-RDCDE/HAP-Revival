@@ -69,8 +69,8 @@ Total count: **7**. That's the entire world's HAP-specific output across a decad
 - **Last updated**: 2022-12-12
 - **Minimum Android**: 7.0
 - **What**: Sony's official Android remote app for the HAP-Z1ES/HAP-S1. Still in the Play Store. The APK contains every API method name, version, and JSON shape the device understands.
-- **Status**: **NEVER PUBLICLY DECOMPILED.** No GitHub repo with apktool/jadx output, no strings dump, no class list, no AndroidManifest extract.
-- **Why it matters**: the **single highest-leverage unexplored artefact** in the entire corpus. Decompiling it would yield the complete method dictionary in one evening, replacing weeks of fuzzing.
+- **Status (until 2026-05-25)**: never publicly decompiled. **Now decompiled by HAP-Revival** — first public decompile, with two extensive analysis notes: [`research/notes/2026-05-25-apk-decompile-findings.md`](../research/notes/2026-05-25-apk-decompile-findings.md) (first pass — endpoints, headers, polling model, method index) and [`research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md`](../research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md) (deep dive — `downloadByDiff` flow, `getRichMetaInfo`, `editContentInfo` dispatch).
+- **Why it mattered**: this was the **single highest-leverage unexplored artefact** in the entire corpus. Decompilation yielded the complete method dictionary, Sony-authoritative parameter shapes for every 🟡 entry in our catalog, and the negative finding that there is no WebSocket push (Sony polls at 5 s). It directly unblocked everything between commits 899b999 and 8ebca38.
 
 ## Tier 2 — Adjacent Sony reverse-engineering (transposable to HAP)
 
@@ -164,7 +164,7 @@ The world's open-source HAP-Z1ES/HAP-S1 corpus, in totality, in 2026:
 4. One stuck GitHub issue noting `getSupportedApiInfo` is missing (python-songpal#29).
 5. Sony's mandatory GPL source bundle (kernel + userland).
 6. One closed-source Crestron module from 2016.
-7. Decompilable (but never decompiled) Sony Android APK.
+7. Sony Android APK — first publicly decompiled by HAP-Revival on 2026-05-25.
 8. ~12 Japanese audiophile blog posts on HDD swap and op-amp mods.
 9. ~6 forum threads with technical content.
 10. The service manuals (excellent quality, freely available).
