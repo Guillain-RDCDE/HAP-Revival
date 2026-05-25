@@ -57,7 +57,7 @@ These are not in the GPL bundle (because they're either proprietary or trade sec
 
 ## Audio path data flow (best current understanding)
 
-```
+```text
    Music file (FLAC/DSF/WAV/etc.)
             │
             │ SMB1 PUT to HAP_Internal share

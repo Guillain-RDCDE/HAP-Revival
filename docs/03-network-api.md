@@ -20,7 +20,7 @@ How the HAP-Z1ES talks to the world over the LAN.
 
 A standard `M-SEARCH * HTTP/1.1` to `239.255.255.250:1900` returns five replies, one for each advertised service:
 
-```
+```http
 HTTP/1.1 200 OK
 CACHE-CONTROL: max-age=1800
 LOCATION: http://192.168.1.28:60100/hap.xml
