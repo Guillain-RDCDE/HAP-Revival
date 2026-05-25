@@ -65,3 +65,7 @@ site/
 
 # Logs
 *.log
+
+# markdownlint leaves *.md.tmp.<pid>.<hash> files on disk after fixing — never commit those
+*.md.tmp.*
+*.tmp.*
