@@ -2,12 +2,32 @@
 
 The current state of mapping for the Sony HAP-Z1ES / HAP-S1 ScalarWebAPI on port 60200. Updated as new methods are discovered.
 
-**Last update**: 2026-05-25 (post-fuzz)
+**Last update**: 2026-05-25 (post-APK-decompile + live validation)
 **Firmware tested against**: 19404R
 **Device tested**: HAP-Z1ES (the canonical reference unit)
-**Methods that exist on the device**: **24** (12 working with empty params, 12 known to exist but require parameters)
-**Methods confirmed NOT implemented**: 29 (return `No Such Method`)
-**Source for this version of the catalog**: `tools/api-fuzzer.py` run on 2026-05-25T18:44Z, output at `research/captures/fuzz-192_168_1_28-20260525T184419Z.json`
+**Methods confirmed by live test**: see ✅ rows below
+**Methods extracted from APK (Sony Android HDDAudioRemote 4.3.1)**: see [APK findings note](notes/2026-05-25-apk-decompile-findings.md)
+**Endpoint base URL**: `http://<ip>:60200/sony/<service>` — **the `/sony/` prefix IS required on firmware 19404R**. The APK decompile report initially suggested otherwise; that interpretation was wrong (confirmed by live test on 2026-05-25). `POST /avContent` (no prefix) returns 404.
+**Headers**: `Content-Type: application/json` is required. `x-hap-device-id: <uuid>` is sent by Sony's Android client on every call but appears to be **optional** — successful calls observed without it.
+
+## Critical correction to the APK agent's report
+
+The APK decompile agent claimed:
+- `/avContent` is the endpoint, not `/sony/avContent` → **WRONG** (live: `/avContent` → 404)
+- `x-hap-device-id` is mandatory → **WRONG** (live: optional)
+- Plain HTTP `/turnOn`, `/turnOff`, `/turnOn?type=replay` exist → **WRONG** on firmware 19404R (404)
+
+Likely explanation: the agent read `httpHost = "http://<ip>:60200/"` and assumed the per-service suffix constants were `"avContent"` etc.; it did not verify the actual `API_SERVICES_<x>` constant values, which presumably hold `"sony/avContent"` or similar. The lesson: **never trust APK-derived URLs without a 200-response test**.
+
+## New service: `database` (live-confirmed 2026-05-25)
+
+`POST /sony/database` is reachable. Responds to `checkSameDatabase` with `[3, "illegal Argument"]` when called with empty params — confirms the method+service exist. Full shape per APK:
+
+```json
+{"method":"checkSameDatabase","params":[{"uri":"database:<short_uuid>?dbType=hdd&dbSerial=<n>&originalVersion=<n>"}],"id":1,"version":"1.0"}
+```
+
+The `<short_uuid>` is the device UDN minus the `uuid:` prefix. **This service is the path to a full library DB export** via the `downloadByDiff` method. High-value target for future investigation.
 
 ## How to read this catalog
 
@@ -26,7 +46,7 @@ Each method row shows:
 |---|---|---|---|---|
 | `getSystemInformation` | **1.2** | ✅ | `[]` | Returns model, MAC, firmware version, generation, cid, language, name |
 | `getPowerStatus` | **1.1** | ✅ | `[]` | Returns `{status: "active" \| "standby", standbyDetail: ""}` |
-| `setPowerStatus` | **1.1** | 🟡 | `[{status: "active" \| "off"}]` | Method exists at v1.1 (fuzzer: `[3, "illegal Argument"]` with empty params). [Frazei gist](https://gist.github.com/frazei/09d69242a8beed0cf0a1c193a45a650a) reports v1.0 with `{status:"active"\|"off"}`. **Test carefully — this flips device power state.** |
+| `setPowerStatus` | **1.1** | ✅ | `[{status: "active"\|"off"\|"play"\|"standby"}]` | **LIVE-CONFIRMED 2026-05-25** with `{status:"play"}` (wakes + resumes playback). Sony's 4 values: `"active"` (on, no playback), `"off"` (power off, with `standbyDetail:""`), `"play"` (on + start/resume playback), `"standby"` (with `standbyDetail:"databaseReady"` for DB-readable standby). |
 | `getInterfaceInformation` | 1.0 | ✅ | `[]` | Returns `{productName: "HAP", modelName: "HAP-Z1ES", productCategory: "audioServer", interfaceVersion: "1.0.0"}` |
 | `getNetworkSettings` | n/a | ❌ | — | `No Such Method` at all versions |
 | `getCurrentTime` | n/a | ❌ | — | `No Such Method` at all versions |
@@ -45,8 +65,8 @@ Each method row shows:
 | Method | Working version | Status | Params | Notes |
 |---|---|---|---|---|
 | `getVolumeInformation` | **1.1** | ✅ | `[]` | On HAP-Z1ES returns `minVolume: -1, target: "", mute: "toggle", volume: -1, step: 1, maxVolume: -1` — HAP-Z1ES has no internal amp so volume values are -1 (not applicable). HAP-S1 should return real values. |
-| `setAudioVolume` | **1.0** | 🟡 | `[{volume: "<n>", target: ""}]` | Method exists (fuzzer: `[3, "illegal Argument"]` with empty params). Confirms [frazei gist](https://gist.github.com/frazei/09d69242a8beed0cf0a1c193a45a650a). Untested with real value on HAP-Z1ES (no internal amp) — try on HAP-S1. |
-| `setAudioMute` | **1.1** | 🟡 | `[{mute: "on" \| "off" \| "toggle"}]` | Method exists at v1.1 (illegal Argument with empty params). |
+| `setAudioVolume` | **1.0** | 🟡 | `[{volume: "<n>"}]` per APK | Confirmed shape from APK. On HAP-Z1ES volume is meaningless (no amp); test on HAP-S1. |
+| `setAudioMute` | **1.1** | 🟡 | `[{mute: "on"\|"off"\|"toggle"}]` per APK | APK shows Sony **forces `"toggle"` on HAP-Z1ES** (modelType==2) regardless of requested state — implementation quirk. |
 | `getSoundSettings` | **1.1** | ✅ | `[{target: ""}]` | Returns the proprietary audio toggles: `dsee` (auto/off), `dsdRemastering` (on/off), `gaplessPlayback` (auto/off), `volumeNormalization` (auto/off), `oversampling` (precision/normal) |
 | `setSoundSettings` | **1.1** | ✅ | `[{settings: [{target: "<target>", value: "<value>"}]}]` | **Confirmed working** by fuzzer (returned `{result: []}` with empty params — server accepted noop). Targets: `dsee`, `dsdRemastering`, `gaplessPlayback`, `volumeNormalization`, `oversampling`. Use the candidate values returned by `getSoundSettings`. |
 | `getVersions` | 1.0 | ✅ | `[]` | Empty (neutered) |
@@ -65,11 +85,12 @@ Each method row shows:
 | `stopPlayingContent` | **1.0** | 🟡 | likely `[{output:""}]` | Exists; `[1, "Any"]` with empty params. |
 | `setPlayNextContent` | **1.0** | 🟡 | likely `[{output:""}]` | Exists; `[1, "Any"]` with empty params. |
 | `setPlayPreviousContent` | **1.0** | 🟡 | likely `[{output:""}]` | Exists; `[1, "Any"]` with empty params. |
-| `setPlayContent` | **1.1** | 🟡 | shape unknown | Method exists at v1.1. Tested shapes that all returned `[1, "Any"]`: `{uri}`, `{uri,output:""}`, `{uri,position:0}`, `{uri,playSpeed:""}`, `{uri,resume:"on"}`. Either the URI format is wrong, or the device refuses to "re-play" what is already playing. Needs APK decompile to know the real shape. |
-| `scanPlayingContent` | **1.0** | 🟡 | unknown | Exists; `[3, "illegal Argument"]`. Likely scrub/seek within current track. |
+| `setPlayContent` | **1.1** | ✅ | 3 shapes — see notes | **LIVE-CONFIRMED 2026-05-25**: `[{positionSec: N}]` (seek within current track, the `+0.01` jitter from Sony's code is to force re-trigger). Two other shapes from APK (UNTESTED live): `[{listIndex: N}]` (start track at queue position N) and `[{uri: "netService:audio?serviceName=X&id=Y", playlistName: "..."}]` (radio/TuneIn). No `{uri}` for HDD content — use `createPlayingListAndQuickPlay` instead. |
+| `createPlayingListAndQuickPlay` | **1.0** | ✅ | `[{uri: "audio:track?id=N", listIndex: 0, listCount: 1, playbackControlMode: "folder"}]` | **LIVE-CONFIRMED 2026-05-25**. THE primary HDD playback primitive. Builds a play queue and starts playback. Returns `{playbackControlMode, uri: "audio:playinglist?id=<new-id>"}` — note the new playinglist id (in our test: 70, previous was 69). |
+| `scanPlayingContent` | **1.0** | 🟡 | `[{direction: "fwd"\|"bwd"}]` per APK | **Press-and-hold fast-forward / rewind** (NOT scrub-to-position — that's `setPlayContent + positionSec`). The device accelerates playback rate while called. Untested live with this shape. |
 | `getContentInfo` | **1.1** | ✅ | `[{uri: "audio:track?id=N"}]` | **CONFIRMED 2026-05-25**: returns `{title, coverArtUrl, backgroundColorR/G/B/A}` (a *subset* of `getPlayingContentInfo` — no artist/album/codec/duration). Album URIs `audio:album?id=N` return `[1, "Any"]` — only track URIs work for this method. The reduced metadata set suggests there's a separate "full info" call we haven't found yet. |
-| `getContentList` | **1.3** | 🟡 | shape unknown | Method exists at v1.3. Tested 8 shape variants on 2026-05-25, all returned `[3, "illegal Argument"]`: `{uri,stIdx,cnt}`, `{source,stIdx,cnt}`, `{uri,stIdx,cnt,type,target,view}`, `{uri,stIdx,cnt,sort,view:"Default"}`, `{uri:""}`, `{path,stIdx,cnt}`, `{uri:"audio",stIdx,cnt}`, `{uri,index,count}`. The required key set is not derivable from BRAVIA/python-songpal shapes — Sony built a different schema for HAP. APK decompile is the way. |
-| `deleteContent` | **1.1** | 🟡 | `[{uri: "<file uri>"}]` | Exists; `[5, "illegal Request"]` with empty params. **DANGEROUS** — deletes a file from the library. Do not test without backup. |
+| `getContentList` | **1.3** | 🟡 | `[{uri: "netService:audio?serviceName=X[&path=Y]", scope: "directory"\|"favorite"\|"search"\|"connected"\|"unconfirmed"\|"unconnected", stIdx: 0, cnt: 100, finish: false, search?: {word: "..."}}]` | **APK reveals**: this method is for **internet radio / netService browsing only** (TuneIn/vTuner). For HDD content (`audio:track`, `audio:album`), Sony's app **does not use this method** — it browses via the local SQLite cache it sync'd via the `database` service's `downloadByDiff`. That's why all our `audio:album` shapes failed: wrong category of URI entirely. Untested live with the netService shape. |
+| `deleteContent` | **1.1** | 🟡 | `[{uri: ["audio:track?id=N", "audio:track?id=M", ...]}]` per APK | **CORRECTED**: `uri` is a JSON ARRAY of URI strings (bulk delete), not a scalar. Use `audio:track?id=N` or `audio:folder?id=N` (folder for bulk dir delete). **DANGEROUS** — destroys library content. Test with disposable test track + backup. |
 | `getSourceList` | 1.0 | ✅ but empty | `[{scheme: "<scheme>"}]` | Returns empty result with empty params. Needs the right scheme. Try `"storage"`, `"audio"`, `"radio"`, `"hap"`. |
 | `getSchemeList` | 1.0 | ✅ but empty | `[]` | Returns empty result. |
 | `getCurrentExternalTerminalsStatus` | 1.0 | ✅ | `[]` | Returns empty array. |

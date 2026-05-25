@@ -1,0 +1,24 @@
+{
+  "tool": "HAP-Revival/tools/call.py",
+  "target": "192.168.1.28",
+  "port": 60200,
+  "request": {
+    "service": "database",
+    "method": "checkSameDatabase",
+    "version": "1.0",
+    "params": [
+      {}
+    ]
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "id": 1,
+      "error": [
+        3,
+        "illegal Argument"
+      ]
+    }
+  },
+  "timestamp": "2026-05-25T19:31:12.714299+00:00"
+}
