@@ -99,6 +99,18 @@ HTML_PAGE = """<!doctype html>
   --card-bg: rgba(20,20,24,0.55); --hover: rgba(255,255,255,0.12);
   --cover-url: __INITIAL_COVER_URL__;
   --custom-bg: #1a1f2c;
+  --text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+/* When the background is bright, swap to dark text + light glass cards so the
+   UI stays legible. The `bg-is-light` class is set/cleared in JS based on the
+   computed luminance of the dominant background color (cover accent / custom
+   color / etc.). */
+html.bg-is-light {
+  --fg: #111;
+  --muted: #444;
+  --card-bg: rgba(255,255,255,0.45);
+  --hover: rgba(0,0,0,0.08);
+  --text-shadow: 0 1px 3px rgba(255,255,255,0.4);
 }
 html { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; min-height: 100vh; overflow-x: hidden; }
 /* body MUST stay transparent — otherwise it covers body::before (the ambient bg
@@ -170,8 +182,9 @@ html[data-theme="custom"] body::before {
 }
 html[data-theme="custom"] body::after { background: none !important; }
 header { text-align: center; margin-bottom: 24px; }
-header h1 { font-size: 18px; font-weight: 500; letter-spacing: 0.04em; opacity: 0.7; }
-header .device { font-size: 12px; color: var(--muted); margin-top: 4px; }
+header h1 { font-size: 18px; font-weight: 500; letter-spacing: 0.04em; opacity: 0.85; text-shadow: var(--text-shadow); }
+header .device { font-size: 12px; color: var(--muted); margin-top: 4px; text-shadow: var(--text-shadow); }
+footer { text-shadow: var(--text-shadow); }
 main { width: 100%; max-width: 520px; }
 .card {
   background: var(--card-bg);
@@ -374,6 +387,35 @@ const THEME_KEY = "hap-revival.theme";
 const CUSTOM_COLOR_KEY = "hap-revival.customColor";
 const VALID_THEMES = ["ambient", "cover-solid", "dark", "custom"];
 
+/* Perceptual luminance (Rec. 601). 0=black, 1=white. Threshold ~0.6 works
+   well for our 80px-blurred backgrounds (the blur itself averages colors
+   so a single accent RGB approximates the visible brightness). */
+function bgLuminance(r, g, b) {
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+function hexToRgb(hex) {
+  hex = hex.replace("#", "");
+  if (hex.length === 3) hex = hex.split("").map(c => c + c).join("");
+  return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
+}
+function applyContrast(rgb) {
+  if (!rgb) return;
+  const isLight = bgLuminance(rgb[0], rgb[1], rgb[2]) > 0.6;
+  document.documentElement.classList.toggle("bg-is-light", isLight);
+}
+function currentBgRgb() {
+  const theme = document.documentElement.getAttribute("data-theme") || "ambient";
+  if (theme === "dark") return [14, 14, 16];
+  if (theme === "custom") {
+    const hex = localStorage.getItem(CUSTOM_COLOR_KEY) || "#1a1f2c";
+    return hexToRgb(hex);
+  }
+  // ambient + cover-solid both use the cover-derived accent
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  const m = accent.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  return m ? [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])] : null;
+}
+
 function setTheme(name) {
   if (!VALID_THEMES.includes(name)) name = "ambient";
   if (name === "ambient") {
@@ -389,6 +431,8 @@ function setTheme(name) {
     const el = document.getElementById("opt-" + t);
     if (el) el.classList.toggle("active", t === name);
   });
+  // Adapt text color to the new background's luminance
+  applyContrast(currentBgRgb());
   // Debug indicator in the panel + console log so it's easy to see what's firing
   const dbg = document.getElementById("theme-debug");
   if (dbg) dbg.textContent = "current: " + name + " · data-theme=" + (document.documentElement.getAttribute("data-theme") || "(none)");
@@ -398,7 +442,9 @@ function setTheme(name) {
 function setCustomColor(hex) {
   document.documentElement.style.setProperty("--custom-bg", hex);
   localStorage.setItem(CUSTOM_COLOR_KEY, hex);
-  // Auto-switch to custom theme when user touches the picker
+  // Auto-switch to custom theme when user touches the picker.
+  // setTheme() recomputes contrast, so picking a bright color also flips
+  // text dark immediately.
   setTheme("custom");
 }
 
@@ -491,6 +537,8 @@ function apply(d) {
     const c = np.background_color_rgba;
     document.documentElement.style.setProperty("--accent", `rgb(${c[0]},${c[1]},${c[2]})`);
     document.documentElement.style.setProperty("--accent-soft", `rgba(${c[0]},${c[1]},${c[2]},0.35)`);
+    // Recompute text contrast: cover changed, so the dominant color did too
+    applyContrast(currentBgRgb());
   }
   // Ambient cover background: hand the cover URL to the CSS variable used by body::before
   if (np.cover_art_url) {
