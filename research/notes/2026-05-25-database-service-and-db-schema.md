@@ -19,6 +19,7 @@ Combined, these unlock the path to a full library browser in any future HAP-Revi
 ```
 
 Returns:
+
 ```json
 {
   "result": [{
@@ -44,6 +45,7 @@ The URI is `database:<short_uuid>?dbType=hdd&dbSerial=<n>&originalVersion=<n>` w
 ```
 
 Returns:
+
 ```json
 {
   "result": [{
@@ -67,7 +69,7 @@ Path forward: capture Sony's Android app on the wire with mitmproxy (or run a se
 
 Discovered by accident: `getPlaylistInfo` returned a location URL pointing to `/sony/avContent/recfile/request4.data`. Fetching that URL with a plain GET returns 40 bytes of **form-urlencoded** data:
 
-```
+```text
 newVersion=9&types=2&ids=-1&positions=...
 ```
 

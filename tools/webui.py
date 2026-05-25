@@ -98,6 +98,7 @@ HTML_PAGE = """<!doctype html>
   --accent-soft: rgba(__ACCENT_R__, __ACCENT_G__, __ACCENT_B__, 0.35);
   --card-bg: rgba(20,20,24,0.55); --hover: rgba(255,255,255,0.12);
   --cover-url: __INITIAL_COVER_URL__;
+  --custom-bg: #1a1f2c;
 }
 html, body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; min-height: 100vh; overflow-x: hidden; }
 body { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; position: relative; }
@@ -117,7 +118,7 @@ body::before {
   filter: blur(60px) saturate(1.8) brightness(1.05);
   opacity: 1.0;
   z-index: -2;
-  transition: opacity 0.6s ease;
+  transition: opacity 0.6s ease, background-color 0.4s ease;
   /* Fallback solid color if no cover yet */
   background-color: var(--accent);
 }
@@ -131,7 +132,39 @@ body::after {
     radial-gradient(ellipse at center, rgba(14,14,16,0) 0%, rgba(14,14,16,0.1) 70%, rgba(14,14,16,0.35) 100%);
   z-index: -1;
   pointer-events: none;
+  transition: background 0.4s ease;
 }
+
+/* ===== Theme overrides (data-theme on <html>) ===== */
+
+/* "cover-solid" — single solid color = the RGB the HAP extracts from the cover.
+   Disables the blurred image, keeps the accent color as the flat background. */
+html[data-theme="cover-solid"] body::before {
+  background-image: none;
+  filter: none;
+  opacity: 1;
+}
+html[data-theme="cover-solid"] body::after {
+  background: none;
+}
+
+/* "dark" — pure dark, no ambient at all. */
+html[data-theme="dark"] body::before {
+  background-image: none;
+  background-color: var(--bg);
+  filter: none;
+  opacity: 1;
+}
+html[data-theme="dark"] body::after { background: none; }
+
+/* "custom" — single solid color picked by the user via the color picker. */
+html[data-theme="custom"] body::before {
+  background-image: none;
+  background-color: var(--custom-bg);
+  filter: none;
+  opacity: 1;
+}
+html[data-theme="custom"] body::after { background: none; }
 header { text-align: center; margin-bottom: 24px; }
 header h1 { font-size: 18px; font-weight: 500; letter-spacing: 0.04em; opacity: 0.7; }
 header .device { font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -185,9 +218,91 @@ main { width: 100%; max-width: 520px; }
 footer { color: var(--muted); font-size: 11px; margin-top: 32px; text-align: center; }
 footer a { color: var(--muted); text-decoration: underline; }
 .error { background: #422; color: #f88; padding: 12px; border-radius: 8px; font-size: 13px; }
+
+/* ===== Settings panel ===== */
+.gear-wrap { position: fixed; top: 16px; right: 16px; z-index: 100; }
+.gear-btn {
+  background: var(--card-bg);
+  color: var(--fg);
+  border: 0;
+  border-radius: 999px;
+  width: 36px; height: 36px;
+  font-size: 18px;
+  cursor: pointer;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: background 0.15s, transform 0.3s;
+  display: flex; align-items: center; justify-content: center;
+}
+.gear-btn:hover { background: var(--hover); }
+.gear-btn.open { transform: rotate(60deg); }
+.settings-panel {
+  position: absolute;
+  top: 44px; right: 0;
+  width: 240px;
+  background: rgba(20,20,24,0.92);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 12px;
+  backdrop-filter: blur(28px) saturate(1.2);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  display: none;
+  font-size: 13px;
+}
+.settings-panel.open { display: block; }
+.settings-panel h3 {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.theme-option {
+  display: flex; align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+  gap: 10px;
+}
+.theme-option:hover { background: var(--hover); }
+.theme-option input[type=radio] { accent-color: var(--accent); cursor: pointer; }
+.theme-option label { cursor: pointer; flex: 1; }
+.theme-option input[type=color] {
+  width: 28px; height: 28px;
+  border: 0; padding: 0;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
 </style>
 </head>
 <body>
+<div class="gear-wrap">
+  <button class="gear-btn" id="gear-btn" onclick="toggleSettings()" title="Settings" aria-label="Settings">⚙</button>
+  <div class="settings-panel" id="settings-panel">
+    <h3>Background</h3>
+    <div class="theme-option">
+      <input type="radio" name="theme" id="t-ambient" value="ambient" onchange="setTheme('ambient')">
+      <label for="t-ambient">Ambient cover</label>
+    </div>
+    <div class="theme-option">
+      <input type="radio" name="theme" id="t-cover-solid" value="cover-solid" onchange="setTheme('cover-solid')">
+      <label for="t-cover-solid">Solid (from cover)</label>
+    </div>
+    <div class="theme-option">
+      <input type="radio" name="theme" id="t-dark" value="dark" onchange="setTheme('dark')">
+      <label for="t-dark">Dark</label>
+    </div>
+    <div class="theme-option">
+      <input type="radio" name="theme" id="t-custom" value="custom" onchange="setTheme('custom')">
+      <label for="t-custom">Custom</label>
+      <input type="color" id="custom-color" value="#1a1f2c" oninput="setCustomColor(this.value)">
+    </div>
+  </div>
+</div>
 <header>
   <h1>HAP-Revival</h1>
   <div class="device" id="device-info">connecting…</div>
@@ -235,6 +350,54 @@ footer a { color: var(--muted); text-decoration: underline; }
 <script>
 let lastState = null;
 let lastDuration = 0;
+
+/* ===== Theme handling ===== */
+const THEME_KEY = "hap-revival.theme";
+const CUSTOM_COLOR_KEY = "hap-revival.customColor";
+const VALID_THEMES = ["ambient", "cover-solid", "dark", "custom"];
+
+function setTheme(name) {
+  if (!VALID_THEMES.includes(name)) name = "ambient";
+  if (name === "ambient") {
+    document.documentElement.removeAttribute("data-theme");
+  } else {
+    document.documentElement.setAttribute("data-theme", name);
+  }
+  localStorage.setItem(THEME_KEY, name);
+  const radio = document.getElementById("t-" + name);
+  if (radio) radio.checked = true;
+}
+
+function setCustomColor(hex) {
+  document.documentElement.style.setProperty("--custom-bg", hex);
+  localStorage.setItem(CUSTOM_COLOR_KEY, hex);
+  // Auto-switch to custom theme when user touches the picker
+  setTheme("custom");
+}
+
+function toggleSettings() {
+  document.getElementById("settings-panel").classList.toggle("open");
+  document.getElementById("gear-btn").classList.toggle("open");
+}
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".gear-wrap")) {
+    document.getElementById("settings-panel").classList.remove("open");
+    document.getElementById("gear-btn").classList.remove("open");
+  }
+});
+
+// Restore saved theme + custom color on page load
+(function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY) || "ambient";
+  const customColor = localStorage.getItem(CUSTOM_COLOR_KEY);
+  if (customColor) {
+    document.documentElement.style.setProperty("--custom-bg", customColor);
+    const picker = document.getElementById("custom-color");
+    if (picker) picker.value = customColor;
+  }
+  setTheme(saved);
+})();
 
 function fmt(secs) {
   if (!secs || secs < 0) return "0:00";
