@@ -59,13 +59,42 @@ The two devices share the same i.MX6 SoC, same firmware images, same network pro
 | Capability | Status | Notes |
 |---|---|---|
 | SSDP discovery of HAP devices on the LAN | ✅ | `tools/discover.py` |
-| Reading "now playing" state via JSON-RPC | ✅ | `avContent.getPlayingContentInfo` v1.2 |
-| Reading system info, volume, sound settings | ✅ | See [api-method-catalog](research/api-method-catalog.md) |
-| Pause / next / previous controls | ✅ | Per [frazei gist (2022)](https://gist.github.com/frazei/09d69242a8beed0cf0a1c193a45a650a) |
-| Browsing the music library via API | ⚠️ | Partial — `getContentList` parameter shape still being mapped |
-| Modern streaming (Tidal, Qobuz, Spotify Hi-Res, Roon) | ❌ | Requires custom userland |
-| Modern iOS / iPad / Android control app | ❌ | Planned once API is fully mapped |
-| Custom OS replacement | ❌ | Long-term goal; requires UART access + firmware unpack first |
+| **Python client library** (typed dataclasses, importable) | ✅ | `tools/hap_client.py` — stdlib only |
+| **Web UI control surface** (browser-based) | ✅ | `tools/webui.py` — see [Try it now](#try-it-now-5-minutes-zero-risk) |
+| Now-playing read (title/artist/codec/position/cover/RGB hint) | ✅ | `avContent.getPlayingContentInfo` v1.2 |
+| System info, volume, sound settings, sleep timer, buffer time | ✅ | See [api-method-catalog](research/api-method-catalog.md) |
+| Play track by ID / pause / resume / seek / next / previous | ✅ | `createPlayingListAndQuickPlay`, `setPlayContent`, etc. |
+| Power control: wake / wake-and-play / standby | ✅ | `setPowerStatus` with `active` / `play` / `off` |
+| Spotify Connect detection + cover art via Spotify CDN | ✅ | Auto-rendered in the web UI |
+| On-device library DB schema fully decoded | ✅ | 11 tables, ~60 PROP-codes — see [DB schema note](research/notes/2026-05-25-database-service-and-db-schema.md) |
+| Library DB live download via `downloadByDiff` | 🟡 | Service responds; `location` field empty pending more reverse-engineering |
+| Native iOS / iPad app | ❌ | Web UI works in Safari on iPad today; native app planned |
+| Modern streaming services (Tidal, Qobuz, Roon) | ❌ | Requires custom userland on the device (Phase 4) |
+| Custom OS replacement | ❌ | Long-term goal; UART + firmware unpack required first |
+
+## Try it now (5 minutes, zero risk)
+
+You need a HAP-Z1ES or HAP-S1 on your LAN, Python 3.10+, and 5 minutes.
+
+```bash
+git clone https://github.com/Guillain-RDCDE/HAP-Revival.git
+cd HAP-Revival
+
+# Find your HAP automatically via SSDP
+python tools/discover.py
+
+# Use the CLI client
+python tools/hap_client.py <hap-ip> now-playing
+python tools/hap_client.py <hap-ip> system
+python tools/hap_client.py <hap-ip> sound
+
+# Or launch the web UI and open http://localhost:8080
+python tools/webui.py <hap-ip>
+```
+
+The web UI polls every 3 seconds (matching Sony's own polling cadence — the HAP has no push-notification mechanism). Cover art renders inline. The UI's accent color follows the cover art's dominant color (the HAP itself computes and exposes this RGB hint via the API). Click the progress bar to seek.
+
+**Nothing in this UI can damage the device.** Reads are pure. Playback control is bounded. The "standby" button asks for confirmation before sending. The library shipping the calls is at `tools/hap_client.py` — 350 lines, well-commented, stdlib only.
 
 ## Roadmap
 
