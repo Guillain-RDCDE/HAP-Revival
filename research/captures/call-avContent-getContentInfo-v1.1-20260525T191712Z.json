@@ -1,0 +1,32 @@
+{
+  "tool": "HAP-Revival/tools/call.py",
+  "target": "192.168.1.28",
+  "port": 60200,
+  "request": {
+    "service": "avContent",
+    "method": "getContentInfo",
+    "version": "1.1",
+    "params": [
+      {
+        "uri": "audio:track?id=163756"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "result": [
+        {
+          "coverArtUrl": "http://192.168.1.28:60200/sony/avContent/storage/cover_art/A0002E05",
+          "title": "Dan té dinyé la",
+          "backgroundColorR": 93,
+          "backgroundColorB": 80,
+          "backgroundColorA": 255,
+          "backgroundColorG": 160
+        }
+      ],
+      "id": 1
+    }
+  },
+  "timestamp": "2026-05-25T19:17:12.843096+00:00"
+}
