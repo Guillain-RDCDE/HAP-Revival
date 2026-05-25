@@ -100,8 +100,10 @@ HTML_PAGE = """<!doctype html>
   --cover-url: __INITIAL_COVER_URL__;
   --custom-bg: #1a1f2c;
 }
-html, body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; min-height: 100vh; overflow-x: hidden; }
-body { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; position: relative; }
+html { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; min-height: 100vh; overflow-x: hidden; }
+/* body MUST stay transparent — otherwise it covers body::before (the ambient bg
+   layer below sits at z-index:-2, which puts it behind body's own background). */
+body { background: transparent; color: var(--fg); display: flex; flex-direction: column; align-items: center; padding: 24px 16px; position: relative; min-height: 100vh; }
 
 /* Ambient cover background: heavily blurred cover, scaled up, behind everything.
    This is what gives the "diffuse colors from the album art" feeling.
