@@ -363,17 +363,37 @@ class HAP:
             raw=r,
         )
 
-    def pause(self) -> None:
-        """Pause current playback. Note: as of 2026-05-25, the empty-object
-        shape `[{}]` (from Sony APK) hasn't been live-validated yet — this
-        may return [1,"Any"] but seems to actually pause. Use resume() to
-        recover."""
+    def toggle_playback(self) -> None:
+        """Toggle play / pause. Sony's `pausePlayingContent` is misleadingly
+        named — it's actually a TOGGLE: pauses when playing, resumes when
+        paused. Confirmed live 2026-05-25 with Spotify Connect content.
+
+        This is the only reliable play/pause control for the HAP. Use this
+        directly for media-player UI buttons. The companion `pause()` and
+        `resume()` methods below check current state first so they behave
+        as their name suggests.
+        """
         self.call("avContent", "pausePlayingContent", "1.0", [{}])
 
+    def pause(self) -> None:
+        """Pause if currently playing. No-op if already paused.
+
+        Adds one round-trip (state check) to avoid the toggle behavior of
+        the underlying API. Use `toggle_playback()` to skip the check."""
+        np = self.now_playing()
+        if np.state == "PLAYING":
+            self.toggle_playback()
+
     def resume(self) -> None:
-        """Resume playback. Uses setPowerStatus({status:'play'}) which works
-        reliably even when device is in `PAUSED` state."""
-        self.wake_and_play()
+        """Resume if currently paused. No-op if already playing or stopped.
+
+        Adds one round-trip (state check). Uses the same toggle primitive
+        as `pause()` since `setPowerStatus({status:'play'})` does NOT
+        reliably resume Spotify Connect playback (confirmed live 2026-05-25).
+        """
+        np = self.now_playing()
+        if np.state in ("PAUSED", "PAUSED_PLAYBACK"):
+            self.toggle_playback()
 
     def seek_seconds(self, position_sec: float) -> None:
         """Seek to position N (seconds) within the current track.
