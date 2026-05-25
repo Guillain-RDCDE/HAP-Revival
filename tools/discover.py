@@ -23,7 +23,6 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
@@ -149,7 +148,6 @@ def probe_device(ip: str) -> dict:
     if hap_xml:
         for key in ("modelName", "friendlyName", "X_HAP_Version"):
             tag_open = f"<{key}>"
-            tag_close = f"</{key}>"
             ns_match = None
             for tag in (tag_open, f"<av:{key}>"):
                 if tag in hap_xml:
