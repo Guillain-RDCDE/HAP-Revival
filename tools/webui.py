@@ -66,30 +66,32 @@ html, body { background: var(--bg); color: var(--fg); font-family: -apple-system
 body { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; position: relative; }
 
 /* Ambient cover background: heavily blurred cover, scaled up, behind everything.
-   This is what gives the "diffuse colors from the album art" feeling. */
+   This is what gives the "diffuse colors from the album art" feeling.
+   Tuning notes: blur too high or opacity too low + dark overlay = invisible.
+   With muted covers, saturation boost matters most. */
 body::before {
   content: "";
   position: fixed;
-  inset: -10vh -10vw;
+  inset: -15vh -15vw;
   background-image: var(--cover-url);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  filter: blur(80px) saturate(1.4);
-  opacity: 0.75;
+  filter: blur(60px) saturate(1.8) brightness(1.05);
+  opacity: 1.0;
   z-index: -2;
   transition: opacity 0.6s ease;
   /* Fallback solid color if no cover yet */
   background-color: var(--accent);
 }
-/* Dark gradient overlay for text legibility */
+/* Light vignette only — preserve as much color as possible while keeping
+   text readable. Top kept transparent, bottom only slightly darker. */
 body::after {
   content: "";
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse at top, rgba(14,14,16,0.0) 0%, rgba(14,14,16,0.55) 60%, rgba(14,14,16,0.85) 100%),
-    linear-gradient(180deg, rgba(14,14,16,0.15) 0%, rgba(14,14,16,0.6) 100%);
+    radial-gradient(ellipse at center, rgba(14,14,16,0) 0%, rgba(14,14,16,0.1) 70%, rgba(14,14,16,0.35) 100%);
   z-index: -1;
   pointer-events: none;
 }
