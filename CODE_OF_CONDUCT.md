@@ -29,6 +29,7 @@ If something happens that needs intervention, contact the project maintainer (cu
 ## Enforcement
 
 The maintainer can:
+
 - Ask a contributor to amend or remove content.
 - Lock or close a thread that is no longer productive.
 - Revoke commit access for repeated violations.

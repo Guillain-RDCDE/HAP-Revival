@@ -20,7 +20,7 @@ There is a **secondary housekeeping microcontroller** on the U-COM board:
 
 This is the part Sony invested in. The Linux SoC does not touch the audio sample stream after it leaves I²S — everything from there is dedicated silicon.
 
-```
+```text
                                         I²S
    ┌───────────────┐    audio data     ┌───────────────────┐
    │  i.MX6 (Linux │ ──────────────────▶│  Sony FPGA        │
@@ -90,11 +90,12 @@ Per the [HAP-S1 service manual](https://riverparkinc.com/wp-content/uploads/2015
 
 ## Service manual references
 
-- **HAP-Z1ES**: ManualsLib mirror — https://www.manualslib.com/manual/1606461/Sony-Hap-Z1es.html
-- **HAP-S1**: cleanest PDF mirror — https://riverparkinc.com/wp-content/uploads/2015/01/HAPS1_SERVICE_MANUAL.pdf
-- Alternative HAP-Z1ES PDF — https://elektrotanya.com/sony_hap-z1es.pdf/download.html
+- **HAP-Z1ES**: ManualsLib mirror — <https://www.manualslib.com/manual/1606461/Sony-Hap-Z1es.html>
+- **HAP-S1**: cleanest PDF mirror — <https://riverparkinc.com/wp-content/uploads/2015/01/HAPS1_SERVICE_MANUAL.pdf>
+- Alternative HAP-Z1ES PDF — <https://elektrotanya.com/sony_hap-z1es.pdf/download.html>
 
 Relevant pages:
+
 - Block diagram: early pages of each manual.
 - Board IDs and IC list: schematic section.
 - Disassembly: dedicated section.

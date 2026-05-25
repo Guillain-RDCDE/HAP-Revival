@@ -56,19 +56,69 @@ HTML_PAGE = """<!doctype html>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --bg: #0e0e10; --fg: #f0f0f0; --muted: #888;
+  --bg: #0e0e10; --fg: #f0f0f0; --muted: #aaa;
   --accent: rgb(__ACCENT_R__, __ACCENT_G__, __ACCENT_B__);
-  --card-bg: rgba(255,255,255,0.04); --hover: rgba(255,255,255,0.10);
+  --accent-soft: rgba(__ACCENT_R__, __ACCENT_G__, __ACCENT_B__, 0.35);
+  --card-bg: rgba(20,20,24,0.55); --hover: rgba(255,255,255,0.12);
+  --cover-url: none;
 }
-html, body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; min-height: 100vh; }
-body { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; }
+html, body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; min-height: 100vh; overflow-x: hidden; }
+body { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; position: relative; }
+
+/* Ambient cover background: heavily blurred cover, scaled up, behind everything.
+   This is what gives the "diffuse colors from the album art" feeling. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -10vh -10vw;
+  background-image: var(--cover-url);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: blur(80px) saturate(1.4);
+  opacity: 0.75;
+  z-index: -2;
+  transition: opacity 0.6s ease;
+  /* Fallback solid color if no cover yet */
+  background-color: var(--accent);
+}
+/* Dark gradient overlay for text legibility */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at top, rgba(14,14,16,0.0) 0%, rgba(14,14,16,0.55) 60%, rgba(14,14,16,0.85) 100%),
+    linear-gradient(180deg, rgba(14,14,16,0.15) 0%, rgba(14,14,16,0.6) 100%);
+  z-index: -1;
+  pointer-events: none;
+}
 header { text-align: center; margin-bottom: 24px; }
 header h1 { font-size: 18px; font-weight: 500; letter-spacing: 0.04em; opacity: 0.7; }
 header .device { font-size: 12px; color: var(--muted); margin-top: 4px; }
 main { width: 100%; max-width: 520px; }
-.card { background: var(--card-bg); border-radius: 16px; padding: 24px; margin-bottom: 16px; backdrop-filter: blur(20px); transition: background 0.4s ease; }
+.card {
+  background: var(--card-bg);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 16px;
+  backdrop-filter: blur(28px) saturate(1.2);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  transition: background 0.4s ease;
+}
 #now-playing { display: flex; flex-direction: column; align-items: center; gap: 16px; min-height: 360px; }
-.cover { width: 240px; height: 240px; border-radius: 12px; background: #222 no-repeat center/cover; box-shadow: 0 10px 40px rgba(0,0,0,0.6); transition: background-image 0.6s ease; }
+.cover {
+  width: 240px;
+  height: 240px;
+  border-radius: 12px;
+  background: #222 no-repeat center/cover;
+  box-shadow:
+    0 10px 40px rgba(0,0,0,0.6),
+    0 0 60px 0 var(--accent-soft);
+  transition: background-image 0.6s ease, box-shadow 0.8s ease;
+}
 .cover.placeholder::before { content: "♪"; display: flex; align-items: center; justify-content: center; height: 100%; font-size: 80px; color: #444; }
 .meta { text-align: center; }
 .meta .title { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
@@ -211,6 +261,13 @@ function apply(d) {
   if (np.background_color_rgba) {
     const c = np.background_color_rgba;
     document.documentElement.style.setProperty("--accent", `rgb(${c[0]},${c[1]},${c[2]})`);
+    document.documentElement.style.setProperty("--accent-soft", `rgba(${c[0]},${c[1]},${c[2]},0.35)`);
+  }
+  // Ambient cover background: hand the cover URL to the CSS variable used by body::before
+  if (np.cover_art_url) {
+    document.documentElement.style.setProperty("--cover-url", `url("${np.cover_art_url}")`);
+  } else {
+    document.documentElement.style.setProperty("--cover-url", "none");
   }
 }
 
