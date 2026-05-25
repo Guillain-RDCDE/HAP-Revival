@@ -1,0 +1,37 @@
+name: Lint Python tools
+
+on:
+  pull_request:
+    paths:
+      - "tools/**/*.py"
+      - ".github/workflows/python-lint.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/**/*.py"
+
+jobs:
+  ruff:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Run ruff
+        run: ruff check tools/
+
+  syntax-check:
+    name: Python syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile all tools
+        run: python -m compileall -q tools/

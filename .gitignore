@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Decompiled APK (these can be large and contain Sony copyrighted code)
+# Keep the recipe + analysis notes in research/, but never commit the raw output.
+research/apk-decompile/
+research/firmware-extracts/
+*.apk
+*.dex
+*.so
+
+# Firmware blobs (Sony copyright; never redistribute)
+*.SonyAP
+*.bin
+*.img
+*.tar.xz.sony
+research/captures/*.pcap
+research/captures/*.pcapng
+
+# Local research scratch
+research/notes/scratch-*
+research/scratch/
+
+# Secrets / API keys (if we ever integrate Tidal/Qobuz dev keys)
+.env
+.env.*
+*.key
+*.pem
+secrets/
+
+# Generated docs
+docs/_build/
+site/
+
+# Logs
+*.log

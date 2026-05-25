@@ -1,0 +1,60 @@
+name: "Bug report"
+description: "Report a bug in tools/ or in any future code we ship."
+title: "[bug] <short summary>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For bugs in our code (tools, future daemon, future apps). For bugs in *Sony's* code, mention them in docs/02-software-stack.md as known issues — we don't track Sony's bugs in the issue tracker.
+
+  - type: input
+    id: tool
+    attributes:
+      label: Which tool / module?
+      placeholder: "tools/discover.py"
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit SHA you tested against
+      placeholder: "abc1234"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: "Numbered list, please."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: "Include any error messages, stack traces, or unexpected JSON responses."
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: "OS, Python version, device model + firmware, network topology if relevant."
+
+  - type: textarea
+    id: security
+    attributes:
+      label: Is this a security issue?
+      description: "If yes, please DO NOT open this issue publicly. See SECURITY.md."
