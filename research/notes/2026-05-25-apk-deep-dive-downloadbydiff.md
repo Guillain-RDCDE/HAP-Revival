@@ -475,6 +475,7 @@ private static final String STATUS_ALL_ACQUIRED = "allAcquired";
 ```
 
 Logic (line 214-235):
+
 - `acquired` → keep this candidate, `mIndex++`, ask for next one.
 - `acquiring` → server still working; sleep 3000 ms and re-poll same index.
 - `allAcquired` → no more candidates; stop.

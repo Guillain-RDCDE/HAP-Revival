@@ -8,8 +8,8 @@ The official `com.sony.HAP.HDDAudioRemote` Android app contains the **complete m
 
 - A computer with **8 GB+ RAM** (jadx is JVM-heavy).
 - **Java JDK 11 or newer**.
-- **apktool 2.9.0+** — https://apktool.org/
-- **jadx 1.5.0+** — https://github.com/skylot/jadx (the GUI build is easiest)
+- **apktool 2.9.0+** — <https://apktool.org/>
+- **jadx 1.5.0+** — <https://github.com/skylot/jadx> (the GUI build is easiest)
 - The APK itself.
 
 ## Step 1 — Get the APK
@@ -18,7 +18,7 @@ Two options:
 
 ### Option A: pull from APKMirror (recommended)
 
-- URL: https://www.apkmirror.com/apk/sony-corporation/hdd-audio-remote/hdd-audio-remote-4-3-1-release/
+- URL: <https://www.apkmirror.com/apk/sony-corporation/hdd-audio-remote/hdd-audio-remote-4-3-1-release/>
 - Version 4.3.1, ~12.88 MB, last updated 2022-12-12, min Android 7.0.
 - Verify the SHA-256 of the downloaded file matches what APKMirror displays.
 

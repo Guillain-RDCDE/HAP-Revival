@@ -9,6 +9,7 @@ The `coverArtUrl` field in `getPlayingContentInfo` / `getContentInfo` is a plain
 Tested URL: `http://192.168.1.28:60200/sony/avContent/storage/cover_art/A0002E05`
 
 Result:
+
 - HTTP 200
 - 93 771 bytes
 - First 8 bytes: `FF D8 FF E0 00 10 4A 46` → **JPEG (JFIF)**
