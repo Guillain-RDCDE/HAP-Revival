@@ -81,10 +81,10 @@ Each method row shows:
 | Method | Working version | Status | Params | Notes |
 |---|---|---|---|---|
 | `getPlayingContentInfo` | **1.2** | ✅ | `[]` | The gold method. Returns title, artist, album, codec, bitrate, frequency, position, duration, URIs, coverArtUrl, RGB background color. See [`docs/03-network-api.md`](../docs/03-network-api.md) for full response shape. |
-| `pausePlayingContent` | **1.0** | 🟡 | likely `[{output:""}]` | Returned `[1, "Any"]` to fuzzer with empty params. Probably needs an `output` target. Re-test once we know the shape. |
-| `stopPlayingContent` | **1.0** | 🟡 | likely `[{output:""}]` | Exists; `[1, "Any"]` with empty params. |
-| `setPlayNextContent` | **1.0** | 🟡 | likely `[{output:""}]` | Exists; `[1, "Any"]` with empty params. |
-| `setPlayPreviousContent` | **1.0** | 🟡 | likely `[{output:""}]` | Exists; `[1, "Any"]` with empty params. |
+| `pausePlayingContent` | **1.0** | 🟡 | `[{}]` per APK | APK shows empty object `[{}]` (NOT empty array `[]`). The `[1, "Any"]` we saw earlier was because we sent `[]`. Untested with `[{}]` yet — should ✅ on next pass. |
+| `stopPlayingContent` | **1.0** | 🟡 | `[{}]` | Sony's app never calls this; method exists on device. Try `[{}]` first. |
+| `setPlayNextContent` | **1.0** | 🟡 | `[{}]` per APK | APK confirms empty object. Should ✅ on retest. |
+| `setPlayPreviousContent` | **1.0** | 🟡 | `[{}]` per APK | Same as above. |
 | `setPlayContent` | **1.1** | ✅ | 3 shapes — see notes | **LIVE-CONFIRMED 2026-05-25**: `[{positionSec: N}]` (seek within current track, the `+0.01` jitter from Sony's code is to force re-trigger). Two other shapes from APK (UNTESTED live): `[{listIndex: N}]` (start track at queue position N) and `[{uri: "netService:audio?serviceName=X&id=Y", playlistName: "..."}]` (radio/TuneIn). No `{uri}` for HDD content — use `createPlayingListAndQuickPlay` instead. |
 | `createPlayingListAndQuickPlay` | **1.0** | ✅ | `[{uri: "audio:track?id=N", listIndex: 0, listCount: 1, playbackControlMode: "folder"}]` | **LIVE-CONFIRMED 2026-05-25**. THE primary HDD playback primitive. Builds a play queue and starts playback. Returns `{playbackControlMode, uri: "audio:playinglist?id=<new-id>"}` — note the new playinglist id (in our test: 70, previous was 69). |
 | `scanPlayingContent` | **1.0** | 🟡 | `[{direction: "fwd"\|"bwd"}]` per APK | **Press-and-hold fast-forward / rewind** (NOT scrub-to-position — that's `setPlayContent + positionSec`). The device accelerates playback rate while called. Untested live with this shape. |
@@ -104,9 +104,10 @@ Each method row shows:
 `seekStreamingContent`, `getContentCount`, `setActiveTerminal`, `getSupportedPlaybackFunction`, `getAvailablePlaybackFunction`, `getBluetoothSettings`, `setBluetoothSettings`, `getFavoriteList`, `setFavoriteContent`, `getApplicationStatusList` — all `[12, "No Such Method"]`.
 
 **Notable absences**:
-- `seekStreamingContent` → seek within track is **not** supported via this method name. The HAP front panel can scrub, so either there's a different method name we haven't tried (e.g. `seekContent`, `setPlayPosition`) or seek is done by re-calling `setPlayContent` with `positionMsec` in params.
-- `getFavoriteList` / `setFavoriteContent` → favorites management is not API-exposed. `getPlayingContentInfo` returns `favoriteType: "normal"` showing favorites exist conceptually — likely managed via the on-device UI only.
-- `getBluetoothSettings` → BlueZ is in firmware (per GPL bundle), but BT receiver/transmitter is front-panel only.
+- `seekStreamingContent` → solved by APK: seek is actually done by re-calling `setPlayContent` with **only** `positionSec` (plus a tiny `+0.01` jitter Sony adds to force re-trigger). No separate seek method.
+- `getFavoriteList` / `setFavoriteContent` → favorites management is via `editContentInfo` per APK (with `method: "editFavorite"` or similar dispatch). `getPlayingContentInfo` returns `favoriteType: "normal"` showing favorites exist conceptually.
+- `getBluetoothSettings` → BlueZ is in firmware (per GPL bundle), but BT receiver/transmitter is front-panel only — no API surface.
+- `stopPlayingContent` → the official Sony app never uses it. Probably exists only as a historical leftover. Pause + standby is the documented Sony way to stop.
 
 ## Service: `guide`
 
