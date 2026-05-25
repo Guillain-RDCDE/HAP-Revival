@@ -1,0 +1,28 @@
+{
+  "tool": "HAP-Revival/tools/call.py",
+  "target": "192.168.1.28",
+  "port": 60200,
+  "request": {
+    "service": "avContent",
+    "method": "getContentList",
+    "version": "1.3",
+    "params": [
+      {
+        "uri": "storage:usb1",
+        "stIdx": 0,
+        "cnt": 3
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "id": 1,
+      "error": [
+        3,
+        "illegal Argument"
+      ]
+    }
+  },
+  "timestamp": "2026-05-25T19:15:32.464483+00:00"
+}
