@@ -1,8 +1,14 @@
 # mitmproxy setup for capturing the iOS HDD Audio Remote app
 
-How to capture the wire traffic between the official Sony iOS app and the HAP, on a Windows PC, with the user's iPhone on the same Wi-Fi as the HAP.
+> **⚠️ STATUS (2026-05-26): we tried this end-to-end and it does not work for the Sony HDD Audio Remote app specifically.** The setup itself is correct — Safari + system services are captured fine. But Sony's app uses (a) low-level networking that bypasses the iOS system proxy and (b) SSDP multicast discovery that doesn't traverse VPN tunnels. After three escalating attempts (proxy mode → WireGuard single-subnet → WireGuard + Windows Mobile Hotspot dual-subnet), the app still can't see the HAP through the capture pipeline. Full failure analysis: [`2026-05-26-ios-capture-postmortem.md`](2026-05-26-ios-capture-postmortem.md).
+>
+> **Keep this guide for**: any other iOS app that talks unicast HTTP/HTTPS to a known IP (most modern apps). The mitmproxy + WireGuard setup is solid for that use case.
+>
+> **Don't use this guide for**: capturing Sony HDD Audio Remote. We pivoted to reading the HAP's internal HDD directly off the SATA dock instead — which gives strictly more information with strictly less complexity.
 
-The headline target: see the exact request sequence Sony's iOS client uses around `database.downloadByDiff`, so we can replicate it in HAP-Revival and unblock the library DB sync (and therefore the library browser in our app).
+How to capture the wire traffic between an iOS client app and a target on the LAN, on a Windows PC.
+
+The original target for HAP-Revival was Sony HDD Audio Remote, to see the exact request sequence around `database.downloadByDiff` so we could replicate it. **That specific target didn't work** — see the warning above. The setup itself is sound for any iOS app that doesn't gate on multicast discovery.
 
 ## What you'll need
 
