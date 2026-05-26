@@ -8,6 +8,22 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-05-26, web UI third pass — gear-panel controls, archive, Minimal mode)
+
+- **Gear panel is now a full control surface**, not just a theme picker. New sections:
+  - **Display** — Minimal mode toggle (hides the header "HAP-Revival · firmware · active" and the bottom footer for a stripped-down look). Choice persisted in `localStorage`.
+  - **Sound** — pill toggles for DSEE (auto/off), DSD remastering (on/off), Gapless (auto/off), Volume normalization (auto/off), Oversampling (precision/normal). Each setting has a plain-language caption directly under it explaining what it actually does, plus a longer hover tooltip on the label. All five round-trip validated against the live device via `audio.setSoundSettings` v1.1.
+  - **Playback** — Volume slider (auto-disabled on HAP-Z1ES, enabled on HAP-S1 with the device's min/max/step), Sleep timer dropdown auto-populated from `getSleepTimer` candidate seconds (Off + 10/20/30/40/50/60/90/120 min).
+  - **Current track** — Favorite buttons (♥ / — / 👎) using `editContentInfo` with `tagUri:"meta:favorite"`. Auto-disabled when the current source is not an HDD track (Spotify Connect, radio, etc.) because Sony's editContentInfo only works on `audio:track?id=N` URIs.
+- **Backend new endpoints** to back the above: `/api/set-sound`, `/api/set-volume`, `/api/mute-toggle`, `/api/set-sleep-timer`, `/api/set-favorite`. `/api/state` now also returns sleep_timer, volume, and favorite_type in the now_playing block. Each sub-fetch is try-wrapped so a partial device failure doesn't blank the whole UI.
+- **Live-reload of HTML template** (commit a94d5d7) means editing CSS/JS in `webui.py` no longer needs a server restart — the HTML is re-read from disk on each GET. Cache-Control: no-store + Pragma + Expires so the browser never holds a stale copy. Adding new Python endpoints still needs a server restart since the Python class is loaded once at start.
+- **Permanent archive of technical PDFs** under `archive/`:
+  - HAP-Z1ES Service Manual (8.3 MB, SHA-256 documented in `archive/README.md`)
+  - HAP-S1 Service Manual (10.4 MB)
+  - HAP-Z1ES end-user Help Guide (1.3 MB)
+  - HAP-S1 end-user Help Guide (1.4 MB)
+  Total ~21 MB. Three docs that previously cited the now-dead `riverparkinc.com` mirror updated to point at the local archive. Documents legal stance + manual-download procedure for contributors who want to add more (e.g. the Reference Manual, Quick Start, RM-ANU183 remote manual).
+
 ### Added (2026-05-25, web UI second pass — themes, ambient bg, adaptive contrast)
 
 Building on the first web UI commit (b7e3eb4), a focused polish round driven by live user feedback during the session:

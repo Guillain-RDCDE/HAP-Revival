@@ -75,6 +75,7 @@ The two devices share the same i.MX6 SoC, same firmware images, same network pro
 | Toggle favorites on tracks | ✅ | `editContentInfo` v1.0 with `tagUri:"meta:favorite"` |
 | Spotify Connect detection + cover art rendering | ✅ | Cover comes from the device for HDD tracks, from Spotify CDN for Spotify Connect — both handled transparently |
 | Web UI: ambient cover background, theme switcher, adaptive contrast | ✅ | 4 themes (Ambient / Solid-from-cover / Dark / Custom). Choice persisted in `localStorage`. Text color auto-flips based on perceptual luminance. |
+| Web UI: Minimal mode + plain-language help text under every setting | ✅ | ⚙ panel exposes a "Minimal mode" toggle that hides the title bar + footer; each Sound/Playback option has an inline caption plus a hover tooltip explaining what it does. |
 | On-device library DB schema fully decoded | ✅ | 11 tables, ~60 PROP-codes — see [DB schema note](research/notes/2026-05-25-database-service-and-db-schema.md) |
 | Library DB live download via `downloadByDiff` | 🟡 | Service responds; `location` field empty pending mitmproxy capture of Sony's app during real sync |
 | Native iOS / iPad app | ❌ | Web UI works in Safari on iPad today; native app planned |
