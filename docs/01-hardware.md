@@ -79,7 +79,7 @@ This is the part Sony invested in. The Linux SoC does not touch the audio sample
 
 ## Debug interfaces
 
-Per the [HAP-S1 service manual](https://riverparkinc.com/wp-content/uploads/2015/01/HAPS1_SERVICE_MANUAL.pdf) (same architecture as HAP-Z1ES):
+Per the HAP-S1 service manual (same architecture as HAP-Z1ES) — see [`archive/`](../archive/) for the canonical preserved copy if one has been added there, or [Elektrotanya](https://elektrotanya.com/sony_hap-s1_ver.1.0_hdd_audio_player.pdf/download.html) / [ManualsLib](https://www.manualslib.com/manual/893329/Sony-Hap-S1.html) as live mirrors:
 
 - **JTAG**: TDO, TMS, TDI test points on the main board.
 - **UART**: documented as "boot mode settings terminals on the main board" — pinout in the manual; baud rate not specified but i.MX6 default is `ttymxc0 @ 115200 8N1`.
@@ -90,9 +90,10 @@ Per the [HAP-S1 service manual](https://riverparkinc.com/wp-content/uploads/2015
 
 ## Service manual references
 
-- **HAP-Z1ES**: ManualsLib mirror — <https://www.manualslib.com/manual/1606461/Sony-Hap-Z1es.html>
-- **HAP-S1**: cleanest PDF mirror — <https://riverparkinc.com/wp-content/uploads/2015/01/HAPS1_SERVICE_MANUAL.pdf>
-- Alternative HAP-Z1ES PDF — <https://elektrotanya.com/sony_hap-z1es.pdf/download.html>
+- **Preserved in [`archive/`](../archive/)** when a contributor has added them — see [`archive/README.md`](../archive/README.md) for the manual-download procedure (Elektrotanya / ManualsLib block scripted download).
+- **HAP-Z1ES** live: [ManualsLib](https://www.manualslib.com/manual/1606461/Sony-Hap-Z1es.html), [Elektrotanya](https://elektrotanya.com/sony_hap-z1es.pdf/download.html).
+- **HAP-S1** live: [ManualsLib](https://www.manualslib.com/manual/893329/Sony-Hap-S1.html), [Elektrotanya](https://elektrotanya.com/sony_hap-s1_ver.1.0_hdd_audio_player.pdf/download.html). The HAP-Z1ES and HAP-S1 manuals share most content — having either is a fair substitute for the other.
+- **End-user Help Guides** (HAP-Z1ES + HAP-S1) are archived in [`archive/sony-helpguide-hap-z1es.pdf`](../archive/sony-helpguide-hap-z1es.pdf) and [`archive/sony-helpguide-hap-s1.pdf`](../archive/sony-helpguide-hap-s1.pdf). Live source: <https://helpguide.sony.net/ha/hapz1es/v1/en/print.pdf>, <https://helpguide.sony.net/ha/haps1/v1/en/print.pdf>.
 
 Relevant pages:
 
