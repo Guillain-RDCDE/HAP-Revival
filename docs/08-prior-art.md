@@ -124,7 +124,8 @@ The English-speaking audiophile world has barely touched the HAP. The Japanese c
 ## Tier 4 — Service / official documents
 
 - [HAP-Z1ES service manual on ManualsLib](https://www.manualslib.com/manual/1606461/Sony-Hap-Z1es.html) — best for HAP-Z1ES specifically.
-- HAP-S1 service manual — preserved in [`archive/`](../archive/) once contributed. Live mirrors: [Elektrotanya](https://elektrotanya.com/sony_hap-s1_ver.1.0_hdd_audio_player.pdf/download.html), [ManualsLib](https://www.manualslib.com/manual/893329/Sony-Hap-S1.html). (The historical `riverparkinc.com` mirror that this doc used to cite returned 404 on 2026-05-26.) Applies equally to HAP-Z1ES architecture.
+- HAP-S1 service manual — preserved as [`archive/sony-service-manual-hap-s1.pdf`](../archive/sony-service-manual-hap-s1.pdf). Live mirrors: [Elektrotanya](https://elektrotanya.com/sony_hap-s1_ver.1.0_hdd_audio_player.pdf/download.html), [ManualsLib](https://www.manualslib.com/manual/893329/Sony-Hap-S1.html). Applies equally to HAP-Z1ES architecture (most board-level content is shared between the two manuals).
+- HAP-Z1ES service manual — preserved as [`archive/sony-service-manual-hap-z1es.pdf`](../archive/sony-service-manual-hap-z1es.pdf).
 - [HAP-Z1ES service manual on Elektrotanya](https://elektrotanya.com/sony_hap-z1es.pdf/download.html) — direct download mirror.
 - [Sony Help Guide HAP-Z1ES](https://helpguide.sony.net/ha/hapz1es/v1/en/) — end-user manual.
 - [Sony Asia firmware page (19404R)](https://www.sony-asia.com/electronics/support/downloads/00017124).

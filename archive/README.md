@@ -10,18 +10,28 @@ This archive exists to make HAP-Revival itself a durable reference, so the next 
 
 | File | What it is | Source URL (verified 2026-05-26) | Size | SHA-256 |
 |---|---|---|---|---|
-| `sony-helpguide-hap-z1es.pdf` | Sony official HAP-Z1ES Help Guide (end-user manual, full Eng) | `https://helpguide.sony.net/ha/hapz1es/v1/en/print.pdf` | 1.28 MB | `25A9F69C861E7B7EA930C84E3BFD5A185B9D1A74B80CEA5B60D83570EBE90E81` |
-| `sony-helpguide-hap-s1.pdf` | Sony official HAP-S1 Help Guide (end-user manual, full Eng) | `https://helpguide.sony.net/ha/haps1/v1/en/print.pdf` | 1.37 MB | `A66BDEECAA39C1C82F0014130F5028DB6D6DFFD6A51DBFA68D234EC38F0B62F3` |
+| `sony-service-manual-hap-z1es.pdf` | **Sony HAP-Z1ES Service Manual** — full schematics, IC list (incl. `IC101 = MCIMX6D5EYM10AC` confirming i.MX6 Dual), PCB layout, JTAG/UART pinout, DIAG mode sequence, audio path block diagram. | `https://elektrotanya.com/sony_hap-z1es.pdf/download.html` | 8.29 MB | `E15F4E6FEA05C0DE70ABB9E6426E3901A8BE8FE4AE5ED85750F8C3A9726F035C` |
+| `sony-service-manual-hap-s1.pdf` | **Sony HAP-S1 Service Manual** — same scope as the HAP-Z1ES manual, plus the integrated amplifier section (LM3876 + NJW1194 schematics). Shares most board-level content with the HAP-Z1ES manual. | `https://elektrotanya.com/sony_hap-s1_ver.1.0_hdd_audio_player.pdf/download.html` | 10.44 MB | `F93E7A46D58AC8868EDB7747087B4DDE529B7476BCBE4AE04C0B66D5CFB7DE76` |
+| `sony-helpguide-hap-z1es.pdf` | Sony official HAP-Z1ES Help Guide (end-user manual, full English) | `https://helpguide.sony.net/ha/hapz1es/v1/en/print.pdf` | 1.28 MB | `25A9F69C861E7B7EA930C84E3BFD5A185B9D1A74B80CEA5B60D83570EBE90E81` |
+| `sony-helpguide-hap-s1.pdf` | Sony official HAP-S1 Help Guide (end-user manual, full English) | `https://helpguide.sony.net/ha/haps1/v1/en/print.pdf` | 1.37 MB | `A66BDEECAA39C1C82F0014130F5028DB6D6DFFD6A51DBFA68D234EC38F0B62F3` |
 
-## What we want here but can't auto-fetch
+**Total archive size: ~21 MB.** Well within GitHub's per-file limit (100 MB) and the repo recommended cap (1 GB).
 
-These exist but are behind anti-bot pages / paywalls that block scripted download. **You can grab them in 30 seconds from a real browser** and add them to this folder; instructions below.
+To verify any file matches what we archived:
 
-| Document | Where to download | Notes |
+```powershell
+Get-FileHash -Algorithm SHA256 .\archive\sony-service-manual-hap-z1es.pdf
+```
+
+## What's not here yet (low-priority)
+
+| Document | Where | Notes |
 |---|---|---|
-| HAP-S1 **Service Manual** (full schematics, IC list, JTAG/UART pinout, DIAG sequence) | [Elektrotanya](https://elektrotanya.com/sony_hap-s1_ver.1.0_hdd_audio_player.pdf/download.html) or [ManualsLib](https://www.manualslib.com/manual/893329/Sony-Hap-S1.html) | Elektrotanya = direct PDF after click-through. ManualsLib often paywalls the actual PDF; the on-screen viewer works without account. |
-| HAP-Z1ES **Service Manual** | [Elektrotanya](https://elektrotanya.com/sony_hap-z1es.pdf/download.html) or [ManualsLib](https://www.manualslib.com/manual/1606461/Sony-Hap-Z1es.html) | Same caveats. The HAP-S1 and HAP-Z1ES service manuals share most of their content (same i.MX6 board, same DAC/DSP/FPGA, same DIAG mode); having one is a fair substitute for the other if the second proves unavailable. |
-| HAP-S1 Reference Manual / Quick Start | [ManualsLib reference manual](https://www.manualslib.com/manual/1076205/Sony-Hap-S1.html), [Quick Start](https://www.manualslib.com/manual/947209/Sony-Hap-S1.html) | Less critical — the Help Guide covers the same ground for end-users. |
+| HAP-S1 Reference Manual | [ManualsLib](https://www.manualslib.com/manual/1076205/Sony-Hap-S1.html) | Mid-level user doc, mostly overlaps with the Help Guide already archived. |
+| HAP-S1 Quick Start | [ManualsLib](https://www.manualslib.com/manual/947209/Sony-Hap-S1.html) | Trivial doc. Probably not worth preserving. |
+| Sony RM-ANU183 remote manual | (Sony official, multiple regional URLs) | Worth adding if the remote ever becomes part of the reverse-engineering target (it speaks an IR protocol that the U-COM MCU decodes). |
+
+If you want to add any of these or other technical docs we've cited but not yet archived: drop the PDF in this folder, run `Get-FileHash -Algorithm SHA256` on it, and add a row to the table above. PR welcome.
 
 ### How to add the service manuals manually
 
