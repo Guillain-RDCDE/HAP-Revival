@@ -181,6 +181,12 @@ html[data-theme="custom"] body::before {
   opacity: 1 !important;
 }
 html[data-theme="custom"] body::after { background: none !important; }
+
+/* Minimal mode: hide the title bar (header) and the bottom footer so only
+   the now-playing card + the gear are visible. The card alone is enough
+   info; everything else is meta. */
+html.minimal header,
+html.minimal footer { display: none; }
 header { text-align: center; margin-bottom: 24px; }
 header h1 { font-size: 18px; font-weight: 500; letter-spacing: 0.04em; opacity: 0.85; text-shadow: var(--text-shadow); }
 header .device { font-size: 12px; color: var(--muted); margin-top: 4px; text-shadow: var(--text-shadow); }
@@ -389,70 +395,88 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
     <div class="theme-debug" id="theme-debug">current: ambient</div>
 
     <section>
+      <h3>Display</h3>
+      <div class="set-row">
+        <span class="k" title="Hide the HAP-Revival title, the device subtitle and the bottom footer for a cleaner look.">Minimal mode</span>
+        <span class="pill-toggle" id="disp-minimal">
+          <button data-v="on" onclick="setMinimal('on')">on</button>
+          <button data-v="off" onclick="setMinimal('off')">off</button>
+        </span>
+      </div>
+      <div class="set-note">Hides the header (title + device info) and the footer. The now-playing card and the gear stay.</div>
+    </section>
+
+    <section>
       <h3>Sound</h3>
       <div class="set-row">
-        <span class="k">DSEE</span>
+        <span class="k" title="Sony's lossy-codec upscaler. Tries to rebuild the high frequencies that were thrown away when audio was compressed (MP3/AAC) or downsampled. Off = strict bit-perfect playback.">DSEE</span>
         <span class="pill-toggle" id="snd-dsee">
           <button data-v="auto" onclick="setSound('dsee','auto')">auto</button>
           <button data-v="off" onclick="setSound('dsee','off')">off</button>
         </span>
       </div>
+      <div class="set-note">Sony's upscaler. Auto tries to rebuild high frequencies lost in MP3/AAC. Off keeps the signal bit-perfect.</div>
       <div class="set-row">
-        <span class="k">DSD remastering</span>
+        <span class="k" title="Converts PCM (FLAC, WAV, AIFF, ALAC) to DSD inside the device before the DAC sees it. The HAP's PCM1795 DACs handle DSD natively. Some find DSD playback smoother and more analog-like.">DSD remastering</span>
         <span class="pill-toggle" id="snd-dsdRemastering">
           <button data-v="on" onclick="setSound('dsdRemastering','on')">on</button>
           <button data-v="off" onclick="setSound('dsdRemastering','off')">off</button>
         </span>
       </div>
+      <div class="set-note">Converts PCM (FLAC/WAV) to DSD before the DAC. Some hear it as smoother; off keeps the file's native format.</div>
       <div class="set-row">
-        <span class="k">Gapless</span>
+        <span class="k" title="Plays consecutive tracks with no silence between them. Critical for live albums, classical movements, and electronic / DJ mixes that depend on continuous flow.">Gapless</span>
         <span class="pill-toggle" id="snd-gaplessPlayback">
           <button data-v="auto" onclick="setSound('gaplessPlayback','auto')">auto</button>
           <button data-v="off" onclick="setSound('gaplessPlayback','off')">off</button>
         </span>
       </div>
+      <div class="set-note">Removes the silence between consecutive tracks. Auto follows album metadata; off always inserts ~0.1 s.</div>
       <div class="set-row">
-        <span class="k">Volume normalize</span>
+        <span class="k" title="Levels playback volume across tracks of different loudness — quiet songs don't disappear, loud ones don't blast. Reads ReplayGain tags from your files when present.">Volume normalize</span>
         <span class="pill-toggle" id="snd-volumeNormalization">
           <button data-v="auto" onclick="setSound('volumeNormalization','auto')">auto</button>
           <button data-v="off" onclick="setSound('volumeNormalization','off')">off</button>
         </span>
       </div>
+      <div class="set-note">Evens out loudness between tracks using ReplayGain tags. Useful for shuffled playback across albums.</div>
       <div class="set-row">
-        <span class="k">Oversampling</span>
+        <span class="k" title="Shape of the DAC's oversampling reconstruction filter. Precision = sharper frequency rolloff (less aliasing, more pre-ringing). Normal = softer rolloff. A subtle, listening-preference choice; precision is the more 'accurate' modern default.">Oversampling</span>
         <span class="pill-toggle" id="snd-oversampling">
           <button data-v="precision" onclick="setSound('oversampling','precision')">precision</button>
           <button data-v="normal" onclick="setSound('oversampling','normal')">normal</button>
         </span>
       </div>
+      <div class="set-note">DAC reconstruction filter shape. Precision = sharper cutoff (more accurate). Normal = softer (smoother to some).</div>
     </section>
 
     <section>
       <h3>Playback</h3>
       <div class="set-row">
-        <span class="k">Volume</span>
+        <span class="k" title="Master volume out of the device. HAP-Z1ES has no internal amplifier so this is read-only on Z1ES; HAP-S1 controls its built-in amp.">Volume</span>
         <input type="range" id="vol-slider" min="0" max="100" value="50" oninput="onVolumeChange(this.value)" disabled>
       </div>
-      <div class="set-note" id="vol-note">HAP-Z1ES has no internal amp — volume is fixed.</div>
+      <div class="set-note" id="vol-note">HAP-Z1ES has no internal amp — volume is fixed (controlled by your preamp / external amp).</div>
       <div class="set-row">
-        <span class="k">Sleep timer</span>
+        <span class="k" title="Auto-power-off after a chosen duration of inactive playback. The device fades out and goes to standby.">Sleep timer</span>
         <select id="sleep-sel" onchange="onSleepChange(this.value)">
           <option value="off">Off</option>
         </select>
       </div>
+      <div class="set-note">Turns the HAP off after the selected duration. Useful for falling asleep to music.</div>
     </section>
 
     <section>
       <h3>Current track</h3>
       <div class="set-row">
-        <span class="k">Favorite</span>
+        <span class="k" title="Tags the currently-playing track in the HAP's on-device library database. Only works for tracks stored on the HAP (HDD or USB), not for streamed sources like Spotify Connect.">Favorite</span>
         <div class="fav-row" id="fav-row">
           <button data-v="favorite" onclick="setFavorite('favorite')" title="Mark as favorite">♥</button>
-          <button data-v="normal" onclick="setFavorite('normal')" title="Clear">—</button>
-          <button data-v="dislike" onclick="setFavorite('dislike')" title="Dislike">👎</button>
+          <button data-v="normal" onclick="setFavorite('normal')" title="Clear favorite / dislike">—</button>
+          <button data-v="dislike" onclick="setFavorite('dislike')" title="Mark as dislike">👎</button>
         </div>
       </div>
-      <div class="set-note" id="fav-note">Favorites only work on HDD tracks (not Spotify Connect).</div>
+      <div class="set-note" id="fav-note">Marks the current track in the HAP library. Buttons disable when playing a non-HDD source (Spotify, radio).</div>
     </section>
   </div>
 </div>
@@ -507,6 +531,7 @@ let lastDuration = 0;
 /* ===== Theme handling ===== */
 const THEME_KEY = "hap-revival.theme";
 const CUSTOM_COLOR_KEY = "hap-revival.customColor";
+const MINIMAL_KEY = "hap-revival.minimalMode";
 const VALID_THEMES = ["ambient", "cover-solid", "dark", "custom"];
 
 /* Perceptual luminance (Rec. 601). 0=black, 1=white. Threshold ~0.6 works
@@ -568,6 +593,19 @@ function setCustomColor(hex) {
   // setTheme() recomputes contrast, so picking a bright color also flips
   // text dark immediately.
   setTheme("custom");
+}
+
+function setMinimal(state) {
+  const on = state === "on";
+  document.documentElement.classList.toggle("minimal", on);
+  localStorage.setItem(MINIMAL_KEY, on ? "on" : "off");
+  // Reflect on the panel pills
+  const wrap = document.getElementById("disp-minimal");
+  if (wrap) {
+    wrap.querySelectorAll("button").forEach(b => {
+      b.classList.toggle("active", b.getAttribute("data-v") === (on ? "on" : "off"));
+    });
+  }
 }
 
 function toggleSettings() {
@@ -672,7 +710,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// Restore saved theme + custom color on page load
+// Restore saved theme + custom color + minimal mode on page load
 (function initTheme() {
   const saved = localStorage.getItem(THEME_KEY) || "ambient";
   const customColor = localStorage.getItem(CUSTOM_COLOR_KEY);
@@ -682,6 +720,9 @@ document.addEventListener("click", (e) => {
     if (picker) picker.value = customColor;
   }
   setTheme(saved);
+  // Restore minimal mode preference
+  const minimal = localStorage.getItem(MINIMAL_KEY) || "off";
+  setMinimal(minimal);
 })();
 
 function fmt(secs) {
