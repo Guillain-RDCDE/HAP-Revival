@@ -36,8 +36,8 @@ Everything Sony loaded onto the HAP-Z1ES / HAP-S1, derived from the published [S
 | Scripting | `python` | **2.7.3** | The control daemon runs on this |
 | Web framework | `web.py` | 0.37 | Powers the JSON-RPC daemon |
 | OSC | `pyOSC` | | Likely used for internal IPC between Python daemon and GStreamer |
-| Database (1) | `sqlite` | 3.27 | |
-| Database (2) | `tokyocabinet` | 1.4.47 | Music library metadata |
+| Database (1) | `sqlite` | 3.27 | **The music library metadata store** — confirmed by direct disk read 2026-06-02 (`/data/*.db`, format `ver 14.00`). See [`09-disk-layout.md`](09-disk-layout.md) |
+| Database (2) | `tokyocabinet` | 1.4.47 | In the GPL bundle, but **NOT** the library DB (earlier assumption corrected). Actual on-device use unknown |
 | Metadata reader | `libmediainfo` | 0.7.81 | Music file tag extraction |
 | Front-panel UI | `DirectFB` | 1.4.17 | Direct framebuffer GUI (no X11) |
 | IPC | `dbus` | 1.4.14 | |
@@ -51,7 +51,7 @@ These are not in the GPL bundle (because they're either proprietary or trade sec
 - **`hapmcr`** (inferred name) — the control daemon binary running on Python 2.7 + web.py + lighttpd, exposing the JSON-RPC API on port 60200. Not in the GPL bundle. Closed.
 - **The GStreamer playback elements** that handle DSD playback, gapless transitions, the DSEE-HX upscaler, and the proprietary HAP-format decoder. Not in the GPL bundle.
 - **The UPnP daemon** serving `MusicConnect:1` and the iOS-app-facing protocol. Not in the GPL bundle.
-- **The library indexer** that parses incoming files dropped on the SMB share, extracts metadata via libmediainfo, builds the Tokyo Cabinet database. Not in the GPL bundle.
+- **The library indexer** that parses incoming files dropped on the SMB share, extracts metadata via libmediainfo, and builds the SQLite library database (`/data/*.db`; runs as root). Not in the GPL bundle.
 - **The HAP firmware-update tool** that consumes the `.SonyAP` blob. Not in the GPL bundle.
 - **The FPGA bitstream**. Not in the GPL bundle (and would be irrelevant in source form — it's already compiled to FPGA logic).
 
@@ -62,11 +62,11 @@ These are not in the GPL bundle (because they're either proprietary or trade sec
             │
             │ SMB1 PUT to HAP_Internal share
             ▼
-   /mnt/internal/Music/<artist>/<album>/file.flac
+   /mnt/internal/storage/<Artist>/<Album (year)>/file.flac
             │
-            │ indexer scans, writes Tokyo Cabinet DB
+            │ indexer scans, writes SQLite library DB
             ▼
-   /mnt/internal/.hap/library.tch (inferred path)
+   /data/master.db + /data/hdd_browse*.db  (confirmed 2026-06-02)
             │
             │ Playback request via JSON-RPC or front panel
             ▼
@@ -93,7 +93,7 @@ The Python daemon does the orchestration; GStreamer does the decoding; the Forza
 
 ## Open questions
 
-1. Where exactly is the rootfs stored — entirely on the SPI flash, on a dedicated HDD partition, or split? (Community evidence from HDD swap experiments suggests U-Boot + kernel on SPI flash, rootfs + apps on HDD — but unconfirmed.)
+1. ~~Where exactly is the rootfs stored — entirely on the SPI flash, on a dedicated HDD partition, or split?~~ **Partially answered 2026-06-02:** a direct disk read shows the HDD holds **no rootfs** — only `/data` (SQLite catalog) and `/mnt/internal` (music). So the rootfs + apps live on internal flash (NAND/eMMC), not the HDD. Still open: SPI vs NAND/eMMC split, and whether any writable overlay touches the HDD. See [`09-disk-layout.md`](09-disk-layout.md).
 2. How is GStreamer driven by the Python daemon — via DBus, via OSC (hence the `pyOSC` package), or via direct subprocess?
 3. What's in `/etc/inittab` or the OpenWrt `procd` boot sequence?
 4. Are there cron jobs that periodically scan the SMB share or check for firmware updates?

@@ -8,6 +8,27 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-06-02, direct HDD read — on-disk layout + ground-truth DB schema)
+
+- **First direct read of a HAP-Z1ES internal disk** (pulled, attached over USB, imaged + mounted
+  read-only via WSL2). New canonical doc [`docs/09-disk-layout.md`](docs/09-disk-layout.md) and full
+  forensic note [`research/notes/2026-06-02-hdd-direct-read-ondisk-findings.md`](research/notes/2026-06-02-hdd-direct-read-ondisk-findings.md).
+- **Ground-truth DB schema committed** under [`research/db-schema/`](research/db-schema/) — `.schema`
+  dumps of every on-device database (schema only, no library data). Confirms the schema reverse-engineered
+  from the APK on 2026-05-25, with real row counts (77 668 tracks on the reference unit) and decoded enums
+  (codec `PROP304B`: 49=FLAC/81=MP3/97=AAC/65=ALAC/129=WMA/17=WAV/33=AIFF; `PROP6844`=year; `PROP3047`=seconds).
+- **Disk architecture established**: two ext4 partitions — `/data` (3 GB, the SQLite catalog, format
+  `ver 14.00`) and `/mnt/internal` (928 GB, music under `storage/<Artist>/<Album>/` + a `db_storage/cover_art`
+  cache). Files are `root:root 0700`; the indexer runs as root.
+
+### Changed (2026-06-02, corrections from the disk read)
+
+- **Library metadata store is SQLite, not Tokyo Cabinet** — corrected in `02-software-stack.md` and
+  `06-hdd-swap.md`. Tokyo Cabinet is in the GPL bundle but is not the library DB.
+- **The HDD holds no rootfs** — only `/data` + `/mnt/internal`. Partially answers Open Question #1 in
+  `02-software-stack.md`; the OS lives on internal flash. Audio-path diagram paths corrected
+  (`storage/` not `Music/`; `/data/*.db` not `library.tch`).
+
 ### Added (2026-05-26, web UI third pass — gear-panel controls, archive, Minimal mode)
 
 - **Gear panel is now a full control surface**, not just a theme picker. New sections:

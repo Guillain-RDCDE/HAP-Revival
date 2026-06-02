@@ -22,17 +22,19 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 | Domain | Status | See |
 |---|---|---|
 | Hardware identification | SoC, DAC, DSP, ethernet PHY confirmed. FPGA documented from service manual (Altera EP4CGX30) but not photo-verified | [`01-hardware.md`](01-hardware.md) |
-| OS and userland | OpenWrt + Linux 3.0.35 + Python 2.7 daemon, all confirmed via GPL release | [`02-software-stack.md`](02-software-stack.md) |
+| OS and userland | OpenWrt + Linux 3.0.35 + Python 2.7 daemon, all confirmed via GPL release. OS lives on internal flash, **not** the HDD | [`02-software-stack.md`](02-software-stack.md) |
 | Network API | Port 60100 (UPnP) + 60200 (JSON-RPC); ~30 methods live-validated, full catalog at [`research/api-method-catalog.md`](../research/api-method-catalog.md) | [`03-network-api.md`](03-network-api.md) |
 | File transfer | SMB1 / NT1, share `HAP_Internal`, auto library rescan | [`04-smb.md`](04-smb.md) |
 | Diagnostic modes | DIAG (4-key combo) + Special Mode (SMB version selector) | [`05-diag-modes.md`](05-diag-modes.md) |
 | HDD/SSD swap | Validated SSD list, sector-clone recipe, 2TB internal cap | [`06-hdd-swap.md`](06-hdd-swap.md) |
 | Firmware blob | 19404R, 74 MB, format never publicly analyzed | [`07-firmware.md`](07-firmware.md) |
 | Prior art | Exhaustive bibliography, three GitHub repos total | [`08-prior-art.md`](08-prior-art.md) |
+| On-disk layout | Disk read directly 2026-06-02: two ext4 partitions (`/data` SQLite catalog + `/mnt/internal` music); ground-truth DB schema; no rootfs on disk | [`09-disk-layout.md`](09-disk-layout.md) |
 
 ## What we don't know yet
 
 - The full ScalarWebAPI method dictionary on port 60200 (Sony disabled `getMethodTypes` introspection).
+- Whether the device rescans `/mnt/internal/storage/` on a cold disk mount (not just on SMB drop) — the open question gating a direct-to-disk bulk transfer tool. See [`09-disk-layout.md`](09-disk-layout.md).
 - The on-device UART pinout and U-Boot console behavior (no community probe published).
 - The firmware container format (no public binwalk output).
 - The FPGA bitstream programming model (we have the `forza_snd_driver` source, but the FPGA logic itself is closed).

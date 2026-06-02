@@ -7,9 +7,10 @@ Years of Japanese audiophile blogs have rigorously validated this procedure. **T
 This is the load-bearing fact. The Sony service manual and multiple HDD-swap experiments confirm:
 
 - **The bootloader (U-Boot) and Linux kernel live on a small SPI flash chip soldered to the main board.**
-- The HDD stores: the rootfs (or at least the writable part of it), the music library, the Tokyo Cabinet metadata DB, the user settings, and the log files.
+- The HDD stores **only data**: the music library (`/mnt/internal`) and the SQLite metadata catalog, user settings, and logs (`/data`). It holds **no rootfs** — confirmed by direct disk read 2026-06-02 (see [`09-disk-layout.md`](09-disk-layout.md)). The OS/userland is on internal flash.
+  - *(Earlier drafts said "Tokyo Cabinet metadata DB" and "rootfs on HDD" — both corrected: the catalog is SQLite, and there is no rootfs on the disk.)*
 
-Consequence: **swapping the HDD cannot brick the bootloader**. The device will always boot up to the point of trying to mount the HDD. If the HDD is empty or unrecognizable, the firmware drops into a factory-reset / initial-setup flow that rebuilds the rootfs from scratch. Confirmed by multiple JP community swaps.
+Consequence: **swapping the HDD cannot brick the bootloader or the OS**. The device boots from flash and then mounts the HDD for data. If the HDD is empty or unrecognizable, the firmware drops into a factory-reset / initial-setup flow that re-creates the `/data` + `/mnt/internal` structure from scratch. Confirmed by multiple JP community swaps.
 
 ## Compatibility list (community-validated)
 
