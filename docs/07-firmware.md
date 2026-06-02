@@ -85,11 +85,10 @@ If the format turns out to be encrypted, that's still useful information — it 
 
 ## Partition layout (best current understanding)
 
-Unverified — pending UART shell or firmware extraction:
-
-- **SPI flash** (small, soldered to main board): U-Boot, kernel, possibly an early initramfs.
-- **HDD**: rootfs (likely a Linux ext3 or ext4 partition), music library partition, swap?
-- **Music library** is what `HAP_Internal` SMB share exposes.
+- **HDD — confirmed 2026-06-02** (direct disk read, see [`09-disk-layout.md`](09-disk-layout.md)): two ext4 partitions only — `/data` (3 GB, SQLite catalog) and `/mnt/internal` (928 GB, music). **No rootfs, no swap.** The `HAP_Internal` SMB share exposes `/mnt/internal/storage`.
+- **On-board flash — unverified, pending UART shell or firmware extraction**:
+  - **SPI-NOR** (small, soldered): U-Boot, kernel, possibly an early initramfs.
+  - **NAND or eMMC** (must exist — the 77.8 MB firmware can't fit a small SPI-NOR): the kernel + rootfs. Identifying this chip on the board is an open hardware task.
 
 The exact partition table can be obtained the moment we have shell:
 
