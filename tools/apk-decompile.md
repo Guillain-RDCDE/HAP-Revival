@@ -32,20 +32,22 @@ adb shell pm path com.sony.HAP.HDDAudioRemote
 adb pull /data/app/.../base.apk HDDAudioRemote-4.3.1.apk
 ```
 
-## Step 2 — Extract the manifest and resources with apktool
+## Step 2 — (Optional) apktool for smali + raw resources
+
+**You probably don't need this.** In our run, jadx (Step 3) already extracted the manifest and the
+`assets/` (including `demo_browse.db`), so we never actually needed apktool. Reach for it only if you
+want the **smali bytecode** as ground-truth cross-check, or decoded XML resources jadx didn't surface:
 
 ```bash
 apktool d HDDAudioRemote-4.3.1.apk -o HDDAudioRemote-decoded/
 ```
 
-This gives you:
+It gives you `AndroidManifest.xml` (decoded), `res/` (incl. strings.xml), `smali/` (Dalvik bytecode),
+and `assets/`.
 
-- `AndroidManifest.xml` (decoded, human-readable)
-- `res/` — all resources including strings.xml
-- `smali/` — the Dalvik bytecode (less readable than jadx Java output, but ground truth)
-- `assets/` — any bundled JSON, config, or doc files Sony shipped inside the APK
-
-**First thing to look at**: `assets/`. Sony has historically shipped JSON manifests of supported devices and methods as assets in their control apps. If you find files like `device_capabilities.json`, `method_index.json`, anything like that — you may have just struck gold.
+**Either way, look at `assets/` first.** Sony has historically shipped JSON manifests of supported
+devices/methods, and here a `demo_browse.db` SQLite (the on-device DB schema). Files like
+`device_capabilities.json`, `method_index.json`, or a bundled `.db` are where the gold is.
 
 ## Step 3 — Decompile to readable Java with jadx
 
@@ -129,6 +131,4 @@ Sony sometimes ships APKs with obfuscation or anti-tampering. If `apktool d` err
 
 Once you have a catalog of methods from the APK, run `tools/api-fuzzer.py --method <name>` to validate each against a live device. The fuzzer is set up to record what works and what doesn't.
 
-Then open a PR titled `[research] Update API method catalog from HDDAudioRemote 4.3.1 APK analysis`. Tag @Guillain-RDCDE for review.
-
-You will have just done the most impactful single contribution in the history of HAP reverse engineering.
+Then open a PR titled `[research] Update API method catalog from HDDAudioRemote 4.3.1 APK analysis`. Tag @Guillain-RDCDE for review, and update [`research/api-method-catalog.md`](../research/api-method-catalog.md) with anything new.

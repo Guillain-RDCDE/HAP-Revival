@@ -12,11 +12,15 @@ Examples:
     # Now playing
     python tools/call.py --target 192.168.1.28 --service avContent --method getPlayingContentInfo --version 1.2 --params '[]'
 
-    # Browse top-level albums
-    python tools/call.py --target 192.168.1.28 --service avContent --method getContentList --version 1.3 --params '[{"uri":"audio:album","stIdx":0,"cnt":5}]'
+    # System information
+    python tools/call.py --target 192.168.1.28 --service system --method getSystemInformation --version 1.4 --params '[]'
 
-    # Skip to next track
-    python tools/call.py --target 192.168.1.28 --service avContent --method setPlayNextContent --version 1.0 --params '[{"output":""}]'
+    # Play an HDD track by id (use getContentList on netService for browsing; HDD browse
+    # is via the DB, see docs/09-disk-layout.md)
+    python tools/call.py --target 192.168.1.28 --service avContent --method createPlayingListAndQuickPlay --version 1.0 --params '[{"uri":"audio:track?id=1"}]'
+
+    # Pause/resume (this method is a TOGGLE, params are [{}])
+    python tools/call.py --target 192.168.1.28 --service avContent --method pausePlayingContent --version 1.1 --params '[{}]'
 
 Read-only by default in terms of what this tool DOES (it just POSTs whatever
 you give it) — but obviously the call itself may change device state. Don't
