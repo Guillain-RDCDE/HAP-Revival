@@ -58,7 +58,7 @@ By default the HAP server only speaks **SMB1 / NT1** — the original 1980s SMB 
 
 Verified by the [HAPxFer](https://github.com/danielrweber/HAPxFer) project and consistent with the behavior of the Sony Music Transfer app. The indexer is presumably watching the share via inotify on the corresponding Linux mount.
 
-Implication for Phase 2: a third-party transfer tool only needs to write to the share. No follow-up "refresh library" call. Big workflow simplification. **Implemented:** [`tools/hap_sync.py`](../tools/hap_sync.py) — an incremental, HAP-aware sync to both shares over SMB1 (via `pysmb`, so you don't enable Windows SMB1); it filters junk/unsupported files and preserves the `<Artist>/<Album>/` layout.
+Implication for Phase 2: a third-party transfer tool only needs to write to the share. No follow-up "refresh library" call. Big workflow simplification. **Implemented:** [`tools/hap_sync.py`](../tools/hap_sync.py) — an incremental, HAP-aware sync to both shares over SMB1 (via `pysmb`, so you don't enable Windows SMB1); it filters junk/unsupported files and preserves the `<Artist>/<Album>/` layout. **Full step-by-step guide: [`12-music-sync.md`](12-music-sync.md).**
 
 ## Accepted file formats
 

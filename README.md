@@ -177,6 +177,7 @@ The full research lives in [`docs/`](docs/). Recommended reading order:
 10. [Disk layout](docs/09-disk-layout.md) — what's actually on the HDD (no OS; SQLite catalog + music), with the full data model
 11. [UART console](docs/10-uart-console.md) — serial pinout (i.MX6 M1/M3) + the path to a root shell and NAND dump
 12. [Audio path](docs/11-audio-path.md) — how it makes sound: PCIe FPGA → DSPs → PCM1795, decoded from the Forza driver
+13. [Music sync](docs/12-music-sync.md) — getting music onto the HAP with `hap_sync` (the FreeFileSync replacement): setup, two-share config, the cache
 
 Active reconnaissance lives in [`research/`](research/). Tools and scripts in [`tools/`](tools/). Living API spec in [`api-spec/`](api-spec/).
 
