@@ -8,6 +8,27 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Changed (2026-06-03, repo-wide accuracy + clarity pass)
+
+A full audit of every doc against the 2026-06-02/03 ground truth, to make the repo a reliable
+reference for newcomers and specialists alike. Purged the claims that had become false and wired up
+the new docs everywhere:
+
+- **README**: named the DSPs (ADSP-21488 SHARC + CS48L10), corrected the status/roadmap (firmware is
+  OTA-only — no "format-analyze the blob"; the OS path is UART → NAND dump), reflected that the full
+  library DB is now in hand, and **added docs 09/10 to the reading order** (they were missing).
+- **Killed the "firmware is downloadable" falsehood** in `07-firmware.md`, `00-overview.md`,
+  `CONTRIBUTING.md`, `08-prior-art.md`, and `archive/README.md` — it is OTA-only with no public copy.
+- **Removed the last "Tokyo Cabinet = library DB" relics** (`06-hdd-swap.md`, `08-prior-art.md`) and
+  the "SHARC part not published" / "NAND not pinned down" hedges (`01-hardware.md`, `02-software-stack.md`):
+  rootfs is `/dev/mtdblock2` JFFS2 on NAND (GPMI), SPI-NOR is an M25P32.
+- **`04-smb.md`** gained a "Security boundary" section (anonymous read/write confirmed; symlink + HTTP
+  traversal blocked; no safe Samba RCE) and the real on-disk share paths.
+- **`03-network-api.md`** documents the vestigial `/sony/contentdb/v100` + MusicConnect endpoints.
+- **`api-method-catalog.md`** reframes `downloadByDiff` as no-longer-a-blocker (DB obtained off-disk).
+- Added dated **correction banners** to the superseded 2026-05 research notes (iOS postmortem,
+  mitmproxy, database-service, downloadByDiff deep-dive) pointing forward to the 2026-06 findings.
+
 ### Added (2026-06-03, OS acquisition recon + UART console identified)
 
 - **UART serial console pinned down at the SoC** — new doc [`docs/10-uart-console.md`](docs/10-uart-console.md).

@@ -1,5 +1,7 @@
 # APK deep-dive: downloadByDiff, getRichMetaInfo, and misc
 
+> **UPDATE 2026-06-02:** the empty-`location` `downloadByDiff` bug chased below remains unsolved, but it is **off the critical path** — the same library DB is now available directly from disk (see [`2026-06-02-hdd-direct-read-ondisk-findings.md`](2026-06-02-hdd-direct-read-ondisk-findings.md)). The reasoning here is preserved for whoever wants to crack the network-sync path later.
+
 Date: 2026-05-25
 Source: `C:\Users\loutr\Tools\jadx-output\HDDAudioRemote-4.3.1\sources\`
 Primary target: `jp/co/sony/lfx/anap/control/CommonControl.java`

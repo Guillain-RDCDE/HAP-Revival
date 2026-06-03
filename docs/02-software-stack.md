@@ -9,7 +9,7 @@ Everything Sony loaded onto the HAP-Z1ES / HAP-S1, derived from the published [S
 
 ## Bootloader and kernel
 
-- **U-Boot 2012.04.01** with Sony patches. Lives on an SoC-side SPI flash chip (not on the HDD).
+- **U-Boot 2012.04.01** with Sony patches. Lives on an SoC-side **SPI-NOR (`M25P32`, 4 MB)**, alongside the kernel — not on the HDD. The rootfs is on a separate NAND chip (Freescale GPMI), `/dev/mtdblock2`, writable JFFS2. See [`07-firmware.md`](07-firmware.md) / [`10-uart-console.md`](10-uart-console.md).
 - **Linux 3.0.35** with Sony patches and Freescale BSP. Released 2012, vintage Freescale i.MX6 kernel.
 - Both kernel and U-Boot sources are in the [oss.sony.net GPL bundle](https://oss.sony.net/Products/Linux/Audio/HAP-S1.html), including the patch files.
 
@@ -93,7 +93,7 @@ The Python daemon does the orchestration; GStreamer does the decoding; the Forza
 
 ## Open questions
 
-1. ~~Where exactly is the rootfs stored — entirely on the SPI flash, on a dedicated HDD partition, or split?~~ **Partially answered 2026-06-02:** a direct disk read shows the HDD holds **no rootfs** — only `/data` (SQLite catalog) and `/mnt/internal` (music). So the rootfs + apps live on internal flash (NAND/eMMC), not the HDD. Still open: SPI vs NAND/eMMC split, and whether any writable overlay touches the HDD. See [`09-disk-layout.md`](09-disk-layout.md).
+1. ~~Where exactly is the rootfs stored?~~ **Answered 2026-06-02/03.** The HDD holds **no rootfs** (only `/data` SQLite catalog + `/mnt/internal` music). The OS is on-board: **U-Boot + kernel on SPI-NOR `M25P32` (4 MB)**, **rootfs on NAND (GPMI), `/dev/mtdblock2`, writable JFFS2** (from the GPL kernel cmdline `root=/dev/mtdblock2 rootfstype=jffs2`). Exact MTD offsets confirm at first `cat /proc/mtd`. See [`09-disk-layout.md`](09-disk-layout.md) / [`10-uart-console.md`](10-uart-console.md).
 2. How is GStreamer driven by the Python daemon — via DBus, via OSC (hence the `pyOSC` package), or via direct subprocess?
 3. What's in `/etc/inittab` or the OpenWrt `procd` boot sequence?
 4. Are there cron jobs that periodically scan the SMB share or check for firmware updates?

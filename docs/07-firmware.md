@@ -14,15 +14,30 @@ What we know — and don't know — about the on-device firmware.
 
 Each version is distributed as a single binary blob (extension reportedly `.SonyAP` or similar; format not publicly documented). The firmware updater on the device consumes this blob; **no one outside Sony has documented its container format**.
 
-## Download URLs
+## The firmware blob is OTA-only — there is no public copy
 
-Sony hosts each firmware on regional support pages. The pages are JavaScript-gated; there is no clean CDN URL for direct scripted download.
+> **⚠️ You cannot download the HAP firmware. Confirmed by an exhaustive multi-source search
+> (2026-06-03): no copy of any HAP-Z1ES/HAP-S1 firmware version exists anywhere public** —
+> not on archive.org, GitHub, or the Japanese/Chinese modding communities. See
+> [`research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md).
+
+The device fetches updates **over the air**: Settings → Network Update pulls the blob directly from
+Sony's update servers (`info.update.sony.net`) and applies it. The regional "download" support pages
+below are **information pages only** — they describe the on-device Network Update procedure and do
+**not** expose a downloadable file (verified across UK / Asia / Canada / Japan / China; even Sony
+China's `service.sony.com.cn/download/firm/…` is network-update-only). The "~77.8 MB" figure is the
+OTA payload size, not a clickable link.
 
 - **UK**: <https://www.sony.co.uk/electronics/support/audio-components-hdd-audio-network-audio-players/hap-z1es/downloads/00017123>
 - **Asia**: <https://www.sony-asia.com/electronics/support/downloads/00017124>
 - **Canada**: <https://www.sony.ca/en/electronics/support/audio-components-hdd-audio-network-audio-players/hap-z1es/downloads/00017125>
 
-To download: visit one of the pages in a real browser, accept the terms, and grab the blob. **Do not commit the blob to this repository** — it is Sony copyrighted material. The download URL is fine to share.
+**Why nobody ever mirrored it:** the HDD-swap modding scene never needed the blob — the OS lives on
+internal NAND, so a blank replacement drive re-initializes on-device via factory reset (~5 min),
+restoring firmware + bundled music from NAND. **The realistic path to the OS is therefore a NAND dump
+via the UART console** — see [`10-uart-console.md`](10-uart-console.md) — not a blob download. (If
+anyone ever captures the OTA blob, [`ma1co/fwtool.py`](https://github.com/ma1co/fwtool.py) is the
+likely unpacker for Sony's `.SonyAP`/FDAT container.)
 
 ## GPL source code (what Sony is legally required to publish)
 
@@ -56,41 +71,45 @@ These are Sony's proprietary application-layer pieces:
 - The firmware-update tool.
 - The FPGA bitstream.
 
-To recover those, we have to extract them from the firmware blob — see below.
+To recover those, we extract them **from the running device** — `dd` the NAND rootfs over a UART
+root shell (see [`10-uart-console.md`](10-uart-console.md)). We deliberately do **not** depend on the
+firmware blob, because it is unobtainable (above).
 
-## Firmware blob analysis (the green-field opportunity)
+## The realistic acquisition path: NAND dump, not blob unpack
 
-**Nobody has publicly documented**:
+Since the `.SonyAP` blob cannot be downloaded, the green-field opportunity is the **NAND dump**, which
+yields the same proprietary pieces (control daemon, GStreamer elements, indexer) as *live files* with
+no container to reverse:
 
-- The file format / container of the `.SonyAP` blob.
-- Whether it's encrypted or signed.
-- Whether older firmware versions (18444R) used a simpler / less hardened format than 19404R.
-- The diff between two firmware versions (would reveal exactly what Sony changed in each release).
+1. Get a UART root shell (pinout + procedure: [`10-uart-console.md`](10-uart-console.md)).
+2. `cat /proc/mtd` to read the live partition map, then `dd if=/dev/mtdblockN of=…` each partition.
+   The rootfs is `/dev/mtdblock2` (writable JFFS2) — mount/extract it off-device.
+3. Document findings in `research/notes/` with sizes + SHA-256 for reproducibility.
+   **Do not commit dumped proprietary contents.**
 
-Recipe for the first contributor to attempt:
+**Only if someone ever captures the OTA blob** (e.g. by intercepting a Network Update) does the
+classic unpack apply — and even then it may be encrypted/signed:
 
-1. Download 19404R (and one or two older versions) via a real browser from the Sony URLs above.
-2. Run `binwalk` (or `binwalk -e` to extract):
+```bash
+binwalk -B HAPZ1ES_19404R.SonyAP            # identify the container
+binwalk -e HAPZ1ES_19404R.SonyAP -C out/    # try to extract
+```
 
-   ```bash
-   binwalk -B HAPZ1ES_19404R.SonyAP
-   binwalk -e HAPZ1ES_19404R.SonyAP -C extracted/
-   ```
-
-3. Look for: tar magic, squashfs magic, ext2/3/4 magic, gzip / xz / bzip2 / lzo / lz4 streams, ELF headers, certificate / signature blocks, U-Boot legacy image headers (`uImage` magic `0x27051956`).
-4. Diff the older + newer firmware byte-for-byte at offsets that look like metadata to identify version markers and any update mechanism.
-5. **Do not commit the raw blob or its extracted contents.** Document findings in a markdown note under `research/notes/firmware-format-analysis.md`. Reference the file size and SHA-256 of what you analyzed for reproducibility.
-
-If the format turns out to be encrypted, that's still useful information — it tells us the next step is to dump the decryption key from the running rootfs (which requires UART shell).
+Look for tar / squashfs / ext / jffs2 / gzip-xz-lzo streams, ELF headers, signature blocks, and
+U-Boot legacy image headers (`uImage` magic `0x27051956`). The format is undocumented;
+[`ma1co/fwtool.py`](https://github.com/ma1co/fwtool.py) (Sony camera firmware tool, same container
+family) is the candidate unpacker. If it's encrypted, the key would have to come from the running
+rootfs — i.e. you need the UART shell anyway.
 
 ## Partition layout (best current understanding)
 
 - **HDD — confirmed 2026-06-02** (direct disk read, see [`09-disk-layout.md`](09-disk-layout.md)): two ext4 partitions only — `/data` (3 GB, SQLite catalog) and `/mnt/internal` (928 GB, music). **No rootfs, no swap.** The `HAP_Internal` SMB share exposes `/mnt/internal/storage`.
-- **On-board flash — unverified, pending UART shell or firmware extraction**:
-  - **SPI-NOR** (small, soldered): U-Boot, kernel, possibly an early initramfs.
-  - **NAND or eMMC** (must exist — the 77.8 MB firmware can't fit a small SPI-NOR): the kernel + rootfs. Identifying this chip on the board is an open hardware task.
+- **On-board flash — derived 2026-06-03 from the GPL `linux-3.0.35` kernel config** (see [`10-uart-console.md`](10-uart-console.md); live `cat /proc/mtd` will confirm offsets):
+  - **SPI-NOR = M25P32 (4 MB)** on SPI0/CS1, partitioned `bootloader` (offset 0, 256 KB) + `kernel`.
+  - **NAND via Freescale GPMI** holds the **rootfs = `/dev/mtdblock2`, a writable JFFS2** (`root=/dev/mtdblock2 rootfstype=jffs2` in the kernel cmdline; console `ttymxc0,115200`).
+  - Predicted MTD map: mtd0 U-Boot (SPI), mtd1 kernel (SPI), **mtd2 rootfs JFFS2 (NAND)**, mtd3+ data.
 
-The exact partition table can be obtained the moment we have shell:
+The exact partition table is confirmed the moment we have shell:
 
 ```bash
 cat /proc/partitions

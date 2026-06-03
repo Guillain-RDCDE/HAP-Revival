@@ -27,7 +27,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 | File transfer | SMB1 / NT1, share `HAP_Internal`, auto library rescan | [`04-smb.md`](04-smb.md) |
 | Diagnostic modes | DIAG (4-key combo) + Special Mode (SMB version selector) | [`05-diag-modes.md`](05-diag-modes.md) |
 | HDD/SSD swap | Validated SSD list, sector-clone recipe, 2TB internal cap | [`06-hdd-swap.md`](06-hdd-swap.md) |
-| Firmware blob | 19404R, 74 MB, format never publicly analyzed | [`07-firmware.md`](07-firmware.md) |
+| Firmware blob | 19404R — **OTA-only, no public copy exists anywhere**; the OS must be dumped from NAND, not downloaded | [`07-firmware.md`](07-firmware.md) |
 | Prior art | Exhaustive bibliography, three GitHub repos total | [`08-prior-art.md`](08-prior-art.md) |
 | On-disk layout | Disk read directly 2026-06-02: two ext4 partitions (`/data` SQLite catalog + `/mnt/internal` music); ground-truth DB schema; no rootfs on disk | [`09-disk-layout.md`](09-disk-layout.md) |
 | OS acquisition | Firmware confirmed unobtainable publicly (OTA-only); live-device software vectors (Samba symlink, HTTP traversal) blocked; **UART serial console** is the path to the rootfs | [`10-uart-console.md`](10-uart-console.md), [`research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md) |
@@ -36,8 +36,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 
 - The full ScalarWebAPI method dictionary on port 60200 (Sony disabled `getMethodTypes` introspection).
 - Whether the device rescans `/mnt/internal/storage/` on a cold disk mount (not just on SMB drop) — the open question gating a direct-to-disk bulk transfer tool. See [`09-disk-layout.md`](09-disk-layout.md).
-- The on-device UART pinout and U-Boot console behavior (no community probe published).
-- The firmware container format (no public binwalk output).
+- The physical UART test-point location on the board and the live U-Boot boot-log behaviour. (The SoC-side console pinout is now **known** — i.MX6 UART1, balls M1/M3, `ttymxc0 @ 115200`; see [`01-hardware.md`](01-hardware.md) / [`10-uart-console.md`](10-uart-console.md).)
 - The FPGA bitstream programming model (we have the `forza_snd_driver` source, but the FPGA logic itself is closed).
 - The exact protocol used by the official **iOS** app for real-time updates. The **Android** equivalent has been confirmed (APK decompile, 2026-05-25) to use plain HTTP polling at 5 s cadence — no WebSocket, no push, four background threads polling four endpoints. The iOS app likely behaves identically, pending Wireshark capture.
 

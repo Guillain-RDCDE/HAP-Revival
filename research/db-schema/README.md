@@ -12,4 +12,6 @@ data, no personal library content. They are the authoritative reference for the 
 - `*_for_disp` — display-optimized copies.
 - `tunein / netradio / radiko / spotify / bivl` — per-service browse/state DBs.
 
+This is the same data the network `downloadByDiff` method would serve (still blocked — see [`../notes/2026-05-25-database-service-and-db-schema.md`](../notes/2026-05-25-database-service-and-db-schema.md)); reading the disk got us there directly.
+
 DB format version is `ver 14.00` (from `master.db` `Internals`). All SQLite 3.x.

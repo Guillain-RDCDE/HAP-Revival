@@ -1,5 +1,7 @@
 # 2026-05-25 — `/sony/database` service + on-device DB schema
 
+> **UPDATE 2026-06-02:** `downloadByDiff` still returns an empty `location` (unsolved), but it is **no longer the blocker**. The identical library database was read **directly off the disk** (`/data/*.db`, SQLite), and the schema reverse-engineered below was **confirmed correct** against it. Build/validate a local mirror against the on-disk DB instead. See [`2026-06-02-hdd-direct-read-ondisk-findings.md`](2026-06-02-hdd-direct-read-ondisk-findings.md) and the committed [`../db-schema/`](../db-schema/) dumps.
+
 Two major discoveries:
 
 1. The `/sony/database` service is live-confirmed (responds to `checkSameDatabase`).

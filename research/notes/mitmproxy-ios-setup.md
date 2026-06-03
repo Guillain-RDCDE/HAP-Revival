@@ -4,7 +4,9 @@
 >
 > **Keep this guide for**: any other iOS app that talks unicast HTTP/HTTPS to a known IP (most modern apps). The mitmproxy + WireGuard setup is solid for that use case.
 >
-> **Don't use this guide for**: capturing Sony HDD Audio Remote. We pivoted to reading the HAP's internal HDD directly off the SATA dock instead — which gives strictly more information with strictly less complexity.
+> **Don't use this guide for**: capturing Sony HDD Audio Remote. We pivoted to reading the HAP's internal HDD directly off the SATA dock instead.
+>
+> **Update 2026-06-02:** that HDD read gave us the library DB (SQLite) but **no rootfs** — the OS lives on internal NAND, so the rootfs now needs a UART console / NAND dump, not the disk. See [`2026-06-02-hdd-direct-read-ondisk-findings.md`](2026-06-02-hdd-direct-read-ondisk-findings.md).
 
 How to capture the wire traffic between an iOS client app and a target on the LAN, on a Windows PC.
 

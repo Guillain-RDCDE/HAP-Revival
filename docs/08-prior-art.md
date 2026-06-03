@@ -10,7 +10,7 @@ Total count: **7**. That's the entire world's HAP-specific output across a decad
 
 - **URL (latest)**: <https://oss.sony.net/Products/Linux/Audio/HAP-S1.html> (covers HAP-S1 and HAP-Z1ES; HAP-Z1ES has no separate page)
 - **URL (older firmwares)**: `HAP-S1_19226R.html`, `HAP-S1_18777R.html`, `HAP-S1_18444R.html` under <https://oss.sony.net/Products/Linux/Audio/>
-- **What**: Sony's mandatory open-source release. Kernel, U-Boot, BusyBox, Samba 3.0.37, Dropbear 2012.55, lighttpd 1.4.35, GStreamer 0.10.36, Python 2.7.3, web.py, Tokyo Cabinet, SQLite, DirectFB, **`forza_snd_driver`** (the custom audio kernel module).
+- **What**: Sony's mandatory open-source release. Kernel, U-Boot, BusyBox, Samba 3.0.37, Dropbear 2012.55, lighttpd 1.4.35, GStreamer 0.10.36, Python 2.7.3, web.py, Tokyo Cabinet, SQLite, DirectFB, **`forza_snd_driver`** (the custom audio kernel module). *(Note: the music library is stored in **SQLite**, not Tokyo Cabinet — Tokyo Cabinet ships in the bundle but is not the library DB. Confirmed by reading the disk; see [`09-disk-layout.md`](09-disk-layout.md).)*
 - **Why it matters**: tells us exactly what's running on the device. The `forza_snd_driver` source is the most valuable single file in the entire prior-art corpus.
 - **What it doesn't have**: the proprietary application-layer (control daemon, custom GStreamer elements, UPnP daemon, library indexer, FPGA bitstream).
 
@@ -72,6 +72,14 @@ Total count: **7**. That's the entire world's HAP-specific output across a decad
 - **Status (until 2026-05-25)**: never publicly decompiled. **Now decompiled by HAP-Revival** — first public decompile, with two extensive analysis notes: [`research/notes/2026-05-25-apk-decompile-findings.md`](../research/notes/2026-05-25-apk-decompile-findings.md) (first pass — endpoints, headers, polling model, method index) and [`research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md`](../research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md) (deep dive — `downloadByDiff` flow, `getRichMetaInfo`, `editContentInfo` dispatch).
 - **Why it mattered**: this was the **single highest-leverage unexplored artefact** in the entire corpus. Decompilation yielded the complete method dictionary, Sony-authoritative parameter shapes for every 🟡 entry in our catalog, and the negative finding that there is no WebSocket push (Sony polls at 5 s). It directly unblocked everything between commits 899b999 and 8ebca38.
 
+### HAP-Revival's own primary artefacts (2026-06 — now the most authoritative ground truth)
+
+Beyond the 7 pre-existing items above, the project has since produced primary sources that did not
+exist anywhere before and are now the canonical reference for the device's internals:
+
+- **Direct read of a HAP internal disk** (2026-06-02) → [`docs/09-disk-layout.md`](09-disk-layout.md) + [`research/notes/2026-06-02-hdd-direct-read-ondisk-findings.md`](../research/notes/2026-06-02-hdd-direct-read-ondisk-findings.md). Established the ground truth that the HDD holds **no OS** (only a SQLite `/data` catalog + `/mnt/internal` music), corrected the long-standing "Tokyo Cabinet / rootfs-on-HDD" assumptions, and produced the committed **on-device SQLite schema dumps** ([`research/db-schema/`](../research/db-schema/)) — the first public copy of the HAP's data model.
+- **OS-acquisition recon** (2026-06-03) → [`research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md). Confirmed (via an exhaustive search) the firmware is OTA-only with **no public copy**, mapped the live software attack surface, and identified the **UART console** + the GPL-kernel-derived flash layout — see [`docs/10-uart-console.md`](10-uart-console.md).
+
 ## Tier 2 — Adjacent Sony reverse-engineering (transposable to HAP)
 
 The HAP API is a variant of Sony's ScalarWebAPI used across cameras, TVs, AV receivers, soundbars. While HAP isn't directly supported by any of these projects, the JSON shapes and method patterns are highly transferable.
@@ -117,7 +125,7 @@ The English-speaking audiophile world has barely touched the HAP. The Japanese c
 
 ### Internals discussion
 
-- [diyAudio thread](https://www.diyaudio.com/community/threads/sony-hap-z1es-hi-res-source-new-2014.252985/), 2014→. Confirms FPGA + SHARC + dual PCM1795 mono.
+- [diyAudio thread](https://www.diyaudio.com/community/threads/sony-hap-z1es-hi-res-source-new-2014.252985/), 2014→. Confirms FPGA + SHARC + dual PCM1795 mono. *(The exact parts are now pinned down from the `forza_snd_driver` source: SHARC = **ADSP-21488**, plus a Cirrus **CS48L10**; DACs = 2× PCM1795 — see [`01-hardware.md`](01-hardware.md).)*
 - [AudioCircle thread #124280](https://www.audiocircle.com/index.php?topic=124280.0), 2014→. Photos of teardown (general, no IC closeups).
 - [kakaku SortID=22520896](https://bbs.kakaku.com/bbs/K0000579959/SortID=22520896/) — general spec thread, includes `blackbird1212` (the most technical regular).
 
@@ -128,8 +136,8 @@ The English-speaking audiophile world has barely touched the HAP. The Japanese c
 - HAP-Z1ES service manual — preserved as [`archive/sony-service-manual-hap-z1es.pdf`](../archive/sony-service-manual-hap-z1es.pdf).
 - [HAP-Z1ES service manual on Elektrotanya](https://elektrotanya.com/sony_hap-z1es.pdf/download.html) — direct download mirror.
 - [Sony Help Guide HAP-Z1ES](https://helpguide.sony.net/ha/hapz1es/v1/en/) — end-user manual.
-- [Sony Asia firmware page (19404R)](https://www.sony-asia.com/electronics/support/downloads/00017124).
-- [Sony UK firmware page (19404R)](https://www.sony.co.uk/electronics/support/audio-components-hdd-audio-network-audio-players/hap-z1es/downloads/00017123).
+- [Sony Asia firmware page (19404R)](https://www.sony-asia.com/electronics/support/downloads/00017124) — *info page only; no downloadable blob (firmware is OTA-only). See [`07-firmware.md`](07-firmware.md).*
+- [Sony UK firmware page (19404R)](https://www.sony.co.uk/electronics/support/audio-components-hdd-audio-network-audio-players/hap-z1es/downloads/00017123) — *info page only; no downloadable blob.*
 - [Sony Asia support docs on Special Mode SMB selector](https://www.sony-asia.com/electronics/support/audio-components-hdd-audio-network-audio-players/hap-z1es/software/00279155).
 
 ## Forums where we looked and found nothing meaningful

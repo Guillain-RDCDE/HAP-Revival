@@ -57,6 +57,6 @@ These documents are the intellectual property of their respective copyright hold
 
 ## What is NOT in this archive (and never will be)
 
-- **Sony firmware blobs** (`*.SonyAP`). These are kept off the repo because (a) Sony's regional download pages are still live, so the originals can always be obtained, and (b) the firmware contains proprietary application code that we explicitly don't want to mass-redistribute.
+- **Sony firmware blobs** (`*.SonyAP`). Kept off the repo because the firmware contains proprietary application code we don't want to mass-redistribute. **Correction (2026-06-03):** an earlier draft said the originals "can always be obtained" from Sony's regional download pages — that is **wrong**. The firmware is **OTA-only** (the device fetches it from `info.update.sony.net`); the regional pages expose **no downloadable blob**, and no public copy exists anywhere. We couldn't redistribute it even if we wanted to. See [`../research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md) §1.
 - **Decompiled APK source code**. The recipe to decompile is in [`tools/apk-decompile.md`](../tools/apk-decompile.md). The output is Sony copyrighted Java and stays out of the repo per the project's `.gitignore`.
 - **User music libraries** or any personally identifiable data.

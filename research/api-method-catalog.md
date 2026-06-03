@@ -28,7 +28,7 @@ Likely explanation: the agent read `httpHost = "http://<ip>:60200/"` and assumed
 {"method":"checkSameDatabase","params":[{"uri":"database:<short_uuid>?dbType=hdd&dbSerial=<n>&originalVersion=<n>"}],"id":1,"version":"1.0"}
 ```
 
-The `<short_uuid>` is the device UDN minus the `uuid:` prefix. **This service is the path to a full library DB export** via the `downloadByDiff` method. High-value target for future investigation.
+The `<short_uuid>` is the device UDN minus the `uuid:` prefix. The `downloadByDiff` method is the *network* path to a full library DB export. **Superseded for client-building (2026-06-02):** the identical library SQLite was read directly off the HDD's `/data` partition and its schema confirmed — so a client can be built/validated against the real DB today. `downloadByDiff` remains an unsolved network-sync curiosity (empty `location`) but is **no longer a blocker**. See [`../docs/09-disk-layout.md`](../docs/09-disk-layout.md) + [`db-schema/`](db-schema/).
 
 ## How to read this catalog
 
@@ -230,7 +230,7 @@ Master record of methods validated live against the HAP-Z1ES on firmware 19404R,
 
 ## 🟡 Confirmed exists but params still unknown after live test
 
-- `database.downloadByDiff` — endpoint accepted, but returned `{dbType:"", type:"all", location:""}` with empty `location` across all tested variants (`dbSerial=0/1, originalVersion=0/1, no version params`). Likely needs a preflight handshake or a different `dbType` value. **Highest-leverage unblock pending.**
+- `database.downloadByDiff` — endpoint accepted, but returned `{dbType:"", type:"all", location:""}` with empty `location` across all tested variants (`dbSerial=0/1, originalVersion=0/1, no version params`). Likely needs a preflight handshake or a different `dbType` value. **No longer a blocker** — the same library DB is now available directly off the disk (see [`../docs/09-disk-layout.md`](../docs/09-disk-layout.md)); this remains an open network-sync curiosity only.
 - `avContent.getRichMetaInfo` — Sony shape from APK is complex; our simple `[{uri}]` returned `[1, "Any"]`. Needs APK re-read for the full param object.
 - `system.setSleepTimer`, `avContent.setBufferTime`, `setRepeatType`, `setShuffleType`, `setAudioVolume`, `setAudioMute`, `setSoundSettings`, `setAudioInput` — shapes known from APK but UNTESTED (deliberately, to avoid side effects on user listening).
 
@@ -267,4 +267,4 @@ The Android APK ships a 79 KB SQLite (`assets/demo_browse.db`) with the **comple
 
 Full PROP-code dictionary (~60 codes decoded) in [`research/notes/2026-05-25-database-service-and-db-schema.md`](notes/2026-05-25-database-service-and-db-schema.md).
 
-**Implication**: once `downloadByDiff` returns a real `location`, we can sync the entire HAP library DB into a local SQLite using this exact schema, and build a complete library browser without ever asking the device.
+**Implication**: a client can mirror the entire HAP library into a local SQLite using this exact schema and browse it offline. We no longer need `downloadByDiff` to do it — the real DB was read directly off the disk (2026-06-02, [`../docs/09-disk-layout.md`](../docs/09-disk-layout.md)), which both unblocks the library browser and confirms this schema is correct. A live network sync via `downloadByDiff` would still be nice-to-have, but it is no longer on the critical path.

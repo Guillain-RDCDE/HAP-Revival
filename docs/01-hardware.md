@@ -65,7 +65,10 @@ This is the part Sony invested in. The Linux SoC does not touch the audio sample
 - **Internal**: 1 TB 2.5" SATA HDD (factory). Holds **only data** — the music library (`/mnt/internal`) and the SQLite metadata catalog (`/data`). **Not the rootfs** (confirmed by direct disk read 2026-06-02; see [`09-disk-layout.md`](09-disk-layout.md)).
 - **Maximum supported internal**: 2 TB (MBR limit on Sony's firmware).
 - **External**: USB drives up to 4 TB — our reference HAP-Z1ES on firmware 19404R plays from `storage:usb1` daily, confirmed working.
-- **The OS lives on on-board flash, not the HDD.** U-Boot (+ kernel) on an **SoC-side SPI-NOR** chip; the **kernel + rootfs** on an on-board **NAND or eMMC** (the 77.8 MB firmware cannot fit a small SPI-NOR — so a larger flash part must exist; not yet pinned down in the IC list). This is why HDD swaps don't brick the bootloader, and why factory-reset works regardless of disk state. See [`06-hdd-swap.md`](06-hdd-swap.md).
+- **The OS lives on on-board flash, not the HDD** (derived from the GPL `linux-3.0.35` kernel config, 2026-06-03; live `cat /proc/mtd` will confirm offsets):
+  - **U-Boot + kernel** on an **SPI-NOR `M25P32` (4 MB)** (SPI0/CS1), partitioned `bootloader` (256 KB) + `kernel`.
+  - **rootfs** on **NAND (Freescale GPMI controller)** — it is `/dev/mtdblock2`, a **writable JFFS2** (`root=/dev/mtdblock2 rootfstype=jffs2`).
+  - This is why HDD swaps don't brick the bootloader, and why factory-reset works regardless of disk state. See [`06-hdd-swap.md`](06-hdd-swap.md) and [`10-uart-console.md`](10-uart-console.md).
 
 ## Front panel
 

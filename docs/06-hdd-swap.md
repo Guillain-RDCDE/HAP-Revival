@@ -1,6 +1,6 @@
 # HDD / SSD swap recipe
 
-Years of Japanese audiophile blogs have rigorously validated this procedure. **The internal disk can be safely replaced** with another HDD or with an SSD, with full preservation of the device's behavior.
+Years of Japanese audiophile experiments have documented this procedure thoroughly (see the compatibility table below for the nuances — not every drive behaves). **The internal disk can be safely replaced** with another HDD or with an SSD, with full preservation of the device's behavior.
 
 ## Key insight: U-Boot + kernel are on SPI flash, not the HDD
 
@@ -41,7 +41,7 @@ Best if your existing HDD still works and you want zero data loss.
 
 1. Power down the HAP.
 2. Remove the original HDD (see service manual for screws).
-3. Use a **hardware sector cloner** (KURO-DACHI/CLONE/U3 confirmed; any "duplicator" or "clone" dock that does bit-for-bit copy works). **Do not use a file-level copy tool** — community evidence is unambiguous that file-level clones do not work, presumably due to MBR/partition-table specifics or Tokyo Cabinet DB layout.
+3. Use a **hardware sector cloner** (KURO-DACHI/CLONE/U3 confirmed; any "duplicator" or "clone" dock that does bit-for-bit copy works). **Do not use a file-level copy tool** — community evidence is unambiguous that file-level clones do not work, presumably due to MBR/partition-table specifics or the ext4/SQLite on-disk layout.
 4. Install the cloned drive in the HAP.
 5. Power on. The device should behave identically to before, including all your tags, playlists, and library edits.
 

@@ -17,7 +17,7 @@ Result:
 
 **Implications for the iOS / web app**: cover art display is trivial. Construct `<img src="<coverArtUrl>">` (or equivalent SwiftUI `AsyncImage`). No image decoding needed beyond what every platform ships.
 
-**The 8-hex-char ID** (`A0002E05` in this example): opaque. It does NOT match the album ID in `audio:album?id=NNNN` directly. Either it's a hash, a database row id, or a sequential ID assigned during library indexing. Future investigation: dump several cover art IDs alongside their associated album IDs to look for a pattern.
+**The 8-hex-char ID** (`A0002E05` in this example): opaque. It does NOT match the album ID in `audio:album?id=NNNN` directly. Either it's a hash, a database row id, or a sequential ID assigned during library indexing. *(Update 2026-06-02: the disk read showed full-resolution art is cached on disk at `/mnt/internal/db_storage/cover_art/A00xxxxx/`, keyed by this hex object id — see [`2026-06-02-hdd-direct-read-ondisk-findings.md`](2026-06-02-hdd-direct-read-ondisk-findings.md).)*
 
 **Cover art file is NOT committed to the repo** (user's music library content; gitignored via `*.bin`). The capture is at `research/captures/cover-art-A0002E05.bin` locally.
 

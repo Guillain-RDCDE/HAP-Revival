@@ -4,18 +4,41 @@ How music gets onto the HAP.
 
 ## The shares
 
-The HAP-Z1ES / HAP-S1 Samba 3.0.37 server exposes three shares, all accessible **without authentication**:
+The HAP-Z1ES / HAP-S1 Samba 3.0.37 server exposes three shares, all accessible **anonymously** —
+and anonymous access is **read *and* write**, not read-only (confirmed by enumeration, 2026-06-03):
 
-| Share | Backing | Purpose |
+| Share | On-disk path | Purpose |
 |---|---|---|
-| `HAP_Internal` | the 1 TB internal HDD | Music storage — drop files here, the library auto-indexes |
-| `HAP_External` | a USB-attached drive, if any | Optional external library |
-| `IPC$` | (standard SMB) | Inter-process — not directly useful |
+| `HAP_Internal` | `/mnt/internal/internal` → music under `/mnt/internal/storage/<Artist>/<Album>/` | Music storage — drop files here, the library auto-indexes |
+| `HAP_External` | `/mnt/external_fuse` (a USB-attached drive, via FUSE) | Optional external library |
+| `IPC$` | `/tmp` | Inter-process — not directly useful |
+
+The internal HDD is **not** a monolithic music disk: it has two ext4 partitions, `/mnt/internal`
+(music, exposed here) and a separate `/data` (the SQLite catalog). The OS is on internal NAND, not
+the HDD. Full picture: [`09-disk-layout.md`](09-disk-layout.md).
 
 ```bash
-# From any SMB1-capable client on the same LAN:
-smbclient -L //<hap-ip> -U "" -N
+# From any SMB1-capable client on the same LAN (force NT1 — the device only speaks SMB1):
+smbclient -L //<hap-ip> -N --option='client min protocol=NT1' --option='client max protocol=NT1'
 ```
+
+## Security boundary (what the SMB surface does and doesn't expose)
+
+This is the device's biggest stock-firmware exposure, so it's worth stating precisely (and it
+records attack vectors already tried, so nobody re-burns the hours):
+
+- **Anonymous read + write** to the music shares is open to anyone on the LAN. (Useful for a future
+  direct-to-share bulk loader; also a real exposure on an untrusted network — see [`SECURITY.md`](../SECURITY.md).)
+- **Escaping the share to the rootfs is blocked.** The classic Samba symlink / `wide links`
+  traversal (create a symlink to `/`, read the filesystem) returns `NT_STATUS_ACCESS_DENIED` on
+  every attempt (absolute and relative targets, both shares) — Sony hardened this.
+- **HTTP path traversal is also blocked** on lighttpd (`:60100`/`:60200`), including raw `../` and
+  `%2e%2f` encodings — all `404`.
+- **No remote-code-execution shortcut on Samba 3.0.37/ARM**: it predates SambaCry (CVE-2017-7494,
+  needs ≥3.5.0) and the `usermap_script` bug (≤3.0.25); no reliable public ARM exploit.
+
+Net: SMB gets you files in/out of the music area, but **not** a path to the OS. That is why the
+OS-acquisition route is the UART console / NAND dump, not the network — see [`10-uart-console.md`](10-uart-console.md).
 
 ## The SMB version trap
 
@@ -49,13 +72,13 @@ ATRAC is a Sony-only lossless/lossy codec — supported here for legacy MiniDisc
 
 ## File layout conventions
 
-The HAP indexer expects (or at least handles best) the standard `<Artist>/<Album>/<Track>.flac` layout. The [outmyth/music-organizer](https://github.com/outmyth/music-organizer) Python tool encodes these conventions if you want to bulk-prepare a library before transfer.
+The HAP indexer expects (or at least handles best) the standard `<Artist>/<Album>/<Track>.flac` layout — which on disk lands at `/mnt/internal/storage/<Artist>/<Album (year)>/NN - Artist - Title.flac` (+ a `Cover.jpg`), exactly mirrored in the SQLite folder table. The [outmyth/music-organizer](https://github.com/outmyth/music-organizer) Python tool encodes these conventions if you want to bulk-prepare a library before transfer. See [`09-disk-layout.md`](09-disk-layout.md) for the on-disk structure.
 
 ## Cover art
 
 The indexer picks up `cover.jpg` / `folder.jpg` / `front.jpg` in album directories. Embedded cover art in FLAC/MP3/etc. is also extracted.
 
-The cover art served by the JSON-RPC API (see [`03-network-api.md`](03-network-api.md)) goes through an opaque ID — there's no public mapping from album ID to cover art ID yet.
+The cover art served by the JSON-RPC API (see [`03-network-api.md`](03-network-api.md)) goes through an opaque ID. The disk read explained it: full-resolution art is cached on disk at `/mnt/internal/db_storage/cover_art/A00xxxxx/` (one directory per object id, in hex), while the SQLite row carries only a small thumbnail BLOB. See [`09-disk-layout.md`](09-disk-layout.md).
 
 ## Wake-on-LAN
 

@@ -65,6 +65,19 @@ Other endpoints on port 60100:
 - `/MusicConnect_SCPD.xml` — declares `TransportState` (STOPPED/PLAYING/PAUSED_PLAYBACK/NO_MEDIA_PRESENT) and `LastChange` evented variables.
 - `/HAP-Z1ES_120.png`, `/HAP-Z1ES_48.png`, etc. — device icons.
 
+### Vestigial / advertised-but-unimplemented endpoints (don't waste time on these)
+
+Firmware 19404R advertises a few endpoints that the daemon does **not** actually serve — leftovers
+from a shared Sony codebase. Confirmed dead on 19404R:
+
+- **`MusicConnect`** — declared in the UPnP description, but `POST /MusicConnect/control` returns **404**.
+- **`/sony/contentdb/v100/...`** (a REST-style content API the embedded `HAP_app.html` admin UI
+  calls — `audio/{albums,artists,genres,tracks,playlists}`, `contentplayer/v100/...`). On 19404R a
+  **GET hangs and times out (0 bytes)** and a **POST returns 404**, while the same `:60200` answers
+  a normal ScalarWebAPI `getPowerStatus`. So `HAP_app.html` is a generic/older UI pointed at a
+  backend this firmware lacks. The library is reachable via the JSON-RPC `avContent.*` methods (or
+  read directly off disk — [`09-disk-layout.md`](09-disk-layout.md)), **not** this REST surface.
+
 ## JSON-RPC ScalarWebAPI (port 60200)
 
 This is the real control plane. Every endpoint is `POST http://<ip>:60200/sony/<service>` with a JSON-RPC body:

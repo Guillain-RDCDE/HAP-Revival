@@ -22,7 +22,7 @@
 
 Put a 24/96 FLAC on a HAP-Z1ES, sit down, and the room changes. There's a stillness around the instruments. A cymbal decays longer than it has any right to. Cellos have weight; voices have a body; you can hear the space the recording was made in. This is what audiophile-grade source hardware is *supposed* to do — and what €500 streamers, however clever, still don't.
 
-The HAP-Z1ES (2014, ~€2000 at launch) does it with a chain Sony's "ES" engineers clearly built to last: dual Burr-Brown **PCM1795** DACs in mono mode, an Analog Devices **SHARC** DSP, a custom Sony **FPGA** running the clock domain, a properly isolated linear PSU, a 14 kg chassis built like a piece of furniture. A decade on it still measures and sounds outstanding.
+The HAP-Z1ES (2014, ~€2000 at launch) does it with a chain Sony's "ES" engineers clearly built to last: dual Burr-Brown **PCM1795** DACs in mono mode, an Analog Devices **ADSP-21488 SHARC** DSP (with a Cirrus **CS48L10** alongside it), a custom Sony **FPGA** running the clock domain, a properly isolated linear PSU, a 14 kg chassis built like a piece of furniture. A decade on it still measures and sounds outstanding.
 
 What didn't last is the software.
 
@@ -49,9 +49,9 @@ Where we are:
 - ✅ Catalogued every public prior-art artefact so contributors don't redo work.
 - ✅ Decompiled the `com.sony.HAP.HDDAudioRemote` Android APK (first public decompile of this client) and live-validated ~30 API methods from it.
 - ✅ Shipped a small Python client library + a browser-based web UI you can use *today*.
-- ⏳ Closing in on the `downloadByDiff` flow for full library DB sync.
-- ⏳ Probing the UART debug port on the main board for a root shell.
-- ⏳ Format-analyzing the 19404R firmware blob.
+- ✅ Read the internal disk directly: it holds **no OS** — only a SQLite catalog (`/data`) + your music (`/mnt/internal/storage/…`). The full library DB and its schema are now in hand. See [disk layout](docs/09-disk-layout.md).
+- ✅ Established the OS lives on internal **NAND**, and that firmware 19404R is **OTA-only with no public copy anywhere** — so the OS must be dumped from the device, not downloaded.
+- ⏳ Heading for the **UART console** (identified: i.MX6 UART1, `ttymxc0 @ 115200`, balls M1/M3) to get a root shell and dump the rootfs (`/dev/mtdblock2`, JFFS2). See [UART console](docs/10-uart-console.md).
 
 **Nothing in this repository will brick your device** at the current stage. Everything is network-passive and read-only — and even the playback control is bounded (the standby button asks before it presses anything).
 
@@ -82,11 +82,11 @@ Same i.MX6 SoC, same firmware images, same network protocols, same GPL bundle. W
 | Spotify Connect detection + cover art | ✅ | Device serves HDD covers, Spotify CDN serves its own — both transparent |
 | Web UI: ambient cover background, themes, adaptive contrast | ✅ | Four themes (Ambient / Solid-from-cover / Dark / Custom). Persisted. Text contrast auto-flips. |
 | Web UI: Minimal mode + plain-language captions under every setting | ✅ | ⚙ panel hides chrome; each Sound/Playback option explains what it actually does in real English. |
-| On-device library DB schema fully decoded | ✅ | 11 tables, ~60 PROP-codes — see [DB schema note](research/notes/2026-05-25-database-service-and-db-schema.md) |
-| Library DB live download via `downloadByDiff` | 🟡 | Service responds; `location` field empty pending iOS capture during a real sync |
+| On-device library (SQLite) schema fully decoded | ✅ | 11 tables, ~60 PROP-codes — confirmed against the real DB read off the disk. See [DB schema](research/db-schema/) + [disk layout](docs/09-disk-layout.md) |
+| Full library DB in hand | ✅ | Read directly off the HDD's `/data` partition (SQLite). The network `downloadByDiff` sync is still blocked (empty `location`) but no longer on the critical path — we have the DB |
 | Native iOS / iPad app | ❌ | The web UI works in Safari on iPad today; native app planned |
 | Modern streaming services (Tidal, Qobuz, Roon) | ❌ | Requires custom userland (Phase 4) |
-| Custom OS replacement | ❌ | Long-term goal; UART + firmware unpack required first |
+| Custom OS replacement | ❌ | Long-term goal; UART root shell + NAND dump required first |
 
 ## Try it now (5 minutes, zero risk)
 
@@ -115,13 +115,13 @@ The web UI polls every 3 seconds — slightly tighter than Sony's own 5 s cadenc
 ## Roadmap
 
 **Phase 1 — Reverse engineering (no risk to the device).**
-Decompile the official APK, format-analyze the firmware blob, capture iOS app traffic, read Sony's GPL kernel patches and the `forza_snd_driver` source. *Current phase.*
+Decompile the official APK, read the internal disk, read Sony's GPL kernel patches and the `forza_snd_driver` source, and locate the UART console. (The 19404R firmware is OTA-only and unobtainable, so the OS will come from a NAND dump, not a blob download.) *Current phase.*
 
 **Phase 2 — Third-party control app.**
 Modern web / iOS / iPad app talking to the *existing* ScalarWebAPI on port 60200. No firmware modification. Useful immediately for any HAP owner.
 
 **Phase 3 — Root shell.**
-UART probe or hidden-menu exploit to get a shell. Snapshot the rootfs as a safety net first. Re-enable the Dropbear SSH binary that already ships in firmware.
+UART console (pinout identified) to get a shell, then `dd` the NAND (`/dev/mtdblock2`, writable JFFS2) as a safety snapshot. Re-enable the Dropbear SSH binary that already ships in firmware.
 
 **Phase 4 — Custom userland.**
 Keep Sony's kernel + `forza_snd_driver` (preserves the audio chain), replace the proprietary playback daemon with MPD + modern streaming bridges (librespot, mopidy, squeezelite). Requires a tested recovery path — we will not ship a phase 4 build before that exists.
@@ -150,7 +150,8 @@ Mainline kernel where feasible, new control plane, multi-device fleet management
        └─────────────────┬──────────────────┘
                          │ I²S
        ┌─────────────────▼──────────────────┐
-       │  Sony FPGA → SHARC DSP → 2×PCM1795 │
+       │  Sony FPGA → ADSP-21488 SHARC      │
+       │  (+ CS48L10) → 2×PCM1795           │
        │  (the part that makes it audiophile│
        │   — untouched. This is why we're   │
        │    here in the first place.)       │
@@ -168,8 +169,10 @@ The full research lives in [`docs/`](docs/). Recommended reading order:
 5. [SMB share](docs/04-smb.md) — file transfer protocol
 6. [Diagnostic modes](docs/05-diag-modes.md) — DIAG + Special Mode entry sequences
 7. [HDD swap recipe](docs/06-hdd-swap.md) — SSD compatibility, cloning
-8. [Firmware](docs/07-firmware.md) — blob, GPL sources, partitions
+8. [Firmware](docs/07-firmware.md) — OTA-only blob, GPL sources, flash partitions
 9. [Prior art bibliography](docs/08-prior-art.md) — every existing artefact, ranked
+10. [Disk layout](docs/09-disk-layout.md) — what's actually on the HDD (no OS; SQLite catalog + music), with the full data model
+11. [UART console](docs/10-uart-console.md) — serial pinout (i.MX6 M1/M3) + the path to a root shell and NAND dump
 
 Active reconnaissance lives in [`research/`](research/). Tools and scripts in [`tools/`](tools/). Living API spec in [`api-spec/`](api-spec/).
 
@@ -192,7 +195,7 @@ To go further: read [CONTRIBUTING](CONTRIBUTING.md). If you've unearthed a Japan
 - **Not a streaming service.** No music hosting, no DRM, no accounts.
 - **Not selling hardware.** We help you keep yours alive longer. That's the whole pitch.
 - **Not bricking your device.** Anything destructive will be gated behind explicit, documented opt-in.
-- **Not replacing the analog chain.** The Sony FPGA → SHARC → PCM1795 path is the entire point of owning this hardware. We preserve it, period.
+- **Not replacing the analog chain.** The Sony FPGA → SHARC (ADSP-21488) → PCM1795 path is the entire point of owning this hardware. We preserve it, period.
 
 ## Disclaimer
 

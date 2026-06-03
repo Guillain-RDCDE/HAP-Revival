@@ -1,6 +1,8 @@
 # 2026-05-26 — Failing forward: why we couldn't capture the iOS HDD Audio Remote app
 
-> *Three escalating attempts to intercept the wire traffic between Sony's iOS app and the HAP. All three failed for different (and ultimately revealing) reasons. We pivoted to reading the HAP's rootfs directly off the internal HDD instead. This note documents what didn't work so the next contributor doesn't re-burn the same hours.*
+> **UPDATE 2026-06-02/03 — read this first:** the expectation below — that reading the internal HDD would yield the **rootfs** (control daemon source, init scripts, `/etc/shadow`) — turned out **WRONG**. The HDD holds only `/data` (a **SQLite** catalog — not "Tokyo Cabinet") + `/mnt/internal` (music); **the OS lives on internal NAND**. The disk read still unblocked the library DB locally, but acquiring the rootfs now needs a **UART console / NAND dump**. See [`2026-06-02-hdd-direct-read-ondisk-findings.md`](2026-06-02-hdd-direct-read-ondisk-findings.md) and [`2026-06-03-os-acquisition-recon.md`](2026-06-03-os-acquisition-recon.md). The iOS-capture lessons below remain valid.
+>
+> *Three escalating attempts to intercept the wire traffic between Sony's iOS app and the HAP. All three failed for different (and ultimately revealing) reasons. We pivoted to reading the HAP's internal HDD directly instead. This note documents what didn't work so the next contributor doesn't re-burn the same hours.*
 
 ## TL;DR
 

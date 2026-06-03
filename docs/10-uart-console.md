@@ -116,7 +116,7 @@ Coherent predicted MTD map (exact map comes from U-Boot — confirm at the promp
 5. Result: the **rootfs as files** (Python daemon source, init scripts, the indexer, GStreamer
    elements) + a full NAND image — the OS dump, with no dependence on the OTA blob.
 
-The rootfs is likely a read-only squashfs; `dd` of NAND partitions is non-destructive.
+The rootfs is **writable JFFS2** (confirmed from the kernel cmdline above), not squashfs — so changes can be made persistent once we have a shell. `dd` of the NAND partitions is read-only and non-destructive.
 
 ## Safety nets
 
