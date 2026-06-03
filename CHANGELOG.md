@@ -8,6 +8,17 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-06-03, audio path decoded from the Forza driver)
+
+- New [`docs/11-audio-path.md`](docs/11-audio-path.md): the full signal chain, read from the GPL
+  `forza_snd_driver` source. The FPGA is an **Altera PCIe device** (`0x1172:0xE001`); the SoC DMA's
+  audio into its FIFO. Decoded the two DSPs' actual jobs and mapped them to the app's sound settings:
+  **ADSP-21488 SHARC = "HEQ"/DSEE-HX restoration + digital filter** (the "DSEE" toggle),
+  **Cirrus CS48L10 = oversampling/SRC** (firmware `4up/2up/nonSRC` ↔ the "Oversampling" setting),
+  plus the **DSD-remastering** mode machine (Direct.PCM / Direct.DSD / DSD_ReMaster.PCM). Documented
+  the **`/dev/forza` ioctl ABI** — the lever a Phase-4 daemon uses to drive the chain while preserving
+  Sony's analog path — and that DSP firmware lives on the rootfs at `/sony/lib/modules/dspfw/`.
+
 ### Changed (2026-06-03, repo-wide accuracy + clarity pass)
 
 A full audit of every doc against the 2026-06-02/03 ground truth, to make the repo a reliable

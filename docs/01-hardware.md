@@ -49,7 +49,7 @@ This is the part Sony invested in. The Linux SoC does not touch the audio sample
                   └──────────────┘                    └──────────────┘
 ```
 
-- **FPGA**: vendor referenced in service manual as Altera EP4CGX30 (Cyclone IV GX with embedded transceivers — used for the high-speed I²S/serial bus to the SHARC + DAC). Not yet confirmed from a chip photo by the community.
+- **FPGA**: an **Altera** part (confirmed from the Forza driver's PCI id `0x1172:0xE001`), referenced in the service manual as Altera EP4CGX30 (Cyclone IV GX). It sits on the i.MX6's **PCI Express** bus — the SoC DMA's audio into the FPGA's FIFO — and owns the master clock domain feeding the DSPs + DACs. See the full decoded pipeline in [`11-audio-path.md`](11-audio-path.md).
 - **DSP**: **two** DSPs, confirmed 2026-06-02 from the GPL `forza_snd_driver` source file names:
   - **Analog Devices ADSP-21488** SHARC (`adsp_21488.c`) — the main audio DSP (DSEE-HX / DSD remastering likely run here).
   - **Cirrus Logic CS48L10** (`cdsp_cs48l10.c`) — a second/"cdsp" audio DSP.

@@ -31,6 +31,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 | Prior art | Exhaustive bibliography, three GitHub repos total | [`08-prior-art.md`](08-prior-art.md) |
 | On-disk layout | Disk read directly 2026-06-02: two ext4 partitions (`/data` SQLite catalog + `/mnt/internal` music); ground-truth DB schema; no rootfs on disk | [`09-disk-layout.md`](09-disk-layout.md) |
 | OS acquisition | Firmware confirmed unobtainable publicly (OTA-only); live-device software vectors (Samba symlink, HTTP traversal) blocked; **UART serial console** is the path to the rootfs | [`10-uart-console.md`](10-uart-console.md), [`research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md) |
+| Audio path | Decoded from the GPL Forza driver: Altera FPGA over PCIe → CS48L10 (oversampling) + ADSP-21488 SHARC (DSEE-HX "HEQ") + DSD remastering → 2× PCM1795; controlled via `/dev/forza` ioctls | [`11-audio-path.md`](11-audio-path.md) |
 
 ## What we don't know yet
 
