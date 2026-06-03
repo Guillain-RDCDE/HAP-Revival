@@ -8,6 +8,20 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Changed (2026-06-03, UART session prep)
+
+- Expanded [`docs/10-uart-console.md`](docs/10-uart-console.md) into a ready-to-run session guide while
+  waiting for the USB-serial adapter:
+  - **Re-verified the console pins against the authoritative IC101 pin table (p79): M1 = CSI0_DAT10 (TX),
+    M3 = CSI0_DAT11 (RX), UART1 / `ttymxc0` @ 115200** — confirmed correct (the LCD RGB bus uses other
+    CSI0_DAT balls in the N/P/R/T/U rows; don't confuse them).
+  - **Board-level candidate `CN4008`** — the unqualified TXD/RXD console nets route to connector
+    `CN4008` (MAIN schematic p47), which also appears on the MAIN PWB (p40): the likely factory debug
+    header. Confirm its pinout empirically.
+  - **Disassembly order** to reach the MAIN board (it sits under the FPGA-DSP board).
+  - **Dump runbook**: interrupt U-Boot → `cat /proc/mtd` → `dd` each partition off via netcat over
+    Ethernet *or* the SMB share; `mtd2` = the JFFS2 rootfs. Receiver (`nc`) confirmed available.
+
 ### Added (2026-06-03, hap_sync — a HAP-dedicated FreeFileSync replacement)
 
 - **`tools/hap_sync.py`** — actually transfers music to the HAP and keeps it in sync incrementally

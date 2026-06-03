@@ -63,15 +63,40 @@ Also documented in the same table (useful context): the i.MX6 **boot-mode straps
 (`EIM_A18/A20/A21/A23`, `EIM_RW`, `EIM_EB1`, `EIM_DA3/DA5/DA6/DA7` fixed H/L → boot from NAND), and
 **JTAG** (TDO/TMS/TDI/TCK) is present but marked "Not used".
 
-**Still to pin down:** the physical **test-point designator** on the MAIN PWB (p40) — trace the
-`CSI0_DAT10/11` nets through the MAIN schematic (p41–49) to their `TP###`/`CN###`, or just find
-them empirically (below). The SoC-level identification above is the load-bearing part: at the
-board there will be a TX/RX pair carrying UART1.
+The SoC-side console pins are confirmed (M1/M3 = UART1) and cross-checked against the kernel cmdline
+(`console=ttymxc0,115200`). (Aside: the `CSI0_DAT*` pins that drive the front-panel LCD's RGB bus are
+*other* balls in the N/P/R/T/U rows — don't confuse them with M1/M3.)
+
+**Board-level candidate — `CN4008`.** Tracing the schematic (MAIN sheet on p47), the unqualified
+`TXD`/`RXD` console nets route to a connector **`CN4008`**, which also appears on the MAIN PWB (p40) —
+so `CN4008` is very likely the **factory debug serial header**. Inspect it first when the board is
+open. (Confirm its pinout empirically before connecting — see below — since the scanned schematic
+isn't crisp enough to guarantee the pad order.)
+
+**Empirical confirmation (always do this):** with the board open, find `CN4008` (or a small 3–4 pin
+header / test pads near IC101, often silk-screened `TXD/RXD/GND`). Identify **GND** by continuity to
+chassis ground with your multimeter. Connect only GND first, then probe candidate pins: the one that
+**streams the boot log at power-on** is the board's **TX** → wire it to the adapter's RX. RX is the
+neighbouring data pin. Never connect VCC.
 
 **Empirical method (the way it's actually done):** with the board open, find a small 3–4 pin
 header or test pads near IC101 (often silk-screened `TXD/RXD/GND` or a `CN###`/`TP###`). Identify
 **GND** by continuity to chassis ground. Connect the adapter; the pin that **streams the boot log
 at power-on** is the board's **TX**. Then find RX by trial (it's the neighbouring data pin).
+
+## Reaching the MAIN board (disassembly order)
+
+From the service manual's disassembly flow (p6), the MAIN board (which carries IC101 + `CN4008`) is
+reached in this order — it sits *under* the FPGA-DSP board:
+
+`Case top → Case L/R blocks → Plate bottom outer → Plate bottom → Front panel block → HDD block →
+Power transformers (T1/T2) → FPGA-DSP board → MAIN board block → MAIN board`
+
+Per-step screw detail is in the manual (`archive/sony-service-manual-hap-z1es.pdf`): MAIN board on
+p19, FPGA-DSP board p18. **You probably don't need to fully extract the MAIN board** — just remove
+enough (case top + the FPGA-DSP board above it) to expose the board surface and reach `CN4008` /
+IC101 with the probe. Take photos as you go (the community HDD-swap notes in [`06-hdd-swap.md`](06-hdd-swap.md)
+cover opening the case too).
 
 ## Flash layout — what the GPL kernel already tells us (pre-UART)
 
@@ -107,16 +132,26 @@ Coherent predicted MTD map (exact map comes from U-Boot — confirm at the promp
 2. **Interrupt U-Boot**: mash a key during the "Hit any key to stop autoboot" countdown.
 3. At the U-Boot prompt, read the flash layout: `mtdparts`, `nand info`, and `printenv` (the
    latter shows `bootargs`/`bootcmd` — how the rootfs is mounted).
-4. Get the OS, two options:
-   - **Boot to a root shell**: append `init=/bin/sh` (or `single`) to `bootargs`, `boot`, then from
-     the shell: `cat /proc/mtd`, `cat /proc/mounts`, and `dd if=/dev/mtdblockN of=...` each NAND
-     partition; transfer off-device (tftp / nc / a mounted share / USB).
-   - **Dump from U-Boot** directly: `nand read ${loadaddr} <off> <len>` into RAM, then `tftpput`
-     (or `loady`/`loadb`) to the PC.
-5. Result: the **rootfs as files** (Python daemon source, init scripts, the indexer, GStreamer
-   elements) + a full NAND image — the OS dump, with no dependence on the OTA blob.
+4. **Get a root shell.** Let it boot (or type `boot`). The serial console usually lands on a root
+   prompt. If it demands a login we don't have, reboot → interrupt U-Boot → append `init=/bin/sh`
+   (or `single`) to `bootargs` → `boot` → a root shell with no password.
+5. **Read the real flash map:** `cat /proc/mtd`, then `cat /proc/mounts`, `mount`, `df -h`.
+6. **Dump each MTD partition to the PC.** Two ways — pick whichever the device supports:
+   - **(A) Over Ethernet with netcat (fast).** On the PC (WSL — `nc` is already installed):
+     `nc -l -p 9000 > nand_mtd2.img`. On the HAP: `dd if=/dev/mtd2 | nc <PC-IP> 9000`. Repeat per
+     partition. (busybox `nc` is usually present in the rootfs.)
+   - **(B) Via the SMB share we already read (no HAP-side network tools needed).** On the HAP:
+     `dd if=/dev/mtd2 of=/mnt/internal/internal/mtd2.img`, then pull `mtd2.img` from the PC with any
+     SMB client (e.g. `python tools/hap_sync.py list HAP_Internal`) and delete it afterwards.
+   Grab at least **mtd2 (the rootfs, JFFS2)**, and ideally **every partition** for a full-NAND backup.
+7. **Extract off-device:** a JFFS2 image mounts on Linux via `mtdram`/`nandsim`, or unpacks with
+   `jefferson` / `jffs2dump` → the **Python control daemon source**, init scripts, the library
+   indexer, the proprietary GStreamer elements, and the DSP firmware blobs (`/sony/lib/modules/dspfw/`).
+   That's the OS, in clear, with no dependence on the OTA blob.
 
-The rootfs is **writable JFFS2** (confirmed from the kernel cmdline above), not squashfs — so changes can be made persistent once we have a shell. `dd` of the NAND partitions is read-only and non-destructive.
+The rootfs is **writable JFFS2** (confirmed from the kernel cmdline above), not squashfs — so once we
+have a shell we can make changes persist (enable dropbear at boot, drop in our own daemon). `dd` of
+the NAND partitions is read-only and non-destructive.
 
 ## Safety nets
 
