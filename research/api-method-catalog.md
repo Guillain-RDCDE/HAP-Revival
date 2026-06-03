@@ -57,7 +57,7 @@ Each method row shows:
 
 ### Confirmed NOT implemented on `system`
 
-`setNetworkSettings`, `getCurrentTime`, `setCurrentTime`, `getDeviceMode`, `setDeviceMode`, `getSWUpdateInfo`, `actSWUpdate`, `getRemoteControllerInfo`, `getWuTangInfo`, `getLEDIndicatorStatus`, `setLEDIndicatorStatus`, `getColorKeysLayout` — all `[12, "No Such Method"]`.
+`setNetworkSettings`, `getNetworkSettings`, `getCurrentTime`, `setCurrentTime`, `getDeviceMode`, `setDeviceMode`, `getSWUpdateInfo`, `actSWUpdate`, `getRemoteControllerInfo`, `getWuTangInfo`, `getLEDIndicatorStatus`, `setLEDIndicatorStatus`, `getColorKeysLayout`, `getSystemSupportedFunction`, `getWolMode`, `getPowerSavingMode` — all `[12, "No Such Method"]`. (Last three re-confirmed live 2026-06-03.)
 
 **Notable absence**: `getSWUpdateInfo` / `actSWUpdate` are missing → HAP cannot self-update via API. Firmware updates go through the device UI only, fetching from Sony's servers.
 
@@ -99,6 +99,15 @@ Each method row shows:
 | `setPlaybackModeSettings` | **1.0** | ✅ | `[{settings: [{target: "<x>", value: "<y>"}]}]` | **NEW: confirmed working at v1.0** (empty params returned `{result: []}`). Likely controls shuffle/repeat. |
 | `getVersions` | 1.0 | ✅ | `[]` | Empty (neutered) |
 | `getMethodTypes` | 1.0 | ✅ | `["<ver>"]` | Empty (neutered) |
+
+### Implemented at v1.0 but return empty `[]` (stubs — like the neutered introspection)
+
+Live 2026-06-03: these accept v1.0 and return `{result: []}` (no error), but `[14, "Unsupported
+Version"]` at v1.1+. So they exist but are effectively neutered/empty on 19404R — don't expect data:
+`getSchemeList`, `getSourceList` (tried `scheme: storage / netService / audio`),
+`getCurrentExternalTerminalsStatus`, `getPlaybackModeSettings`. (To enumerate sources/inputs, use the
+`storage:` / `extInput:` URI schemes directly; to browse the library, read the DB — see
+[`../docs/09-disk-layout.md`](../docs/09-disk-layout.md).)
 
 ### Confirmed NOT implemented on `avContent`
 
