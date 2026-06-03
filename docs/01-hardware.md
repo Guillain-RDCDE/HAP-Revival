@@ -50,7 +50,9 @@ This is the part Sony invested in. The Linux SoC does not touch the audio sample
 ```
 
 - **FPGA**: vendor referenced in service manual as Altera EP4CGX30 (Cyclone IV GX with embedded transceivers — used for the high-speed I²S/serial bus to the SHARC + DAC). Not yet confirmed from a chip photo by the community.
-- **DSP**: Analog Devices SHARC family. Specific part not yet published.
+- **DSP**: **two** DSPs, confirmed 2026-06-02 from the GPL `forza_snd_driver` source file names:
+  - **Analog Devices ADSP-21488** SHARC (`adsp_21488.c`) — the main audio DSP (DSEE-HX / DSD remastering likely run here).
+  - **Cirrus Logic CS48L10** (`cdsp_cs48l10.c`) — a second/"cdsp" audio DSP.
 - **DACs**: 2× Burr-Brown / TI **PCM1795** in mono mode — one per channel. The PCM1795 is a stereo DAC; running it in mono is a luxury that improves channel separation and pushes the noise floor down.
 
 ## Ethernet
@@ -81,12 +83,16 @@ This is the part Sony invested in. The Linux SoC does not touch the audio sample
 
 Per the HAP-S1 service manual ([`archive/sony-service-manual-hap-s1.pdf`](../archive/sony-service-manual-hap-s1.pdf), same architecture as HAP-Z1ES):
 
-- **JTAG**: TDO, TMS, TDI test points on the main board.
-- **UART**: documented as "boot mode settings terminals on the main board" — pinout in the manual; baud rate not specified but i.MX6 default is `ttymxc0 @ 115200 8N1`.
+- **JTAG**: TDO, TMS, TDI, TCK pins on IC101 — present in the IC101 pin table but marked "Not used".
+- **UART console**: **identified 2026-06-03 from the IC101 pin-function table** (service manual p75–79). The Linux/U-Boot console is the i.MX6 **UART1** (`ttymxc0 @ 115200 8N1`):
+  - **ball M1 = `CSI0_DAT10` = console TX** ("Transmit data output terminal")
+  - **ball M3 = `CSI0_DAT11` = console RX** ("Receive data input terminal")
+  - (Separately, `CSI0_DAT12/13` is the UART to the U-COM Cortex-M3, and `CSI0_DAT14/15` to the remote-commander learning block — *not* the console.)
+  - Boot-mode straps are hardwired for NAND boot (`EIM_A18/20/21/23`, `EIM_RW`, `EIM_EB1`, `EIM_DA3/5/6/7`). Full procedure: [`10-uart-console.md`](10-uart-console.md).
 - **SYS/MPU PROG**: programming header for the U-COM Cortex-M3 (housekeeping MCU, not the application SoC).
 - **SYS/JIG**: factory test jig connector.
 
-**Nobody has published an actual UART probe** on either device. The header is documented but the boot log, U-Boot password (if any), and on-screen behavior on serial are all unknown. This is the single highest-leverage hardware research opportunity remaining.
+**Still unprobed on real hardware:** the physical test-point location on the MAIN PWB (p40) and the actual boot-log/U-Boot behaviour. The SoC-side console pins are now known (above); the remaining work is tracing `CSI0_DAT10/11` to their board test points and doing the live probe — the highest-leverage hardware step remaining.
 
 ## Service manual references
 

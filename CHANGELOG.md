@@ -8,6 +8,20 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-06-03, OS acquisition recon + UART console identified)
+
+- **UART serial console pinned down at the SoC** — new doc [`docs/10-uart-console.md`](docs/10-uart-console.md).
+  From the IC101 pin-function table (service manual p75–79): the i.MX6 UART1 console (`ttymxc0 @ 115200`)
+  is **ball M1 = CSI0_DAT10 (TX)** and **ball M3 = CSI0_DAT11 (RX)**; CSI0_DAT12/13 is the U-COM MCU
+  link, CSI0_DAT14/15 the remote-learning link. Boot-mode straps hardwired for NAND. Full shopping
+  list, 3.3 V safety rules, and the U-Boot→NAND-dump procedure included.
+- **Audio DSPs identified** from the GPL `forza_snd_driver` source (downloaded): **ADSP-21488** SHARC
+  (`adsp_21488.c`) + **Cirrus CS48L10** (`cdsp_cs48l10.c`). Updated `01-hardware.md` (were "not published").
+- Full session record: [`research/notes/2026-06-03-os-acquisition-recon.md`](research/notes/2026-06-03-os-acquisition-recon.md)
+  — firmware confirmed unobtainable publicly (99-agent sweep), GPL bundle fetched, and live-device
+  software recon: Samba 3.0.37 anon RW to music shares but **symlink traversal blocked**, lighttpd
+  **path traversal blocked**, and a newly-spotted `/sony/contentdb/v100/...` REST API surface to chase.
+
 ### Added (2026-06-02, direct HDD read — on-disk layout + ground-truth DB schema)
 
 - **First direct read of a HAP-Z1ES internal disk** (pulled, attached over USB, imaged + mounted

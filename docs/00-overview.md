@@ -21,7 +21,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 
 | Domain | Status | See |
 |---|---|---|
-| Hardware identification | SoC, DAC, DSP, ethernet PHY confirmed. FPGA documented from service manual (Altera EP4CGX30) but not photo-verified | [`01-hardware.md`](01-hardware.md) |
+| Hardware identification | SoC, DAC, ethernet PHY confirmed. **DSPs now identified** (ADSP-21488 SHARC + Cirrus CS48L10, from the Forza driver source). FPGA documented from service manual (Altera EP4CGX30) but not photo-verified | [`01-hardware.md`](01-hardware.md) |
 | OS and userland | OpenWrt + Linux 3.0.35 + Python 2.7 daemon, all confirmed via GPL release. OS lives on internal flash, **not** the HDD | [`02-software-stack.md`](02-software-stack.md) |
 | Network API | Port 60100 (UPnP) + 60200 (JSON-RPC); ~30 methods live-validated, full catalog at [`research/api-method-catalog.md`](../research/api-method-catalog.md) | [`03-network-api.md`](03-network-api.md) |
 | File transfer | SMB1 / NT1, share `HAP_Internal`, auto library rescan | [`04-smb.md`](04-smb.md) |
@@ -30,6 +30,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 | Firmware blob | 19404R, 74 MB, format never publicly analyzed | [`07-firmware.md`](07-firmware.md) |
 | Prior art | Exhaustive bibliography, three GitHub repos total | [`08-prior-art.md`](08-prior-art.md) |
 | On-disk layout | Disk read directly 2026-06-02: two ext4 partitions (`/data` SQLite catalog + `/mnt/internal` music); ground-truth DB schema; no rootfs on disk | [`09-disk-layout.md`](09-disk-layout.md) |
+| OS acquisition | Firmware confirmed unobtainable publicly (OTA-only); live-device software vectors (Samba symlink, HTTP traversal) blocked; **UART serial console** is the path to the rootfs | [`10-uart-console.md`](10-uart-console.md), [`research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md) |
 
 ## What we don't know yet
 
