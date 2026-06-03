@@ -1,0 +1,8 @@
+{
+  "host": "192.168.1.28",
+  "mac": "80:56:F2:85:0E:27",
+  "maps": [
+    {"local": "D:/Music/Internal", "share": "HAP_Internal"},
+    {"local": "D:/Music/External", "share": "HAP_External"}
+  ]
+}

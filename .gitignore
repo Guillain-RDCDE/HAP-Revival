@@ -52,6 +52,13 @@ research/captures/*.pcapng
 research/notes/scratch-*
 research/scratch/
 
+# Personal hap_sync config (has your own folder paths / device) — keep the .example instead
+tools/hap_sync.json
+
+# On-device library databases (user's personal library data; never commit)
+*.db
+research/db-schema/*.sql.bak
+
 # Secrets / API keys (if we ever integrate Tidal/Qobuz dev keys)
 .env
 .env.*

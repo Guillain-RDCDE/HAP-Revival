@@ -8,6 +8,21 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-06-03, hap_sync — a HAP-dedicated FreeFileSync replacement)
+
+- **`tools/hap_sync.py`** — actually transfers music to the HAP and keeps it in sync incrementally
+  (copies only new/changed files), over the device's **SMB1** share via **`pysmb`** — so you do
+  **not** have to enable the insecure SMB1 client in Windows. Handles the **two-share** layout in one
+  run: separate PC folders → `HAP_Internal` and `HAP_External`, configured in a small `hap_sync.json`
+  (`tools/hap_sync.json.example` provided; the real one is git-ignored). Auto-skips junk
+  (`.ffs_tmp`, `Thumbs.db`, `._*`…) and unsupported formats, preserves `<Artist>/<Album>/`, and offers
+  `plan` (dry-run), `sync`, `list`, `wake` (WoL), `check`.
+  - **Live-tested end-to-end** against the device: anonymous SMB1 connect, full recursive listing
+    (67k files), and a verified upload round-trip.
+  - Robustness fix discovered in testing: a long SMB1 recursive listing can desync pysmb's session
+    (breaking the next write) — `hap_sync` reconnects on any listing error and uploads on a fresh
+    connection, which also made the remote listing complete/consistent.
+
 ### Added (2026-06-03, HAP companion tool)
 
 - **`tools/hap_companion.py`** — makes any file-copy tool (FreeFileSync, rsync, drag-and-drop)
