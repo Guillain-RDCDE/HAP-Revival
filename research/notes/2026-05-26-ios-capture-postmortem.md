@@ -86,7 +86,7 @@ Activate the Windows Mobile Hotspot on the PC (Settings → Network & Internet �
 
 **Verification**: Safari → `http://192.168.1.28:60100/hap.xml` now both **loads on the iPhone** AND **appears in mitmweb**. End-to-end:
 
-```
+```text
 iPhone (192.168.137.252) → WireGuard tunnel → PC mitmproxy → PC NAT → HAP (192.168.1.28) → ...response back the same way
 ```
 
