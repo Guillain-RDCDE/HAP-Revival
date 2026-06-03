@@ -84,6 +84,7 @@ Same i.MX6 SoC, same firmware images, same network protocols, same GPL bundle. W
 | Web UI: Minimal mode + plain-language captions under every setting | ✅ | ⚙ panel hides chrome; each Sound/Playback option explains what it actually does in real English. |
 | On-device library (SQLite) schema fully decoded | ✅ | 11 tables, ~60 PROP-codes — confirmed against the real DB read off the disk. See [DB schema](research/db-schema/) + [disk layout](docs/09-disk-layout.md) |
 | Full library DB in hand | ✅ | Read directly off the HDD's `/data` partition (SQLite). The network `downloadByDiff` sync is still blocked (empty `location`) but no longer on the critical path — we have the DB |
+| **Library browser** (web, reads the on-disk SQLite catalog) | ✅ | `tools/library_browser.py <hdd_browse.db>` — artists / albums / tracks / cover art / codec / sample-rate, offline. The reference decoder for the catalog schema |
 | Native iOS / iPad app | ❌ | The web UI works in Safari on iPad today; native app planned |
 | Modern streaming services (Tidal, Qobuz, Roon) | ❌ | Requires custom userland (Phase 4) |
 | Custom OS replacement | ❌ | Long-term goal; UART root shell + NAND dump required first |

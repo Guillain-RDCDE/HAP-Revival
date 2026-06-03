@@ -8,6 +8,17 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-06-03, library browser tool)
+
+- **`tools/library_browser.py`** — a stdlib-only web browser for a HAP library, reading the
+  on-device SQLite catalog (`hdd_browse.db`) directly: artists → albums → tracks, with cover art
+  (served from the `PROP78D9` thumbnail BLOB), codec, sample-rate/bit-depth, durations, and search.
+  Read-only (DB opened immutable), data never leaves the machine. It's the reference decoder for the
+  `FTxx02`/`PROPxxxx` schema documented in `09-disk-layout.md`, and the foundation for a control-app
+  library view (the live API can't list HDD content; `downloadByDiff` is blocked — but the SQLite is
+  all we need). Validated against a real 77k-track library; it immediately surfaced ~68 orphan
+  "tracks" that were actually FreeFileSync `.ffs_tmp` temp files the indexer had picked up.
+
 ### Added (2026-06-03, audio path decoded from the Forza driver)
 
 - New [`docs/11-audio-path.md`](docs/11-audio-path.md): the full signal chain, read from the GPL
