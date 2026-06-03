@@ -73,6 +73,33 @@ header or test pads near IC101 (often silk-screened `TXD/RXD/GND` or a `CN###`/`
 **GND** by continuity to chassis ground. Connect the adapter; the pin that **streams the boot log
 at power-on** is the board's **TX**. Then find RX by trial (it's the neighbouring data pin).
 
+## Flash layout — what the GPL kernel already tells us (pre-UART)
+
+Read from the Sony `linux-3.0.35` kernel patch (oss.sony.net), so we walk in knowing what to expect:
+
+- **Kernel boot cmdline** (`CONFIG_CMDLINE`): `noinitrd console=ttymxc0,115200 root=/dev/mtdblock2 rw rootfstype=jffs2 ip=off`, with `CONFIG_CMDLINE_FROM_BOOTLOADER=y`.
+  - **Confirms** the console is `ttymxc0 @ 115200` (matches the M1/M3 pinout above).
+  - **The rootfs is `/dev/mtdblock2`, a writable JFFS2** on NAND — not a read-only squashfs.
+- **NAND**: Freescale **GPMI** controller (`gpmi-nand`).
+- **SPI-NOR**: an **M25P32 (4 MB)** on SPI0/CS1, partitioned `bootloader` (offset 0, 256 KB) + `kernel` (rest).
+
+Coherent predicted MTD map (exact map comes from U-Boot — confirm at the prompt with `cat /proc/mtd`):
+
+| mtd | Medium | Contents |
+|---|---|---|
+| mtd0 | SPI-NOR | U-Boot (256 KB) |
+| mtd1 | SPI-NOR | kernel (uImage) |
+| **mtd2** | **NAND** | **rootfs (JFFS2)** ← the OS we want |
+| mtd3+ | NAND | data / other |
+
+**Consequences:**
+
+- To dump the OS: `dd if=/dev/mtdblock2 of=rootfs.jffs2` (then `unmount`/extract with `jffs2dump`
+  or mount via `mtdram`/`nandsim` off-device). Plus the full NAND for safety.
+- The rootfs being **writable JFFS2** means once we have a shell we can **persist changes** —
+  enable dropbear at boot, drop in our own daemon — which is exactly what Phase 4 (custom userland)
+  needs. (Back up the NAND first.)
+
 ## Session plan (what we do once connected)
 
 1. Open PuTTY at 115200 8N1, then **power on the HAP**. The **U-Boot + kernel boot log** streams —

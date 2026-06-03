@@ -75,16 +75,20 @@ ScalarWebAPI), **22 closed** (dropbear present in firmware but not started).
   including raw `--path-as-is` and `%2e%2f` encodings. lighttpd 1.4.35 normalizes; no file read.
 - Served endpoints: `/hap.xml` (UPnP desc, UDN `uuid:00000000-0000-1010-8000-104FA86F4B84`),
   `/HAP_app.html` (272 KB embedded admin UI), `/MusicConnect_SCPD.xml`, icons.
-- **NEW: a REST-style content API referenced by the admin UI** (distinct from the JSON-RPC
-  ScalarWebAPI). Endpoints seen in `HAP_app.html`:
-  - `/sony/contentdb/v100/audio/{albums,artists,genres,tracks,playlists}` (with
-    `?albumid=/artistid=/genreid=/offset=` query params)
-  - `/sony/contentdb/v100/services/{directory,favorite,sensme}`
-  - `/sony/contentplayer/v100/{operation,playinginfo,playqueue/tracks,powerstate}`
-  - `/sony/hap?target=screen`, `/HAP_Internal/anap/capture`
-  - Naive anonymous GETs returned empty bodies — needs proper probing (method/headers/auth, or it
-    may be an internal SPA route). **Potentially the cleanest path to the library for a control
-    app** (the original `downloadByDiff` goal). Tracked for follow-up; add to the API catalog.
+- **A REST-style content API is referenced by the admin UI** (distinct from the JSON-RPC
+  ScalarWebAPI), all on port **60200** (confirmed from the `HAP_app.html` JS: `getTargetHost()` +
+  `devInfoForm.port`, and a hard-coded `http://…:60200/sony/contentdb/v100/playlists/`):
+  - `/sony/contentdb/v100/audio/{albums,artists,genres,tracks,playlists}` — **GET**, two-step:
+    bare call returns a `total`, then `?offset=0&limit=<total>` returns the list (`{genres:[{genreid,…}],…}`).
+    Param is `limit`, **not** `count`.
+  - `/sony/contentdb/v100/services/{directory,favorite,sensme}`,
+    `/sony/contentplayer/v100/{operation(POST),playinginfo,playqueue/tracks,powerstate}`.
+  - **CONFIRMED NOT IMPLEMENTED on firmware 19404R (dead end).** Properly probed 2026-06-03: a GET
+    to any `contentdb/v100` path **hangs and times out (0 bytes received)**; a POST returns **404**;
+    meanwhile the same `:60200` answers a ScalarWebAPI `getPowerStatus` POST normally. So the
+    `HAP_app.html` admin UI is generic/older and references a backend this firmware doesn't serve —
+    **vestigial, exactly like the MusicConnect endpoint.** Don't re-chase it. Library access for a
+    client must use the JSON-RPC `avContent.*` methods (already cataloged) or read the DB off disk.
 
 ## 4. Decision
 
@@ -94,6 +98,19 @@ a **UART serial console** → interrupt U-Boot → root shell → `dd` the NAND 
 This is also the repo's long-standing flagged "highest-leverage hardware opportunity." User opted
 to open the box. Full plan + manual references in
 [`docs/10-uart-console.md`](../../docs/10-uart-console.md).
+
+## 5. GPL kernel → flash layout known before we even open the box
+
+Grepped the Sony `linux-3.0.35` kernel patch (downloaded from oss.sony.net):
+
+- Kernel cmdline: `noinitrd console=ttymxc0,115200 root=/dev/mtdblock2 rw rootfstype=jffs2 ip=off`
+  (`CONFIG_CMDLINE_FROM_BOOTLOADER=y`). → **console `ttymxc0 @ 115200` (cross-confirms the M1/M3
+  UART pinout)**, and the **rootfs is `/dev/mtdblock2`, writable JFFS2** on NAND.
+- NAND via Freescale **GPMI**; SPI-NOR is an **M25P32 (4 MB)**, partitioned into `bootloader`
+  (offset 0, 256 KB) and `kernel` (the rest).
+- Predicted MTD map (confirm with `cat /proc/mtd` at UART): mtd0 U-Boot (SPI), mtd1 kernel (SPI),
+  **mtd2 rootfs JFFS2 (NAND)**, mtd3+ data. Dump = `dd if=/dev/mtdblock2`. Writable JFFS2 → we can
+  persist changes once we have a shell (Phase 4). Details in [`docs/10-uart-console.md`](../../docs/10-uart-console.md).
 
 ## Open follow-ups
 

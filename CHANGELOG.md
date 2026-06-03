@@ -20,7 +20,12 @@ once we ship a versioned release.
 - Full session record: [`research/notes/2026-06-03-os-acquisition-recon.md`](research/notes/2026-06-03-os-acquisition-recon.md)
   — firmware confirmed unobtainable publicly (99-agent sweep), GPL bundle fetched, and live-device
   software recon: Samba 3.0.37 anon RW to music shares but **symlink traversal blocked**, lighttpd
-  **path traversal blocked**, and a newly-spotted `/sony/contentdb/v100/...` REST API surface to chase.
+  **path traversal blocked**.
+- **`/sony/contentdb/v100` REST API: confirmed NOT implemented on 19404R** (GET times out, POST 404
+  while the same `:60200` ScalarWebAPI answers) — vestigial like MusicConnect; don't re-chase.
+- **Flash layout learned from the GPL kernel** (pre-UART): cmdline `console=ttymxc0,115200
+  root=/dev/mtdblock2 … rootfstype=jffs2`; rootfs is **writable JFFS2 on NAND mtd2**; SPI-NOR
+  M25P32 (4 MB) holds U-Boot+kernel. Documented in `10-uart-console.md`.
 
 ### Added (2026-06-02, direct HDD read — on-disk layout + ground-truth DB schema)
 
