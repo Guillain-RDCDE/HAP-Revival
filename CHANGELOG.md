@@ -8,6 +8,21 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-06-03, HAP companion tool)
+
+- **`tools/hap_companion.py`** — makes any file-copy tool (FreeFileSync, rsync, drag-and-drop)
+  HAP-aware, without replacing it. Stdlib only, read-only.
+  - `validate <folder>` — pre-flight a music folder: flags **unsupported** codecs/containers, **junk**
+    that pollutes the library (`.ffs_tmp`, `.part`, `Thumbs.db`, `._*`…), PCM **over 192 kHz** (the
+    Forza PCM-path cap — reads FLAC/WAV headers to check real rates), and album folders **missing
+    cover art**.
+  - `diff <hdd_browse.db> <folder>` — semantic new-vs-already-on-HAP comparison of a local
+    `<Artist>/<Album>/` tree against the device's own SQLite catalog (so you transfer only what's
+    actually missing, by content). Validated against a real library (24,404 artist/album pairs).
+  - `wake <mac>` (Wake-on-LAN) and `check <ip>` (reachability).
+- **Fix:** both `hap_companion.py` and `library_browser.py` now tolerate the non-UTF-8 (latin-1) text
+  that exists in some on-device DB rows (e.g. "Zé Roberto"), which previously crashed the SQLite read.
+
 ### Added (2026-06-03, library browser tool)
 
 - **`tools/library_browser.py`** — a stdlib-only web browser for a HAP library, reading the

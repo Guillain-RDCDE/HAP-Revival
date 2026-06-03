@@ -73,6 +73,8 @@ class Library:
         # immutable = read-only, no -wal/-journal, safe on a copy
         uri = f"file:{urllib.parse.quote(path)}?immutable=1&mode=ro"
         self.db = sqlite3.connect(uri, uri=True, check_same_thread=False)
+        # the on-device DB mixes UTF-8 with some latin-1 text (e.g. "Zé Roberto") — be tolerant
+        self.db.text_factory = lambda b: b.decode("utf-8", "replace")
         self.db.row_factory = sqlite3.Row
 
     def q(self, sql: str, args=()):

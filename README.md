@@ -85,6 +85,7 @@ Same i.MX6 SoC, same firmware images, same network protocols, same GPL bundle. W
 | On-device library (SQLite) schema fully decoded | ✅ | 11 tables, ~60 PROP-codes — confirmed against the real DB read off the disk. See [DB schema](research/db-schema/) + [disk layout](docs/09-disk-layout.md) |
 | Full library DB in hand | ✅ | Read directly off the HDD's `/data` partition (SQLite). The network `downloadByDiff` sync is still blocked (empty `location`) but no longer on the critical path — we have the DB |
 | **Library browser** (web, reads the on-disk SQLite catalog) | ✅ | `tools/library_browser.py <hdd_browse.db>` — artists / albums / tracks / cover art / codec / sample-rate, offline. The reference decoder for the catalog schema |
+| **HAP companion** (makes any copy tool HAP-aware) | ✅ | `tools/hap_companion.py` — `validate` (flag unsupported / junk `.ffs_tmp` / >192 kHz / missing covers before transfer), `diff` (new-vs-already-on-HAP against the library DB), `wake` (WoL), `check`. Complements FreeFileSync/rsync |
 | Native iOS / iPad app | ❌ | The web UI works in Safari on iPad today; native app planned |
 | Modern streaming services (Tidal, Qobuz, Roon) | ❌ | Requires custom userland (Phase 4) |
 | Custom OS replacement | ❌ | Long-term goal; UART root shell + NAND dump required first |
