@@ -68,7 +68,7 @@ Each method row shows:
 | `getVolumeInformation` | **1.1** | ✅ | `[]` | On HAP-Z1ES returns `minVolume: -1, target: "", mute: "toggle", volume: -1, step: 1, maxVolume: -1` — HAP-Z1ES has no internal amp so volume values are -1 (not applicable). HAP-S1 should return real values. |
 | `setAudioVolume` | **1.0** | 🟡 | `[{volume: "<n>"}]` per APK | Confirmed shape from APK. On HAP-Z1ES volume is meaningless (no amp); test on HAP-S1. |
 | `setAudioMute` | **1.1** | 🟡 | `[{mute: "on"\|"off"\|"toggle"}]` per APK | APK shows Sony **forces `"toggle"` on HAP-Z1ES** (modelType==2) regardless of requested state — implementation quirk. |
-| `getSoundSettings` | **1.1** | ✅ | `[{target: ""}]` | Returns the proprietary audio toggles: `dsee` (auto/off), `dsdRemastering` (on/off), `gaplessPlayback` (auto/off), `volumeNormalization` (auto/off), `oversampling` (precision/normal) |
+| `getSoundSettings` | **1.1** | ✅ | `[{target: ""}]` | Returns an array of `{target, currentValue, candidate:[{value, isAvailable, min, max, step}]}` — the proprietary audio toggles: `dsee` (auto/off), `dsdRemastering` (on/off), `gaplessPlayback` (auto/off), `volumeNormalization` (auto/off), `oversampling` (precision/normal). The current value is in **`currentValue`** (verified live 2026-06-03). |
 | `setSoundSettings` | **1.1** | ✅ | `[{settings: [{target: "<target>", value: "<value>"}]}]` | **Confirmed working** by fuzzer (returned `{result: []}` with empty params — server accepted noop). Targets: `dsee`, `dsdRemastering`, `gaplessPlayback`, `volumeNormalization`, `oversampling`. Use the candidate values returned by `getSoundSettings`. |
 | `getVersions` | 1.0 | ✅ | `[]` | Empty (neutered) |
 | `getMethodTypes` | 1.0 | ✅ | `["<ver>"]` | Empty (neutered) |

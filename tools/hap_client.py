@@ -69,7 +69,8 @@ class SystemInfo:
 class NowPlaying:
     """Output of avContent.getPlayingContentInfo v1.2 — the rich now-playing state."""
 
-    state: str  # "PLAYING" | "PAUSED" | "STOPPED" | "NO_MEDIA_PRESENT"
+    state: str  # device wire values: "PLAYING" | "PAUSED_PLAYBACK" | "STOPPED" | "NO_MEDIA_PRESENT"
+    #            (note: paused is "PAUSED_PLAYBACK", not "PAUSED" — verified live 2026-06-03)
     title: str = ""
     artist: str = ""
     album: str = ""
@@ -446,12 +447,17 @@ class HAP:
         """Get audio buffer setting and candidates."""
         return self.call("avContent", "getBufferTime", "1.0", [{}])
 
-    def repeat_type(self, target: str = "audio") -> dict:
-        """Get repeat mode. target: 'audio' (HDD/USB) or 'spotify'."""
+    def repeat_type(self, target: str = "track") -> dict:
+        """Get repeat mode.
+
+        target: 'track' (HDD/USB — the canonical value the device echoes; 'audio' is
+        also accepted and normalized to 'track') or '' (Spotify — echoed as 'spotify').
+        Verified live 2026-06-03.
+        """
         return self.call("avContent", "getRepeatType", "1.0", [{"target": target}])
 
-    def shuffle_type(self, target: str = "audio") -> dict:
-        """Get shuffle mode. target: 'audio' (HDD/USB) or 'spotify'."""
+    def shuffle_type(self, target: str = "track") -> dict:
+        """Get shuffle mode. target: 'track' (HDD/USB; 'audio' also accepted) or '' (Spotify). See repeat_type."""
         return self.call("avContent", "getShuffleType", "1.0", [{"target": target}])
 
     # ---- setters (state-changing) ----
@@ -473,12 +479,12 @@ class HAP:
             [{"settings": [{"target": target, "value": value}]}],
         )
 
-    def set_repeat(self, target: str = "audio", type: str = "off") -> None:
-        """Set repeat mode. type: 'off', 'one', 'all', 'track'. target: 'audio' or 'spotify'."""
+    def set_repeat(self, target: str = "track", type: str = "off") -> None:
+        """Set repeat mode. type: 'off', 'one', 'all', 'track'. target: 'track' (HDD/USB; 'audio' also accepted) or '' (Spotify)."""
         self.call("avContent", "setRepeatType", "1.0", [{"target": target, "type": type}])
 
-    def set_shuffle(self, target: str = "audio", type: str = "off") -> None:
-        """Set shuffle mode. type: 'off', 'track', 'album', 'folder'. target: 'audio' or 'spotify'."""
+    def set_shuffle(self, target: str = "track", type: str = "off") -> None:
+        """Set shuffle mode. type: 'off', 'track', 'album', 'folder'. target: 'track' (HDD/USB; 'audio' also accepted) or '' (Spotify)."""
         self.call("avContent", "setShuffleType", "1.0", [{"target": target, "type": type}])
 
     def set_buffer_time(self, buffer_sec: int) -> None:
@@ -574,7 +580,7 @@ class HAP:
 
 def _cli_now_playing(hap: HAP, _args) -> None:
     np = hap.now_playing()
-    if np.state == "PLAYING" or np.state == "PAUSED":
+    if np.state in ("PLAYING", "PAUSED_PLAYBACK", "PAUSED"):
         prog = f"{np.position_sec:7.1f} / {np.duration_sec:7.1f}s ({np.progress * 100:5.1f}%)"
         if np.sample_rate_hz > 0:
             tech = f"{np.codec.upper()} {np.sample_rate_hz / 1000:g} kHz / {np.bit_depth}-bit"

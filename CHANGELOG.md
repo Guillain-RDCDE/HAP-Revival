@@ -28,6 +28,11 @@ the new docs everywhere:
 - **`api-method-catalog.md`** reframes `downloadByDiff` as no-longer-a-blocker (DB obtained off-disk).
 - Added dated **correction banners** to the superseded 2026-05 research notes (iOS postmortem,
   mitmproxy, database-service, downloadByDiff deep-dive) pointing forward to the 2026-06 findings.
+- **`tools/hap_client.py` doc/bug pass, verified live against the device (2026-06-03):** the paused
+  state wire value is **`PAUSED_PLAYBACK`** (not `PAUSED`) — fixed the now-playing CLI so a paused
+  device renders correctly; corrected the repeat/shuffle `target` docstrings (canonical `'track'`;
+  Spotify is `''`, not `'spotify'`); documented that `getSoundSettings` returns the value in
+  `currentValue` (catalog + confirmed the client already reads it).
 
 ### Added (2026-06-03, OS acquisition recon + UART console identified)
 
