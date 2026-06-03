@@ -17,6 +17,10 @@ once we ship a versioned release.
   (`tools/hap_sync.json.example` provided; the real one is git-ignored). Auto-skips junk
   (`.ffs_tmp`, `Thumbs.db`, `._*`…) and unsupported formats, preserves `<Artist>/<Album>/`, and offers
   `plan` (dry-run), `sync`, `list`, `wake` (WoL), `check`.
+  - **On-disk remote-index cache** so we never re-list tens of thousands of files every run: the
+    first run scans the share, then `plan`/`sync` read the cache instantly, and a `sync` folds the
+    files it just uploaded into the cache (steady-state = no re-scan). `--refresh` / the `refresh`
+    command force a full re-listing. Cache lives in `.hap_sync_cache/` (git-ignored).
   - **Live-tested end-to-end** against the device: anonymous SMB1 connect, full recursive listing
     (67k files), and a verified upload round-trip.
   - Robustness fix discovered in testing: a long SMB1 recursive listing can desync pysmb's session

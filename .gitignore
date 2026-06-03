@@ -54,6 +54,8 @@ research/scratch/
 
 # Personal hap_sync config (has your own folder paths / device) — keep the .example instead
 tools/hap_sync.json
+# hap_sync remote-index cache (local, machine-specific)
+.hap_sync_cache/
 
 # On-device library databases (user's personal library data; never commit)
 *.db
