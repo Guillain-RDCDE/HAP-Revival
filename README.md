@@ -24,7 +24,7 @@ HAP-Revival is rebuilding the software Sony walked away from, one usable piece a
 
 | Software | What it does | Platform | Status |
 |---|---|---|---|
-| **🎵 HAP Sync** | Copy your music to the HAP in one click — auto-finds the device, remembers your folders, skips what the HAP can't use | Windows | ✅ Beta — run from source or build a single `.exe` |
+| **🎵 HAP Sync** | Copy your music to the HAP in one click — auto-finds the device, remembers your folders, skips what the HAP can't use | Windows | ✅ Beta — [**⬇ download `.exe`**](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe) |
 | **🌐 Web UI** | Browser remote: now-playing, play / pause / seek, sound settings, cover art | Any browser | ✅ Usable today |
 | **📟 Python client / CLI** | Scriptable control of every mapped API method | Any OS | ✅ Usable today |
 | Custom firmware / userland | Modern OS with hi-res streaming (Tidal · Qobuz · Roon) + AirPlay | On-device | ⏳ Planned |
@@ -33,6 +33,8 @@ HAP-Revival is rebuilding the software Sony walked away from, one usable piece a
 ### 🎵 HAP Sync — getting your music onto the HAP, finally painless
 
 ![HAP Sync: the HAP auto-detected (IP and MAC filled in), two PC folders mapped to the HAP_Internal and HAP_External shares, scanning a library before transfer](.github/hap-sync.png)
+
+**[⬇ Download HapSync.exe](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe)** — one self-contained file, no install. (First launch: Windows SmartScreen → *More info → Run anyway*, the binary isn't code-signed yet.)
 
 Sony's only supported transfer path is an **SMBv1** share that modern Windows and macOS fight you over. **HAP Sync** is a tiny native Windows app that does it properly:
 
