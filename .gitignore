@@ -23,6 +23,9 @@ wheels/
 venv/
 ENV/
 
+# PyInstaller (HapSync.exe build artifact; build/ and dist/ are already ignored above)
+*.spec
+
 # IDEs
 .vscode/
 .idea/
