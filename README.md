@@ -18,6 +18,45 @@
 
 ---
 
+## Downloads — software you can use today
+
+HAP-Revival is rebuilding the software Sony walked away from, one usable piece at a time. As each replacement is ready, it shows up here.
+
+| Software | What it does | Platform | Status |
+|---|---|---|---|
+| **🎵 HAP Sync** | Copy your music to the HAP in one click — auto-finds the device, remembers your folders, skips what the HAP can't use | Windows | ✅ Beta — run from source or build a single `.exe` |
+| **🌐 Web UI** | Browser remote: now-playing, play / pause / seek, sound settings, cover art | Any browser | ✅ Usable today |
+| **📟 Python client / CLI** | Scriptable control of every mapped API method | Any OS | ✅ Usable today |
+| Custom firmware / userland | Modern OS with hi-res streaming (Tidal · Qobuz · Roon) + AirPlay | On-device | ⏳ Planned |
+| Native iOS / iPad app | A modern remote to replace Sony's abandoned one | iOS / iPadOS | ⏳ Planned |
+
+### 🎵 HAP Sync — getting your music onto the HAP, finally painless
+
+![HAP Sync: the HAP auto-detected (IP and MAC filled in), two PC folders mapped to the HAP_Internal and HAP_External shares, scanning a library before transfer](.github/hap-sync.png)
+
+Sony's only supported transfer path is an **SMBv1** share that modern Windows and macOS fight you over. **HAP Sync** is a tiny native Windows app that does it properly:
+
+- **Auto-detects the HAP** on your network — no IP address to hunt down (it scans for the device and reads its details straight off the API).
+- **Speaks SMB1 directly** — you never have to enable Windows' insecure SMB1 client.
+- **Two folders, both shares**: feed the internal disk and a USB drive from two PC folders — and your folders are **remembered between runs**, so you set them once.
+- **Skips the junk** (`Thumbs.db`, `.DS_Store`, FreeFileSync `.ffs_tmp`, AppleDouble `._*`) that the HAP would otherwise index as **ghost tracks** polluting your library.
+- **Skips formats the HAP can't play**, and flags PCM above its 192 kHz ceiling.
+- **Incremental & fast**: only new or changed files are sent, and the remote file index is cached — so repeat syncs are near-instant instead of a multi-minute re-scan.
+- **Wake-on-LAN** to wake a sleeping HAP, a **live progress** view, and the HAP auto-reindexes new files within seconds.
+
+```powershell
+# Run from source (Python 3.10+)
+pip install pysmb
+python tools/hap_gui.py
+
+# …or build a standalone, double-click HapSync.exe (no Python needed to run it)
+powershell -ExecutionPolicy Bypass -File tools/build_gui.ps1
+```
+
+Prefer the command line, or scripting it into a schedule? The same engine ships as a CLI — see [`tools/hap_sync.py`](tools/hap_sync.py) and the [music-sync guide](docs/12-music-sync.md). The GUI is new (beta); the underlying transfer engine is live-tested end-to-end.
+
+---
+
 ## Why we're doing this
 
 Put a 24/96 FLAC on a HAP-Z1ES, sit down, and the room changes. There's a stillness around the instruments. A cymbal decays longer than it has any right to. Cellos have weight; voices have a body; you can hear the space the recording was made in. This is what audiophile-grade source hardware is *supposed* to do — and what €500 streamers, however clever, still don't.
@@ -85,7 +124,7 @@ Same i.MX6 SoC, same firmware images, same network protocols, same GPL bundle. W
 | On-device library (SQLite) schema fully decoded | ✅ | 11 tables, ~60 PROP-codes — confirmed against the real DB read off the disk. See [DB schema](research/db-schema/) + [disk layout](docs/09-disk-layout.md) |
 | Full library DB in hand | ✅ | Read directly off the HDD's `/data` partition (SQLite). The network `downloadByDiff` sync is still blocked (empty `location`) but no longer on the critical path — we have the DB |
 | **Library browser** (web, reads the on-disk SQLite catalog) | ✅ | `tools/library_browser.py <hdd_browse.db>` — artists / albums / tracks / cover art / codec / sample-rate, offline. The reference decoder for the catalog schema |
-| **Music sync** (a HAP-dedicated FreeFileSync replacement) | ✅ | `tools/hap_sync.py` — incremental SMB1 transfer to **both** `HAP_Internal` + `HAP_External` from two PC folders, auto-skips junk (`.ffs_tmp`…) and unsupported formats, preserves `<Artist>/<Album>/`, WoL + post-transfer auto-reindex. Speaks SMB1 via `pysmb`, so **no need to enable Windows SMB1**. Live-tested end-to-end |
+| **Music sync — GUI + CLI** (a HAP-dedicated FreeFileSync replacement) | ✅ | **`tools/hap_gui.py`** — one-click Windows app (auto-detect, remembered folders, live progress; build to `HapSync.exe` via `tools/build_gui.ps1`), sharing the **`tools/hap_sync.py`** engine: incremental SMB1 transfer to **both** `HAP_Internal` + `HAP_External` from two PC folders, auto-skips junk (`.ffs_tmp`…) and unsupported formats, preserves `<Artist>/<Album>/`, WoL + post-transfer auto-reindex. Speaks SMB1 via `pysmb`, so **no need to enable Windows SMB1**. CLI engine live-tested end-to-end; GUI is new (beta) |
 | **Pre-flight checks** (validate / library diff) | ✅ | `tools/hap_companion.py` — standalone `validate` (compat / junk / >192 kHz / cover report) and `diff` against the library DB; the same filtering is built into `hap_sync` |
 | Native iOS / iPad app | ❌ | The web UI works in Safari on iPad today; native app planned |
 | Modern streaming services (Tidal, Qobuz, Roon) | ❌ | Requires custom userland (Phase 4) |

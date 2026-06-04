@@ -88,7 +88,13 @@ def is_junk(name: str) -> bool:
 
 # ---------- validate ----------
 
-def cmd_validate(folder: str) -> int:
+def scan_folder(folder: str) -> dict:
+    """Walk a local music folder and classify every file the way the HAP would.
+
+    Returns a dict with counts and the offending relative paths:
+        {scanned, n_ok, n_unsup, n_junk, n_hi, junk[], unsup[], hires[], no_cover[]}
+    Pure compute, no I/O to stdout — `cmd_validate` prints it, the GUI renders it.
+    """
     folder = os.path.abspath(folder)
     n_ok = n_unsup = n_junk = n_hi = 0
     unsup: list[str] = []
@@ -129,7 +135,15 @@ def cmd_validate(folder: str) -> int:
                 n_unsup += 1
                 unsup.append(os.path.relpath(p, folder))
 
-    no_cover = sorted(dirs_with_audio - dirs_with_cover)
+    return {"scanned": folder, "n_ok": n_ok, "n_unsup": n_unsup, "n_junk": n_junk,
+            "n_hi": n_hi, "junk": junk, "unsup": unsup, "hires": hires,
+            "no_cover": sorted(dirs_with_audio - dirs_with_cover)}
+
+
+def cmd_validate(folder: str) -> int:
+    r = scan_folder(folder)
+    n_ok, n_unsup, n_junk, n_hi = r["n_ok"], r["n_unsup"], r["n_junk"], r["n_hi"]
+    junk, unsup, hires, no_cover = r["junk"], r["unsup"], r["hires"], r["no_cover"]
 
     def section(title, items, limit=25):
         if not items:
@@ -140,7 +154,7 @@ def cmd_validate(folder: str) -> int:
         if len(items) > limit:
             print(f"  … and {len(items) - limit} more")
 
-    print(f"Scanned: {folder}")
+    print(f"Scanned: {r['scanned']}")
     print(f"  playable audio files : {n_ok}")
     print(f"  unsupported           : {n_unsup}")
     print(f"  junk (would pollute)  : {n_junk}")
@@ -161,7 +175,12 @@ def _norm(s: str) -> str:
     return " ".join(s.lower().split())
 
 
-def cmd_diff(db_path: str, folder: str) -> int:
+def diff_library(db_path: str, folder: str) -> dict:
+    """Semantic diff of a local <Artist>/<Album>/ tree against the HAP's SQLite catalog.
+
+    Returns {have_count, new[], existing[]} — albums NEW to the HAP vs already present,
+    matched by content (artist+album, or album name alone). Read-only on the DB.
+    """
     import sqlite3
     import urllib.parse
     uri = f"file:{urllib.parse.quote(db_path)}?immutable=1&mode=ro"
@@ -196,8 +215,14 @@ def cmd_diff(db_path: str, folder: str) -> int:
             else:
                 new.append(f"{artist} / {album}")
 
-    print(f"HAP library: {len(have)} (artist, album) pairs")
-    print(f"Local tree : {folder}\n")
+    return {"have_count": len(have), "new": new, "existing": existing}
+
+
+def cmd_diff(db_path: str, folder: str) -> int:
+    r = diff_library(db_path, folder)
+    have, new, existing = r["have_count"], r["new"], r["existing"]
+    print(f"HAP library: {have} (artist, album) pairs")
+    print(f"Local tree : {os.path.abspath(folder)}\n")
     print(f"NEW — not on the HAP ({len(new)}):")
     for x in new:
         print(f"  + {x}")

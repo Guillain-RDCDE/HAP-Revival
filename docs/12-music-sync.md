@@ -4,6 +4,12 @@ This is the practical guide to [`tools/hap_sync.py`](../tools/hap_sync.py): a sm
 your music to the HAP-Z1ES / HAP-S1 and keeps it in sync — purpose-built for the HAP, so it does the
 things a generic sync tool (FreeFileSync, rsync, drag-and-drop) can't.
 
+> **Prefer a window to a command line?** [`tools/hap_gui.py`](../tools/hap_gui.py) (**HAP Sync**) is a
+> one-click Windows GUI over this exact engine: auto-detect the device, pick your two folders (remembered
+> between runs), Analyze, then Sync with a live progress bar. Run `python tools/hap_gui.py`, or build a
+> standalone `HapSync.exe` with [`tools/build_gui.ps1`](../tools/build_gui.ps1). Everything below applies
+> equally — the GUI just drives the same code with buttons.
+
 ## What it does that FreeFileSync doesn't
 
 - **Transfers to the HAP's own SMB1 share** via `pysmb`, so you **don't have to turn on the insecure
@@ -17,11 +23,12 @@ things a generic sync tool (FreeFileSync, rsync, drag-and-drop) can't.
 - **Fast on huge libraries** thanks to a remote-index cache (below).
 - **Never deletes** anything on the HAP. Add/update only.
 
-> Three small tools, easy to mix up — here's the split:
+> A few small tools, easy to mix up — here's the split:
 >
 > | Tool | What it's for |
 > |---|---|
-> | **`hap_sync.py`** | **transfer** your music to the HAP — the FreeFileSync replacement |
+> | **`hap_gui.py`** | the **HAP Sync** Windows app — `hap_sync` with buttons, a progress bar and auto-detect |
+> | **`hap_sync.py`** | **transfer** your music to the HAP (CLI) — the FreeFileSync replacement |
 > | `library_browser.py` | **browse/view** your library in a web page (see [`09-disk-layout.md`](09-disk-layout.md)) |
 > | `hap_companion.py` | standalone pre-flight checks (the same filtering is already built into `hap_sync`) |
 

@@ -190,11 +190,16 @@ class Smb:
             pass
 
 
-def remote_index(smb: "Smb", share: str):
-    """(map of remote 'relative/path' -> size, number of dirs we couldn't read)."""
+def remote_index(smb: "Smb", share: str, on_progress=None):
+    """(map of remote 'relative/path' -> size, number of dirs we couldn't read).
+
+    Listing a 60-70k-file SMB1 share takes minutes, so `on_progress(file_count)` fires
+    every ~1000 files found — lets a GUI show a live count instead of a frozen window.
+    """
     out: dict[str, int] = {}
     skipped = 0
     stack = ["/"]
+    last_reported = 0
     while stack:
         d = stack.pop()
         try:
@@ -214,6 +219,11 @@ def remote_index(smb: "Smb", share: str):
                 stack.append(p)
             else:
                 out[p.lstrip("/")] = f.file_size
+        if on_progress and len(out) - last_reported >= 1000:
+            last_reported = len(out)
+            on_progress(len(out))
+    if on_progress:
+        on_progress(len(out))
     return out, skipped
 
 
@@ -273,25 +283,30 @@ class LazySmb:
             self._smb.close()
 
 
-def get_remote(cfg: dict, lazy: LazySmb, share: str, refresh: bool):
-    """Return (index dict, source label). Uses the cache unless refresh; rebuilds + saves on miss."""
+def get_remote(cfg: dict, lazy: LazySmb, share: str, refresh: bool, on_progress=None):
+    """Return (index dict, source label). Uses the cache unless refresh; rebuilds + saves on miss.
+    `on_progress(file_count)` is forwarded to the live SMB listing (no-op on a cache hit)."""
     if not refresh:
         c = load_cache(cfg, share)
         if c is not None:
             return c["files"], f"cache {c['built']}"
-    idx, skipped = remote_index(lazy.smb, share)
+    idx, skipped = remote_index(lazy.smb, share, on_progress=on_progress)
     save_cache(cfg, share, idx)
     src = f"live scan, {len(idx)} files" + (f", {skipped} dirs unreadable" if skipped else "")
     return idx, src
 
 
-def scan_map(cfg: dict, lazy: LazySmb, m: dict, include_unsupported: bool, refresh: bool):
+def scan_map(cfg: dict, lazy: LazySmb, m: dict, include_unsupported: bool, refresh: bool,
+             on_scan=None, on_progress=None):
+    """Build the transfer plan for one map. `on_scan(s)` reports the result (defaults to
+    printing it for the CLI; the GUI passes its own callback). `on_progress(file_count)` is
+    forwarded to the remote listing so a GUI can show progress during the slow SMB1 scan."""
     local_root = os.path.abspath(m["local"])
     share = m["share"]
     if not os.path.isdir(local_root):
         print(f"  ! local folder not found: {local_root}")
         return None
-    remote, source = get_remote(cfg, lazy, share, refresh)
+    remote, source = get_remote(cfg, lazy, share, refresh, on_progress=on_progress)
     todo, skipped = [], {"junk": 0, "unsupported": 0}
     for rel, ap, size, _kind in local_index(local_root, include_unsupported):
         if rel == "__skipped__":
@@ -302,7 +317,7 @@ def scan_map(cfg: dict, lazy: LazySmb, m: dict, include_unsupported: bool, refre
             todo.append((rel, ap, size, "new" if rsize is None else "changed"))
     s = {"local": local_root, "share": share, "remote": remote,
          "source": source, "todo": todo, "skipped": skipped}
-    print_scan(s)
+    (on_scan or print_scan)(s)
     return s
 
 
@@ -335,6 +350,46 @@ def cmd_plan(cfg, args):
     return 0
 
 
+def transfer(smb: "Smb", jobs: list, index_by_share: dict, on_event=None, should_cancel=None):
+    """Upload `jobs` (list of (share, rel, abspath, size)) over a fresh SMB1 session.
+
+    Each successful upload is folded into `index_by_share[share]` (the cache map) so the
+    caller can persist it and skip these files next run. `on_event(kind, **data)` fires for
+    progress — kinds: 'file_done' / 'file_failed' / 'cancelled' (the CLI prints them, the GUI
+    drives a progress bar). `should_cancel()` is polled between files for cooperative abort.
+    Returns (done, failed). Same retry-on-fresh-connection logic the CLI always used.
+    """
+    on_event = on_event or (lambda *a, **k: None)
+    total = len(jobs)
+    made: set = set()
+    done = failed = 0
+    for i, (share, rel, ap, size) in enumerate(jobs, 1):
+        if should_cancel and should_cancel():
+            on_event("cancelled", i=i, total=total)
+            break
+        ensure_dirs(smb, share, rel, made)
+        ok = False
+        for attempt in (1, 2):  # retry once on a fresh connection
+            try:
+                with open(ap, "rb") as fp:
+                    smb.conn.storeFile(share, "/" + rel, fp)
+                ok = True
+                break
+            except Exception as e:  # noqa: BLE001
+                if attempt == 1:
+                    smb.reconnect()
+                    made.clear()
+                    ensure_dirs(smb, share, rel, made)
+                else:
+                    failed += 1
+                    on_event("file_failed", i=i, total=total, share=share, rel=rel, error=str(e))
+        if ok:
+            done += 1
+            index_by_share[share][rel] = size  # fold into the cache
+            on_event("file_done", i=i, total=total, share=share, rel=rel, size=size)
+    return done, failed
+
+
 def cmd_sync(cfg, args):
     lazy = LazySmb(cfg["host"])
     try:
@@ -351,29 +406,14 @@ def cmd_sync(cfg, args):
         smb.reconnect()  # a long listing can desync SMB1 — upload on a fresh connection
         print(f"\nTransferring {len(jobs)} file(s)…")
         index_by_share = {s["share"]: s["remote"] for s in scans}
-        made: set = set()
-        done = failed = 0
-        for i, (share, rel, ap, size) in enumerate(jobs, 1):
-            ensure_dirs(smb, share, rel, made)
-            ok = False
-            for attempt in (1, 2):  # retry once on a fresh connection
-                try:
-                    with open(ap, "rb") as fp:
-                        smb.conn.storeFile(share, "/" + rel, fp)
-                    ok = True
-                    break
-                except Exception as e:  # noqa: BLE001
-                    if attempt == 1:
-                        smb.reconnect()
-                        made.clear()
-                        ensure_dirs(smb, share, rel, made)
-                    else:
-                        failed += 1
-                        print(f"  [{i}/{len(jobs)}] FAILED {share}:/{rel} — {e}")
-            if ok:
-                done += 1
-                index_by_share[share][rel] = size  # fold into the cache
-                print(f"  [{i}/{len(jobs)}] {share}:/{rel}  ({human(size)})")
+
+        def on_event(kind, **d):
+            if kind == "file_done":
+                print(f"  [{d['i']}/{d['total']}] {d['share']}:/{d['rel']}  ({human(d['size'])})")
+            elif kind == "file_failed":
+                print(f"  [{d['i']}/{d['total']}] FAILED {d['share']}:/{d['rel']} — {d['error']}")
+
+        done, failed = transfer(smb, jobs, index_by_share, on_event=on_event)
         for share, idx in index_by_share.items():
             save_cache(cfg, share, idx)  # persist so the next run doesn't re-scan what we just sent
         print(f"\nDone: {done} transferred, {failed} failed.  (cache updated)")
@@ -407,18 +447,38 @@ def cmd_refresh(cfg, args):
     return 0
 
 
-def cmd_wake(cfg, _args):
-    mac = cfg.get("mac", "")
+def send_wol(mac: str) -> None:
+    """Broadcast a Wake-on-LAN magic packet to `mac`. Raises ValueError on a bad MAC.
+    The HAP sleeps in network standby; this is how the CLI and the GUI both wake it."""
     hexmac = mac.replace(":", "").replace("-", "").strip()
     if len(hexmac) != 12:
-        print("error: set a valid 'mac' in the config to use wake", file=sys.stderr)
-        return 2
+        raise ValueError("MAC must be 12 hex digits (e.g. 80:56:F2:85:0E:27)")
     pkt = b"\xff" * 6 + bytes.fromhex(hexmac) * 16
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    s.sendto(pkt, ("255.255.255.255", 9))
-    s.close()
-    print(f"Magic packet sent to {mac}")
+    try:
+        s.sendto(pkt, ("255.255.255.255", 9))
+    finally:
+        s.close()
+
+
+def port_open(host: str, port: int, timeout: float = 3) -> bool:
+    """True if a TCP connect to host:port succeeds within `timeout` seconds."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    try:
+        return s.connect_ex((host, port)) == 0
+    finally:
+        s.close()
+
+
+def cmd_wake(cfg, _args):
+    try:
+        send_wol(cfg.get("mac", ""))
+    except ValueError:
+        print("error: set a valid 'mac' in the config to use wake", file=sys.stderr)
+        return 2
+    print(f"Magic packet sent to {cfg.get('mac')}")
     return 0
 
 
@@ -426,12 +486,9 @@ def cmd_check(cfg, _args):
     host = cfg["host"]
     ok = True
     for port, name in ((445, "SMB"), (60200, "ScalarWebAPI")):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(3)
-        r = s.connect_ex((host, port))
-        s.close()
-        ok = ok and r == 0
-        print(f"  {host}:{port:<6} {name:<14} {'open' if r == 0 else 'CLOSED'}")
+        up = port_open(host, port)
+        ok = ok and up
+        print(f"  {host}:{port:<6} {name:<14} {'open' if up else 'CLOSED'}")
     print("[OK] HAP reachable" if ok else "[FAIL] HAP not fully reachable")
     return 0 if ok else 1
 
