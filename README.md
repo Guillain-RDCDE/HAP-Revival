@@ -16,6 +16,10 @@
 </p>
 <!-- markdownlint-enable MD033 MD041 -->
 
+> 🟢 **New here, or not a programmer? [Start with the friendly guide → `docs/START-HERE.md`](docs/START-HERE.md)**
+>
+> It explains what this machine is, what you can do *today*, and how deep you want to go — in five plain-language minutes, no jargon. The rest of this README is the technical side.
+
 ---
 
 ## Downloads — software you can use today
@@ -206,6 +210,7 @@ Mainline kernel where feasible, new control plane, multi-device fleet management
 
 The full research lives in [`docs/`](docs/). Recommended reading order:
 
+0. [**Start Here**](docs/START-HERE.md) — the friendly, no-jargon version if you're new or not a programmer
 1. [Overview](docs/00-overview.md) — the project in one page
 2. [Hardware](docs/01-hardware.md) — SoC, FPGA, DSP, DAC, ports
 3. [Software stack](docs/02-software-stack.md) — OS, daemons, libraries
