@@ -144,10 +144,13 @@ Coherent predicted MTD map (exact map comes from U-Boot — confirm at the promp
      `dd if=/dev/mtd2 of=/mnt/internal/internal/mtd2.img`, then pull `mtd2.img` from the PC with any
      SMB client (e.g. `python tools/hap_sync.py list HAP_Internal`) and delete it afterwards.
    Grab at least **mtd2 (the rootfs, JFFS2)**, and ideally **every partition** for a full-NAND backup.
-7. **Extract off-device:** a JFFS2 image mounts on Linux via `mtdram`/`nandsim`, or unpacks with
-   `jefferson` / `jffs2dump` → the **Python control daemon source**, init scripts, the library
-   indexer, the proprietary GStreamer elements, and the DSP firmware blobs (`/sony/lib/modules/dspfw/`).
-   That's the OS, in clear, with no dependence on the OTA blob.
+7. **Extract off-device:** unpack the JFFS2 with **[`tools/extract_rootfs.sh`](../tools/extract_rootfs.sh)**
+   (`tools/extract_rootfs.sh mtd2.img`) → the **Python control daemon source**, init scripts, the
+   library indexer, the proprietary GStreamer elements, and the DSP firmware blobs
+   (`/sony/lib/modules/dspfw/`). That's the OS, in clear, with no dependence on the OTA blob.
+   The full, **tested** extraction pipeline (and an important gotcha — WSL2's kernel has no MTD
+   modules, so use the userspace `jefferson` path, not `mtdram`/`nandsim`) is in
+   [`docs/14-nand-extract.md`](14-nand-extract.md).
 
 The rootfs is **writable JFFS2** (confirmed from the kernel cmdline above), not squashfs — so once we
 have a shell we can make changes persist (enable dropbear at boot, drop in our own daemon). `dd` of
