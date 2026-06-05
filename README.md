@@ -239,7 +239,7 @@ python tools/discover.py
 
 This SSDP-probes your network, identifies any HAP devices, and dumps their full UPnP description + a sample of API responses to `research/captures/` for triage. **No write operations.**
 
-To go further: read [CONTRIBUTING](CONTRIBUTING.md). If you've unearthed a Japanese teardown blog from 2015, captured iOS traffic in Wireshark, scanned a service manual, or just have your HAP on a different network than ours, you have something to contribute. Open an issue — we read all of them.
+To go further: read [CONTRIBUTING](.github/CONTRIBUTING.md). If you've unearthed a Japanese teardown blog from 2015, captured iOS traffic in Wireshark, scanned a service manual, or just have your HAP on a different network than ours, you have something to contribute. Open an issue — we read all of them.
 
 ## Non-goals
 
@@ -268,4 +268,4 @@ This project stands on a lot of shoulders.
 - **[frazei](https://gist.github.com/frazei/09d69242a8beed0cf0a1c193a45a650a)** — for the first public documentation of the JSON-RPC control surface (July 2022). A single gist saved a year of work.
 - **[rytilahti/python-songpal](https://github.com/rytilahti/python-songpal)** — protocol-cousin reference implementation we'll port from.
 - **The Japanese audiophile community** (emuzu, briareos, saionjihouse, the kakaku.com regulars) — for a decade of hands-on HDD swap and modification documentation nobody in the English-speaking world has matched. もしこれを読んでいるなら、本当にありがとうございます。
-- **You**, if you contribute — see [CONTRIBUTING](CONTRIBUTING.md). Especially you if you actually *listen* on one of these.
+- **You**, if you contribute — see [CONTRIBUTING](.github/CONTRIBUTING.md). Especially you if you actually *listen* on one of these.

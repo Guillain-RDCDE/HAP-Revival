@@ -28,7 +28,7 @@ This is the device's biggest stock-firmware exposure, so it's worth stating prec
 records attack vectors already tried, so nobody re-burns the hours):
 
 - **Anonymous read + write** to the music shares is open to anyone on the LAN. (Useful for a future
-  direct-to-share bulk loader; also a real exposure on an untrusted network — see [`SECURITY.md`](../SECURITY.md).)
+  direct-to-share bulk loader; also a real exposure on an untrusted network — see [`SECURITY.md`](../.github/SECURITY.md).)
 - **Escaping the share to the rootfs is blocked.** The classic Samba symlink / `wide links`
   traversal (create a symlink to `/`, read the filesystem) returns `NT_STATUS_ACCESS_DENIED` on
   every attempt (absolute and relative targets, both shares) — Sony hardened this.

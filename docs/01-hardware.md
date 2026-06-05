@@ -84,7 +84,7 @@ This is the part Sony invested in. The Linux SoC does not touch the audio sample
 
 ## Debug interfaces
 
-Per the HAP-S1 service manual ([`archive/sony-service-manual-hap-s1.pdf`](../archive/sony-service-manual-hap-s1.pdf), same architecture as HAP-Z1ES):
+Per the HAP-S1 service manual ([`manuals/sony-service-manual-hap-s1.pdf`](manuals/sony-service-manual-hap-s1.pdf), same architecture as HAP-Z1ES):
 
 - **JTAG**: TDO, TMS, TDI, TCK pins on IC101 — present in the IC101 pin table but marked "Not used".
 - **UART console**: **identified 2026-06-03 from the IC101 pin-function table** (service manual p75–79). The Linux/U-Boot console is the i.MX6 **UART1** (`ttymxc0 @ 115200 8N1`):
@@ -99,12 +99,12 @@ Per the HAP-S1 service manual ([`archive/sony-service-manual-hap-s1.pdf`](../arc
 
 ## Service manual references
 
-All four primary technical documents are **preserved in [`archive/`](../archive/)** for durability:
+All four primary technical documents are **preserved in [`manuals/`](manuals/)** for durability:
 
-- [`archive/sony-service-manual-hap-z1es.pdf`](../archive/sony-service-manual-hap-z1es.pdf) — 8.3 MB, full schematics, IC list (incl. the `IC101 = MCIMX6D5EYM10AC` part number we keep citing), PCB layout, audio path block diagram, DIAG sequence. Originally sourced from Elektrotanya 2026-05-26.
-- [`archive/sony-service-manual-hap-s1.pdf`](../archive/sony-service-manual-hap-s1.pdf) — 10.4 MB, same scope plus the integrated amplifier section (LM3876, NJW1194). Most board-level content overlaps with the HAP-Z1ES manual.
-- [`archive/sony-helpguide-hap-z1es.pdf`](../archive/sony-helpguide-hap-z1es.pdf) — 1.3 MB, end-user Help Guide. Live source: <https://helpguide.sony.net/ha/hapz1es/v1/en/print.pdf>.
-- [`archive/sony-helpguide-hap-s1.pdf`](../archive/sony-helpguide-hap-s1.pdf) — 1.4 MB, end-user Help Guide. Live source: <https://helpguide.sony.net/ha/haps1/v1/en/print.pdf>.
+- [`manuals/sony-service-manual-hap-z1es.pdf`](manuals/sony-service-manual-hap-z1es.pdf) — 8.3 MB, full schematics, IC list (incl. the `IC101 = MCIMX6D5EYM10AC` part number we keep citing), PCB layout, audio path block diagram, DIAG sequence. Originally sourced from Elektrotanya 2026-05-26.
+- [`manuals/sony-service-manual-hap-s1.pdf`](manuals/sony-service-manual-hap-s1.pdf) — 10.4 MB, same scope plus the integrated amplifier section (LM3876, NJW1194). Most board-level content overlaps with the HAP-Z1ES manual.
+- [`manuals/sony-helpguide-hap-z1es.pdf`](manuals/sony-helpguide-hap-z1es.pdf) — 1.3 MB, end-user Help Guide. Live source: <https://helpguide.sony.net/ha/hapz1es/v1/en/print.pdf>.
+- [`manuals/sony-helpguide-hap-s1.pdf`](manuals/sony-helpguide-hap-s1.pdf) — 1.4 MB, end-user Help Guide. Live source: <https://helpguide.sony.net/ha/haps1/v1/en/print.pdf>.
 
 Live mirrors for the service manuals (in case you want to grab a fresh copy from upstream): [ManualsLib HAP-Z1ES](https://www.manualslib.com/manual/1606461/Sony-Hap-Z1es.html), [ManualsLib HAP-S1](https://www.manualslib.com/manual/893329/Sony-Hap-S1.html), [Elektrotanya HAP-Z1ES](https://elektrotanya.com/sony_hap-z1es.pdf/download.html), [Elektrotanya HAP-S1](https://elektrotanya.com/sony_hap-s1_ver.1.0_hdd_audio_player.pdf/download.html). Both anti-bot, manual browser download only.
 

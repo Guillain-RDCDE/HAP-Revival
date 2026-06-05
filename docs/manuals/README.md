@@ -1,4 +1,4 @@
-# Archive — preserved technical documents
+# Manuals — preserved technical documents
 
 This directory hosts technical documents we have found referenced across the project — service manuals, user manuals, datasheets — that exist on the web in **a single, fragile location each** (often a third-party mirror).
 
@@ -20,7 +20,7 @@ This archive exists to make HAP-Revival itself a durable reference, so the next 
 To verify any file matches what we archived:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 .\archive\sony-service-manual-hap-z1es.pdf
+Get-FileHash -Algorithm SHA256 .\docs\manuals\sony-service-manual-hap-z1es.pdf
 ```
 
 ## What's not here yet (low-priority)
@@ -37,7 +37,7 @@ If you want to add any of these or other technical docs we've cited but not yet 
 
 1. Open the source URL in your browser.
 2. Download the PDF (Elektrotanya: click the green download button + wait the 10-second timer + click again; ManualsLib: use the "Download" link if available, otherwise screen-scrape via the on-screen reader).
-3. Save it into this `archive/` folder with the canonical filename: `sony-service-manual-hap-s1.pdf` or `sony-service-manual-hap-z1es.pdf`.
+3. Save it into this `docs/manuals/` folder with the canonical filename: `sony-service-manual-hap-s1.pdf` or `sony-service-manual-hap-z1es.pdf`.
 4. Compute the SHA-256 (PowerShell: `Get-FileHash -Algorithm SHA256 .\file.pdf` ; macOS/Linux: `shasum -a 256 file.pdf`).
 5. Add a row to the table at the top of this README.
 6. Commit + PR.
@@ -57,6 +57,6 @@ These documents are the intellectual property of their respective copyright hold
 
 ## What is NOT in this archive (and never will be)
 
-- **Sony firmware blobs** (`*.SonyAP`). Kept off the repo because the firmware contains proprietary application code we don't want to mass-redistribute. **Correction (2026-06-03):** an earlier draft said the originals "can always be obtained" from Sony's regional download pages — that is **wrong**. The firmware is **OTA-only** (the device fetches it from `info.update.sony.net`); the regional pages expose **no downloadable blob**, and no public copy exists anywhere. We couldn't redistribute it even if we wanted to. See [`../research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md) §1.
-- **Decompiled APK source code**. The recipe to decompile is in [`tools/apk-decompile.md`](../tools/apk-decompile.md). The output is Sony copyrighted Java and stays out of the repo per the project's `.gitignore`.
+- **Sony firmware blobs** (`*.SonyAP`). Kept off the repo because the firmware contains proprietary application code we don't want to mass-redistribute. **Correction (2026-06-03):** an earlier draft said the originals "can always be obtained" from Sony's regional download pages — that is **wrong**. The firmware is **OTA-only** (the device fetches it from `info.update.sony.net`); the regional pages expose **no downloadable blob**, and no public copy exists anywhere. We couldn't redistribute it even if we wanted to. See [`../../research/notes/2026-06-03-os-acquisition-recon.md`](../../research/notes/2026-06-03-os-acquisition-recon.md) §1.
+- **Decompiled APK source code**. The recipe to decompile is in [`tools/apk-decompile.md`](../../tools/apk-decompile.md). The output is Sony copyrighted Java and stays out of the repo per the project's `.gitignore`.
 - **User music libraries** or any personally identifiable data.

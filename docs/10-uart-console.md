@@ -34,7 +34,7 @@ This page is the working guide. Status: **prep stage** (no probe performed on ha
 
 ## Where the test points are (service manual references)
 
-From `archive/sony-service-manual-hap-z1es.pdf` (the MAIN board is codename **SPIRITOSO**;
+From `docs/manuals/sony-service-manual-hap-z1es.pdf` (the MAIN board is codename **SPIRITOSO**;
 the SoC is **IC101 = MCIMX6D5EYM10AC**, i.MX6 Dual):
 
 | Manual page | Content | Use |
@@ -92,7 +92,7 @@ reached in this order — it sits *under* the FPGA-DSP board:
 `Case top → Case L/R blocks → Plate bottom outer → Plate bottom → Front panel block → HDD block →
 Power transformers (T1/T2) → FPGA-DSP board → MAIN board block → MAIN board`
 
-Per-step screw detail is in the manual (`archive/sony-service-manual-hap-z1es.pdf`): MAIN board on
+Per-step screw detail is in the manual (`docs/manuals/sony-service-manual-hap-z1es.pdf`): MAIN board on
 p19, FPGA-DSP board p18. **You probably don't need to fully extract the MAIN board** — just remove
 enough (case top + the FPGA-DSP board above it) to expose the board surface and reach `CN4008` /
 IC101 with the probe. Take photos as you go (the community HDD-swap notes in [`06-hdd-swap.md`](06-hdd-swap.md)
