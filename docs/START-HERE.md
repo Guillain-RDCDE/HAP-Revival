@@ -52,22 +52,25 @@ Sony abandoned.
 Two things, both safe, no soldering, no risk to your device:
 
 ```text
-  🎵  Copy my music onto it          🌐  Control it from my browser
+  🎵  Copy my music onto it          📱  Control it like a phone app
   ┌────────────────────────┐        ┌────────────────────────┐
-  │  HAP Sync — one .exe    │        │  open a web page:       │
-  │  one click, Windows     │        │  play / pause / info    │
-  │  finds the HAP for you  │        │  cover art, settings    │
+  │  HAP Sync — one .exe    │        │  play / pause / info    │
+  │  one click, Windows     │        │  cover art, settings    │
+  │  finds the HAP for you  │        │  add to home screen 📲  │
   └────────────────────────┘        └────────────────────────┘
 ```
 
 - **🎵 HAP Sync** — a one-click Windows app that copies your music onto the HAP and
   skips the files it can't use. [Download it here.](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe)
-- **🌐 Web remote** — control the HAP from any browser on your network.
+- **📱 Control app** — control the HAP from any browser, and on an **iPhone or iPad
+  you can add it to the home screen** so it opens full-screen like a real app (no App
+  Store needed). [How to install it.](13-control-app.md)
 
 > ✅ **Nothing here can break your device.** These tools only *read* information and
 > control playback — the same things the buttons on the front panel already do.
 
 → Step-by-step music copying guide: [docs/12-music-sync.md](12-music-sync.md)
+→ Put the remote on your phone: [docs/13-control-app.md](13-control-app.md)
 
 ---
 

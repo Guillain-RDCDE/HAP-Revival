@@ -33,6 +33,9 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 | OS acquisition | Firmware confirmed unobtainable publicly (OTA-only); live-device software vectors (Samba symlink, HTTP traversal) blocked; **UART serial console** is the path to the rootfs | [`10-uart-console.md`](10-uart-console.md), [`research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md) |
 | Audio path | Decoded from the GPL Forza driver: Altera FPGA over PCIe → CS48L10 (oversampling) + ADSP-21488 SHARC (DSEE-HX "HEQ") + DSD remastering → 2× PCM1795; controlled via `/dev/forza` ioctls | [`11-audio-path.md`](11-audio-path.md) |
 | Music sync | `hap_sync.py` — HAP-dedicated FreeFileSync replacement: two-folder→two-share, junk/format filtering, SMB1 via pysmb (no Windows SMB1), remote-index cache | [`12-music-sync.md`](12-music-sync.md) |
+| Control app | `webui.py` is an installable **PWA** — add to the iPhone/iPad home screen, standalone full-screen, no App Store. The bridge to the future native app | [`13-control-app.md`](13-control-app.md) |
+| Rootfs extraction | **Tested** off-device pipeline: NAND dump → `jefferson` (userspace, no MTD kernel modules — WSL2 lacks them) → browsable rootfs, via `tools/extract_rootfs.sh` | [`14-nand-extract.md`](14-nand-extract.md) |
+| Forza control interface | The decoded `/dev/forza` ioctl contract (magic 0xDF; API/DSP/DAC command sets; field semantics traced arm-by-arm) — the Phase-4 lever for the DSP/DAC chain. DSP is model-selected: SHARC on the Z1ES (Spiritoso), CS48L10 on Allegro | [`15-forza-ioctl.md`](15-forza-ioctl.md) |
 
 ## What we don't know yet
 

@@ -30,9 +30,10 @@ HAP-Revival is rebuilding the software Sony walked away from, one usable piece a
 |---|---|---|---|
 | **🎵 HAP Sync** | Copy your music to the HAP in one click — auto-finds the device, remembers your folders, skips what the HAP can't use | Windows | ✅ Beta — [**⬇ download `.exe`**](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe) |
 | **🌐 Web UI** | Browser remote: now-playing, play / pause / seek, sound settings, cover art | Any browser | ✅ Usable today |
+| **📱 Control app** | The web UI, **installed to your iPhone/iPad home screen** — own icon, full-screen, no App Store | iOS · iPadOS · Android | ✅ Usable today — [install guide](docs/13-control-app.md) |
 | **📟 Python client / CLI** | Scriptable control of every mapped API method | Any OS | ✅ Usable today |
 | Custom firmware / userland | Modern OS with hi-res streaming (Tidal · Qobuz · Roon) + AirPlay | On-device | ⏳ Planned |
-| Native iOS / iPad app | A modern remote to replace Sony's abandoned one | iOS / iPadOS | ⏳ Planned |
+| Native iOS / iPad app | A modern remote to replace Sony's abandoned one | iOS / iPadOS | ⏳ Planned (the home-screen web app above is the bridge) |
 
 ### 🎵 HAP Sync — getting your music onto the HAP, finally painless
 
@@ -130,9 +131,11 @@ Same i.MX6 SoC, same firmware images, same network protocols, same GPL bundle. W
 | On-device library (SQLite) schema fully decoded | ✅ | 11 tables, ~60 PROP-codes — confirmed against the real DB read off the disk. See [DB schema](research/db-schema/) + [disk layout](docs/09-disk-layout.md) |
 | Full library DB in hand | ✅ | Read directly off the HDD's `/data` partition (SQLite). The network `downloadByDiff` sync is still blocked (empty `location`) but no longer on the critical path — we have the DB |
 | **Library browser** (web, reads the on-disk SQLite catalog) | ✅ | `tools/library_browser.py <hdd_browse.db>` — artists / albums / tracks / cover art / codec / sample-rate, offline. The reference decoder for the catalog schema |
+| **Library audit** (offline health-check of the catalog) | ✅ | `tools/library_audit.py <hdd_browse.db>` — Hi-Res/DSD/lossless mix, format & sample-rate breakdown, PCM above the 192 kHz ceiling, albums missing cover art, likely duplicates. Text report or `--html`. Validated on a 77k-track library |
 | **Music sync — GUI + CLI** (a HAP-dedicated FreeFileSync replacement) | ✅ | **`tools/hap_gui.py`** — one-click Windows app (auto-detect, remembered folders, live progress; build to `HapSync.exe` via `tools/build_gui.ps1`), sharing the **`tools/hap_sync.py`** engine: incremental SMB1 transfer to **both** `HAP_Internal` + `HAP_External` from two PC folders, auto-skips junk (`.ffs_tmp`…) and unsupported formats, preserves `<Artist>/<Album>/`, WoL + post-transfer auto-reindex. Speaks SMB1 via `pysmb`, so **no need to enable Windows SMB1**. CLI engine live-tested end-to-end; GUI is new (beta) |
 | **Pre-flight checks** (validate / library diff) | ✅ | `tools/hap_companion.py` — standalone `validate` (compat / junk / >192 kHz / cover report) and `diff` against the library DB; the same filtering is built into `hap_sync` |
-| Native iOS / iPad app | ❌ | The web UI works in Safari on iPad today; native app planned |
+| **Installable control app** (PWA — add to iPhone/iPad home screen) | ✅ | `tools/webui.py` is a PWA: own icon, full-screen, standalone. See [control-app install guide](docs/13-control-app.md) |
+| Native iOS / iPad app | ❌ | The installable web app above works in Safari on iPhone/iPad today; native app planned |
 | Modern streaming services (Tidal, Qobuz, Roon) | ❌ | Requires custom userland (Phase 4) |
 | Custom OS replacement | ❌ | Long-term goal; UART root shell + NAND dump required first |
 
@@ -224,6 +227,9 @@ The full research lives in [`docs/`](docs/). Recommended reading order:
 11. [UART console](docs/10-uart-console.md) — serial pinout (i.MX6 M1/M3) + the path to a root shell and NAND dump
 12. [Audio path](docs/11-audio-path.md) — how it makes sound: PCIe FPGA → DSPs → PCM1795, decoded from the Forza driver
 13. [Music sync](docs/12-music-sync.md) — getting music onto the HAP with `hap_sync` (the FreeFileSync replacement): setup, two-share config, the cache
+14. [Control app](docs/13-control-app.md) — install the web UI on your iPhone/iPad home screen as a standalone app (PWA), no App Store
+15. [NAND extraction](docs/14-nand-extract.md) — the tested pipeline that turns a flash dump into a browsable rootfs (`tools/extract_rootfs.sh`)
+16. [Forza ioctl reference](docs/15-forza-ioctl.md) — the decoded `/dev/forza` ioctl contract (the userspace lever for the DSP/DAC chain — the Phase-4 entry point)
 
 Active reconnaissance lives in [`research/`](research/). Tools and scripts in [`tools/`](tools/). Living API spec in [`api-spec/`](api-spec/).
 
