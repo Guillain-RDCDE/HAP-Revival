@@ -559,7 +559,7 @@ function currentBgRgb() {
   }
   // ambient + cover-solid both use the cover-derived accent
   const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
-  const m = accent.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  const m = accent.match(/rgb\\((\\d+),\\s*(\\d+),\\s*(\\d+)\\)/);
   return m ? [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])] : null;
 }
 
