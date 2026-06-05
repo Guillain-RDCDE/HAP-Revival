@@ -103,7 +103,14 @@ DAC command set (`forza_if.h` `DAC_CTRL_ACCESS_CMD`): INIT / RESET / DEFAULT / M
 Everything above is driven from userspace through a single char device, **`/dev/forza`**, via `ioctl`
 (magic `0xDF`). This is **how a replacement daemon would drive the audio chain while preserving Sony's
 analog path** — we keep this kernel module + the DSP firmware, and speak to it exactly as Sony's
-proprietary daemon does. The interface (`export/forza_if.h`):
+proprietary daemon does.
+
+> **Full decoded contract:** every sub-command, field semantic, enum and a
+> Phase-4 bring-up sequence is in **[docs/15-forza-ioctl.md](15-forza-ioctl.md)** —
+> the per-command reference traced arm-by-arm from the driver source. The table
+> below is the summary.
+
+The interface (`export/forza_if.h`):
 
 ```c
 // ioctl(fd, FORZA_IOCTL_{API,DSP,DAC}_SET, &st);
