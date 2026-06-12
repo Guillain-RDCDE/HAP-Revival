@@ -159,8 +159,8 @@ class App:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("HAP Sync")
-        self.root.geometry("760x620")
-        self.root.minsize(680, 520)
+        self.root.geometry("880x640")
+        self.root.minsize(760, 520)
 
         self.q: queue.Queue = queue.Queue()
         self.stop_event = threading.Event()
@@ -220,7 +220,7 @@ class App:
             self._action_widgets.append(b)
         # Appears after a Check that finds fixable Windows SMB problems. Managed on its own
         # (not in _action_widgets) so it stays disabled until there is actually something to fix.
-        self.fix_btn = ttk.Button(btns, text="Fix Windows access",
+        self.fix_btn = ttk.Button(btns, text="Fix access",
                                   command=self.on_fix, state="disabled")
         self.fix_btn.pack(side="left", padx=3)
 
@@ -601,7 +601,7 @@ class App:
                        + ("WORKS — you can sync." if s["transfer_ok"] else "NOT WORKING."))
             if s["fixable"]:
                 self._emit("log", line=f"{s['fixable']} Windows issue(s) block File Explorer / "
-                           "HAP Music Transfer. Click “Fix Windows access” to repair them.")
+                           "HAP Music Transfer. Click “Fix access” (top bar) to repair them.")
             self._emit("fixstate", has=bool(s["fixable"]), findings=findings)
 
         self._run_async(job, self.transfer_log)
