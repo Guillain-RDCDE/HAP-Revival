@@ -8,6 +8,26 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-06-12, built-in SMB doctor — diagnose & fix Windows access)
+
+- **`tools/smb_doctor.py`** — a shared engine that diagnoses SMB access to the HAP and can repair
+  the Windows-side breakage that OS updates keep reintroducing. Two independent concerns, kept
+  distinct so users aren't misled:
+  - **Authoritative transfer probe** — opens the HAP's anonymous SMB1 share via `pysmb` exactly
+    like the transfer does. If it connects, syncing works *regardless* of any Windows SMB setting.
+  - **Native-path checks (Windows only)** — `RequireSecuritySignature` (the 24H2/25H2 default that
+    blocks the HAP), `EnableInsecureGuestLogons`/`AllowInsecureGuestAuth`, the SMB1 client feature
+    (read from the `mrxsmb10` driver, no admin), and **genuinely** broken mapped drives. The last
+    is verified by *actively* probing each mapping with `Test-Path` rather than trusting
+    `Get-SmbMapping`'s Status field — an idle persistent mapping reports "Disconnected" yet
+    reconnects fine, so trusting Status would tell users to delete working drives.
+  - **One-click fix** — non-admin fixes (clearing stale mappings) run in the user session; admin
+    fixes are bundled into a single self-elevating PowerShell (one UAC prompt). The split matters:
+    an elevated process sees a different drive-letter namespace and wouldn't find the user's maps.
+- **Wired into both surfaces**: the GUI's **Check** button now shows the full diagnosis and reveals
+  a **Fix Windows access** button when there's something to repair ([`tools/hap_gui.py`](tools/hap_gui.py));
+  the CLI gains `hap_sync check` (rich report) and `hap_sync check --fix` ([`tools/hap_sync.py`](tools/hap_sync.py)).
+
 ### Changed (2026-06-12, Windows SMB hardening troubleshooting)
 
 - Expanded [`docs/04-smb.md`](docs/04-smb.md) with a **"Windows updates keep re-breaking access"**

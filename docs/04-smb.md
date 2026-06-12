@@ -61,6 +61,11 @@ hardening the SMB *client*. Typical symptoms: the share suddenly demands a usern
 *"You can't access this shared folder because your organization's security policies block
 unauthenticated guest access."* **Nothing changed on the HAP** — a Windows update just tightened a default.
 
+> **Don't want to do this by hand?** HAP Sync automates the whole section. Click **Check** to
+> diagnose, then **Fix Windows access** to repair every problem below in one UAC prompt
+> (`tools/smb_doctor.py` — also available as `python tools/hap_sync.py check --fix`). The rest of
+> this section is the manual equivalent, and the reference for what those buttons actually do.
+
 There are four independent knobs, and any single update can flip one of them. Open an **elevated**
 PowerShell (right-click Start → *Terminal (Admin)*) and apply what's needed:
 

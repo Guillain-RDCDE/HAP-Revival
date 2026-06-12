@@ -50,6 +50,7 @@ Sony's only supported transfer path is an **SMBv1** share that modern Windows an
 - **Skips formats the HAP can't play**, and flags PCM above its 192 kHz ceiling.
 - **Incremental & fast**: only new or changed files are sent, and the remote file index is cached — so repeat syncs are near-instant instead of a multi-minute re-scan.
 - **Wake-on-LAN** to wake a sleeping HAP, a **live progress** view, and the HAP auto-reindexes new files within seconds.
+- **Built-in SMB doctor**: *Check* diagnoses access in one click (the transfer itself never needs Windows' SMB settings). And because Windows updates keep re-breaking File Explorer / Sony's HAP Music Transfer against the HAP's ancient SMBv1 server, a **Fix Windows access** button repairs the exact culprits — the new SMB-signing requirement, insecure-guest blocking, the SMB1 client feature, and stale mapped drives — with one UAC prompt. Background: [docs/04-smb.md](docs/04-smb.md).
 
 ```powershell
 # Run from source (Python 3.10+)

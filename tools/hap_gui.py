@@ -51,6 +51,7 @@ from tkinter import filedialog, messagebox, ttk
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hap_sync as core      # noqa: E402
 import hap_companion as comp  # noqa: E402
+import smb_doctor             # noqa: E402
 
 CONFIG_PATH = Path(__file__).resolve().parent / "hap_sync.json"
 SHARES = ("HAP_Internal", "HAP_External")
@@ -166,6 +167,8 @@ class App:
         self.busy = False
         self._active_log: tk.Text | None = None
         self._action_widgets: list = []  # disabled while a job runs
+        self._findings: list = []        # last SMB-doctor result (for the Fix button)
+        self._has_fixes = False          # are there pending Windows fixes to apply?
 
         cfg = load_config_tolerant(CONFIG_PATH)
         self.host_var = tk.StringVar(value=cfg["host"])
@@ -212,6 +215,11 @@ class App:
             b = ttk.Button(btns, text=text, command=cmd)
             b.pack(side="left", padx=3)
             self._action_widgets.append(b)
+        # Appears after a Check that finds fixable Windows SMB problems. Managed on its own
+        # (not in _action_widgets) so it stays disabled until there is actually something to fix.
+        self.fix_btn = ttk.Button(btns, text="Fix Windows access",
+                                  command=self.on_fix, state="disabled")
+        self.fix_btn.pack(side="left", padx=3)
 
     def _build_footer(self) -> None:
         footer = ttk.Frame(self.root)
@@ -444,6 +452,11 @@ class App:
             self.progress.configure(value=d["value"])
         elif tag == "conn":
             self.conn_dot.configure(foreground="#3c3" if d["ok"] else "#c33")
+        elif tag == "fixstate":
+            self._has_fixes = d["has"]
+            self._findings = d["findings"]
+            if not self.busy:
+                self.fix_btn.configure(state="normal" if self._has_fixes else "disabled")
         elif tag == "fill":
             if d.get("ip"):
                 self.host_var.set(d["ip"])
@@ -466,6 +479,9 @@ class App:
             except tk.TclError:
                 pass
         self.stop_btn.configure(state="normal" if busy else "disabled")
+        # The Fix button has its own enable rule: only when a check found pending fixes.
+        self.fix_btn.configure(
+            state="normal" if (not busy and self._has_fixes) else "disabled")
 
     # ---------- pre-flight ----------
 
@@ -567,15 +583,50 @@ class App:
         host = self.host_var.get().strip()
 
         def job():
-            self._emit("log", line=f"Checking {host}…")
-            ok = True
-            for port, name in ((445, "SMB"), (60200, "ScalarWebAPI")):
-                up = core.port_open(host, port)
-                ok = ok and up
-                self._emit("log", line=f"  {host}:{port}  {name:<14} {'open' if up else 'CLOSED'}")
-            self._emit("conn", ok=ok)
-            self._emit("log", line="HAP reachable." if ok else "HAP not fully reachable "
-                                   "(normal if asleep — try Wake).")
+            self._emit("log", line=f"Diagnosing SMB access to {host}…")
+            findings = smb_doctor.diagnose(host)
+            for line in smb_doctor.format_report(findings):
+                self._emit("log", line=line)
+            s = smb_doctor.summary(findings)
+            # The dot reflects whether *our* transfer will work (the pysmb probe), the thing
+            # that actually matters for this app — not the native-Windows-only knobs.
+            self._emit("conn", ok=s["transfer_ok"])
+            self._emit("log", line="")
+            self._emit("log", line="Transfer (this app): "
+                       + ("WORKS — you can sync." if s["transfer_ok"] else "NOT WORKING."))
+            if s["fixable"]:
+                self._emit("log", line=f"{s['fixable']} Windows issue(s) block File Explorer / "
+                           "HAP Music Transfer. Click “Fix Windows access” to repair them.")
+            self._emit("fixstate", has=bool(s["fixable"]), findings=findings)
+
+        self._run_async(job, self.transfer_log)
+
+    def on_fix(self) -> None:
+        if self.busy or not self._has_fixes:
+            return
+        fixes = smb_doctor.pending_fixes(self._findings)
+        needs_admin = any(f.needs_admin for f in fixes)
+        detail = "\n".join(f"• {f.title}" for f in fixes)
+        prompt = (f"Apply {len(fixes)} fix(es) so File Explorer and HAP Music Transfer can "
+                  f"reach the HAP?\n\n{detail}")
+        if needs_admin:
+            prompt += "\n\nWindows will ask for administrator permission (UAC)."
+        if not messagebox.askyesno("Fix Windows SMB access", prompt):
+            return
+        findings = self._findings
+
+        def job():
+            self._emit("log", line="Applying fixes…")
+            changed, msg = smb_doctor.apply_fixes(
+                findings, on_log=lambda line: self._emit("log", line=line))
+            self._emit("log", line=msg)
+            # Re-diagnose so the report and the connection dot reflect the new state.
+            after = smb_doctor.diagnose(self.host_var.get().strip())
+            s = smb_doctor.summary(after)
+            self._emit("conn", ok=s["transfer_ok"])
+            self._emit("fixstate", has=bool(s["fixable"]), findings=after)
+            if not s["fixable"]:
+                self._emit("log", line="All Windows SMB issues resolved.")
 
         self._run_async(job, self.transfer_log)
 

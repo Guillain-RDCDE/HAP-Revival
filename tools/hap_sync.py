@@ -482,15 +482,30 @@ def cmd_wake(cfg, _args):
     return 0
 
 
-def cmd_check(cfg, _args):
+def cmd_check(cfg, args):
+    """Full SMB access diagnosis via smb_doctor: the authoritative pysmb transfer probe plus,
+    on Windows, the native-path SMB-hardening checks. `--fix` applies any remediations."""
     host = cfg["host"]
-    ok = True
-    for port, name in ((445, "SMB"), (60200, "ScalarWebAPI")):
-        up = port_open(host, port)
-        ok = ok and up
-        print(f"  {host}:{port:<6} {name:<14} {'open' if up else 'CLOSED'}")
-    print("[OK] HAP reachable" if ok else "[FAIL] HAP not fully reachable")
-    return 0 if ok else 1
+    import smb_doctor
+
+    findings = smb_doctor.diagnose(host)
+    print("\n".join(smb_doctor.format_report(findings)))
+
+    # Bonus line: the ScalarWebAPI port the control app uses (not part of the SMB picture).
+    print(f"{'✓' if port_open(host, 60200) else '·'} ScalarWebAPI (control app) port 60200")
+
+    s = smb_doctor.summary(findings)
+    print()
+    print("Transfer (this tool): " + ("WORKS" if s["transfer_ok"] else "NOT WORKING"))
+    if s["fixable"]:
+        print(f"{s['fixable']} fixable native-Windows issue(s)"
+              + (" — admin required." if s["needs_admin"] else "."))
+        if getattr(args, "fix", False):
+            changed, msg = smb_doctor.apply_fixes(findings, on_log=print)
+            print(msg)
+            return 0 if changed else 1
+        print("Re-run `hap_sync check --fix` to apply them.")
+    return 0 if s["transfer_ok"] else 1
 
 
 def main(argv: list[str]) -> int:
@@ -516,7 +531,9 @@ def main(argv: list[str]) -> int:
     pr = sub.add_parser("refresh", help="rebuild the on-disk remote-index cache")
     pr.add_argument("--only", help="limit to one share")
     sub.add_parser("wake")
-    sub.add_parser("check")
+    pc = sub.add_parser("check", help="diagnose SMB access (and optionally fix Windows issues)")
+    pc.add_argument("--fix", action="store_true",
+                    help="apply fixes for any native-Windows SMB problems (asks for admin)")
     args = ap.parse_args(argv[1:])
     if not args.cmd:
         ap.print_help()
