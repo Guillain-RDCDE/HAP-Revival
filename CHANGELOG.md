@@ -8,6 +8,19 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Changed (2026-06-12, Windows SMB hardening troubleshooting)
+
+- Expanded [`docs/04-smb.md`](docs/04-smb.md) with a **"Windows updates keep re-breaking access"**
+  section. Each Win10/11 update can silently flip an SMB *client* default and lock you out of the
+  anonymous HAP share even though nothing changed on the device. Documents the four knobs with check +
+  elevated-PowerShell fix commands — **SMB signing now required by default on Win11 24H2/25H2**
+  (`RequireSecuritySignature`, the most recent regression), insecure guest logons
+  (`EnableInsecureGuestLogons` / `AllowInsecureGuestAuth`), and the SMB1 client feature — plus the
+  **stale persistent-mapping gotcha** (a `Disconnected/Unavailable` mapped drive keeps forcing a bogus
+  credential prompt; `net use * /delete /y` then reconnect as guest). Reiterates the two clean escapes:
+  flip the device to SMB3 via Special Mode, or use `tools/hap_sync.py` (pysmb, bypasses the Windows SMB
+  stack entirely).
+
 ### Changed (2026-06-03, UART session prep)
 
 - Expanded [`docs/10-uart-console.md`](docs/10-uart-console.md) into a ready-to-run session guide while

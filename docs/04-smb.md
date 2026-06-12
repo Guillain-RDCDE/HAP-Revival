@@ -52,6 +52,51 @@ By default the HAP server only speaks **SMB1 / NT1** — the original 1980s SMB 
 
 **Workaround on the device side**: firmware 18777R (released ~2018) introduced a hidden **Special Mode** menu (see [`05-diag-modes.md`](05-diag-modes.md)) where the SMB version can be raised to anything from 1.0 to 3.1.1. **If you do nothing else, do this** — flip it to 3.0 or higher and you regain modern OS compatibility instantly.
 
+## Windows updates keep re-breaking access — the client-side fixes
+
+The device-side Special Mode flip above is the durable fix. But many users leave the HAP on its SMB1
+default, and then **every few Windows updates the connection breaks again** — because Microsoft keeps
+hardening the SMB *client*. Typical symptoms: the share suddenly demands a username/password that
+*doesn't exist* (there is no account — access is anonymous), or you get
+*"You can't access this shared folder because your organization's security policies block
+unauthenticated guest access."* **Nothing changed on the HAP** — a Windows update just tightened a default.
+
+There are four independent knobs, and any single update can flip one of them. Open an **elevated**
+PowerShell (right-click Start → *Terminal (Admin)*) and apply what's needed:
+
+| Cause (which update default bit you) | Check | Fix (elevated PowerShell) |
+|---|---|---|
+| **SMB signing now required** — Win11 24H2/25H2 made this the default. Samba 3.0.37 can't sign, so the connection is refused, usually surfacing as a credential prompt. | `Get-SmbClientConfiguration \| Select RequireSecuritySignature` | `Set-SmbClientConfiguration -RequireSecuritySignature $false -Force` |
+| **Insecure guest logons disabled** — gives the *"...security policies block unauthenticated guest access"* error. | `Get-SmbClientConfiguration \| Select EnableInsecureGuestLogons` | `Set-SmbClientConfiguration -EnableInsecureGuestLogons $true -Force` |
+| Same, but the Group Policy toggle didn't write the registry value (a known quirk). | `AllowInsecureGuestAuth` under `...\LanmanWorkstation\Parameters` | `Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters' AllowInsecureGuestAuth 1` |
+| **SMB1 client feature removed** by the update. | `Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Client \| Select State` | `Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Client` *(reboot)* |
+
+None of these need a reboot **except** re-adding the SMB1 feature.
+
+### The stale-mapping gotcha
+
+Even once the knobs above are correct, a **persistent mapped drive** (e.g. `Y:` → `\\<hap-ip>\HAP_Internal`)
+created under the old config can stay stuck *"Disconnected / Unavailable"* and keep forcing a credential
+prompt — Windows retries the broken cached session before attempting a fresh guest logon. Drop it and
+reconnect clean:
+
+```powershell
+net use * /delete /y                            # drop all stale mappings
+net use \\<hap-ip>\HAP_Internal /user:guest ""  # fresh guest session, blank password
+# optional — re-map a drive letter that survives reboots:
+net use Y: \\<hap-ip>\HAP_Internal /user:guest "" /persistent:yes
+```
+
+### Want to stop fighting Windows entirely?
+
+Two escape hatches that sidestep the whole treadmill:
+
+1. **Flip the device to SMB3** via Special Mode ([`05-diag-modes.md`](05-diag-modes.md)) — Windows then
+   talks to it like any modern NAS and none of the above applies.
+2. **Use [`tools/hap_sync.py`](../tools/hap_sync.py)**, which speaks SMB1 directly via `pysmb` in user
+   space. It bypasses the Windows SMB stack completely: no feature toggles, no signing/guest knobs, no
+   admin rights — see [`12-music-sync.md`](12-music-sync.md).
+
 ## Library auto-indexing
 
 **Files dropped on the SMB share are auto-indexed within seconds** — no API call is required to trigger a rescan.
