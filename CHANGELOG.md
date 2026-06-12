@@ -8,6 +8,20 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-06-12, transfer plan: full visibility + add-only mode)
+
+- **`Only add new files` mode** (GUI checkbox, on by default; CLI `--new-only` on `plan`/`sync`).
+  A file is "changed" when its path is already on the HAP but the byte size differs — typically a
+  past re-encode/re-tag, not something the user means to re-push. Add-only transfers genuinely new
+  files and leaves existing ones untouched, so "add an album" no longer silently re-uploads
+  gigabytes of previously-changed tracks. New engine helper `hap_sync.actionable(scan)` centralizes
+  the filter; `scan_map` records the intent so the plan and the transfer stay in sync.
+- **Plan now shows everything, grouped and explained.** Output is split into **CHANGED** (with
+  `local X vs HAP Y, Δ±Z` per file, so it's obvious whether the audio really differs or it's just
+  metadata) and **NEW**, sorted, no longer truncated at 12 lines. The GUI also writes the *complete*
+  plan to `hap_plan_<share>.txt` next to the config every analysis, so nothing is ever hidden behind
+  a cap. Fixes the "it says 100 files changed and I don't know what they are" confusion.
+
 ### Added (2026-06-12, built-in SMB doctor — diagnose & fix Windows access)
 
 - **`tools/smb_doctor.py`** — a shared engine that diagnoses SMB access to the HAP and can repair

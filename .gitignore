@@ -59,6 +59,8 @@ research/scratch/
 tools/hap_sync.json
 # hap_sync remote-index cache (local, machine-specific)
 .hap_sync_cache/
+# Generated transfer-plan dumps (one per share, overwritten each analysis)
+tools/hap_plan_*.txt
 
 # On-device library databases (user's personal library data; never commit)
 *.db

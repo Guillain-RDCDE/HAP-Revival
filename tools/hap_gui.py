@@ -175,6 +175,9 @@ class App:
         self.mac_var = tk.StringVar(value=cfg["mac"])
         self.unsupported_var = tk.BooleanVar(value=False)
         self.refresh_var = tk.BooleanVar(value=False)
+        # Default ON: "add my albums" should never silently overwrite tracks already on the HAP
+        # (e.g. ones whose bytes differ from an old re-encode). Untick to push updates too.
+        self.new_only_var = tk.BooleanVar(value=True)
         self.map_rows: list[dict] = []
 
         self._build_connection_bar()
@@ -250,10 +253,12 @@ class App:
 
         opts = ttk.Frame(tab)
         opts.pack(fill="x", padx=8)
+        ttk.Checkbutton(opts, text="Only add new files (don't overwrite existing)",
+                        variable=self.new_only_var).pack(side="left")
         ttk.Checkbutton(opts, text="Include unsupported formats",
-                        variable=self.unsupported_var).pack(side="left")
+                        variable=self.unsupported_var).pack(side="left", padx=16)
         ttk.Checkbutton(opts, text="Re-scan the HAP (ignore cache)",
-                        variable=self.refresh_var).pack(side="left", padx=16)
+                        variable=self.refresh_var).pack(side="left")
 
         actions = ttk.Frame(tab)
         actions.pack(fill="x", padx=8, pady=8)
@@ -652,6 +657,7 @@ class App:
         self._persist()  # using the app remembers the setup — no manual save needed
         cfg, maps = self._cfg(), self._collect_maps()
         include_unsup, refresh = self.unsupported_var.get(), self.refresh_var.get()
+        new_only = self.new_only_var.get()
 
         def job():
             lazy = core.LazySmb(cfg["host"])
@@ -659,16 +665,17 @@ class App:
                 total = 0
                 for m in maps:
                     self._emit("log", line=f"Analyzing: {m['local']}  →  {m['share']}")
-                    s = core.scan_map(cfg, lazy, m, include_unsup, refresh,
+                    s = core.scan_map(cfg, lazy, m, include_unsup, refresh, new_only=new_only,
                                       on_scan=lambda s: self._log_scan(s),
                                       on_progress=self._listing_progress(m["share"]))
                     if s is None:
                         self._emit("log", line=f"  ! folder not found: {m['local']}")
                     else:
-                        total += len(s["todo"])
+                        total += len(core.actionable(s))
                 self._emit("status", text=f"Analysis done: {total} file(s) to transfer.")
                 self._emit("log", line=f"\nPlan: {total} file(s) would transfer. "
-                                       "Click Sync to do it.")
+                                       "Click Sync to do it."
+                                       + ("  (changed files kept as-is)" if new_only else ""))
             finally:
                 lazy.close()
 
@@ -680,6 +687,7 @@ class App:
         self._persist()  # using the app remembers the setup — no manual save needed
         cfg, maps = self._cfg(), self._collect_maps()
         include_unsup, refresh = self.unsupported_var.get(), self.refresh_var.get()
+        new_only = self.new_only_var.get()
 
         def job():
             lazy = core.LazySmb(cfg["host"])
@@ -687,13 +695,13 @@ class App:
                 scans = []
                 for m in maps:
                     self._emit("log", line=f"Analyzing: {m['local']}  →  {m['share']}")
-                    s = core.scan_map(cfg, lazy, m, include_unsup, refresh,
+                    s = core.scan_map(cfg, lazy, m, include_unsup, refresh, new_only=new_only,
                                       on_scan=lambda s: self._log_scan(s),
                                       on_progress=self._listing_progress(m["share"]))
                     if s is not None:
                         scans.append(s)
                 jobs = [(s["share"], rel, ap, size)
-                        for s in scans for rel, ap, size, _ in s["todo"]]
+                        for s in scans for rel, ap, size, _ in core.actionable(s)]
                 if not jobs:
                     self._emit("status", text="Already in sync.")
                     self._emit("log", line="\nNothing to transfer — already in sync.")
@@ -784,14 +792,66 @@ class App:
         return lambda n: self._emit("status", text=f"Listing {share}: {n:,} files so far…")
 
     def _log_scan(self, s: dict) -> None:
-        tot = sum(x[2] for x in s["todo"])
-        self._emit("log", line=f"  [{s['source']}] remote library: {len(s['remote'])} files; "
-                               f"to transfer: {len(s['todo'])} ({core.human(tot)})  "
+        todo, remote = s["todo"], s["remote"]
+        new_only = s.get("new_only")
+        xfer = sum(x[2] for x in core.actionable(s))
+        self._emit("log", line=f"  [{s['source']}] remote library: {len(remote)} files; "
+                               f"to transfer: {len(core.actionable(s))} ({core.human(xfer)})  "
                                f"[junk={s['skipped']['junk']}, unsupported={s['skipped']['unsupported']}]")
-        for rel, _ap, size, why in s["todo"][:12]:
-            self._emit("log", line=f"      + {rel}  ({core.human(size)}, {why})")
-        if len(s["todo"]) > 12:
-            self._emit("log", line=f"      … and {len(s['todo']) - 12} more")
+
+        changed = sorted((t for t in todo if t[3] == "changed"), key=lambda t: t[0].lower())
+        new = sorted((t for t in todo if t[3] == "new"), key=lambda t: t[0].lower())
+        log_cap = 300  # keep the on-screen log snappy; the FULL list always goes to the file below
+
+        def _fmt_changed(rel: str, size: int) -> str:
+            rsize = remote.get(rel)
+            if rsize is None:
+                return f"      ~ {rel}  ({core.human(size)}, changed)"
+            delta = size - rsize
+            sign = "+" if delta >= 0 else "-"
+            return (f"      ~ {rel}  (local {core.human(size)} vs HAP {core.human(rsize)}, "
+                    f"Δ{sign}{core.human(abs(delta))})")
+
+        # CHANGED first — these are the surprising ones (path already on the HAP, bytes differ).
+        if changed:
+            head = (f"\n  CHANGED — already on the HAP, only the bytes differ ({len(changed)}). "
+                    + ("SKIPPED (kept as-is) — untick “Only add new files” to push them. "
+                       if new_only else
+                       "A few KB Δ = a re-tag; a big Δ = a real re-rip. ")
+                    + "Check the Δ column:")
+            self._emit("log", line=head)
+            for rel, _ap, size, _why in changed[:log_cap]:
+                self._emit("log", line=_fmt_changed(rel, size))
+            if len(changed) > log_cap:
+                self._emit("log", line=f"      … and {len(changed) - log_cap} more "
+                                       "(full list in the saved plan file below)")
+        if new:
+            self._emit("log", line=f"\n  NEW — not on the HAP yet ({len(new)}):")
+            for rel, _ap, size, _why in new[:log_cap]:
+                self._emit("log", line=f"      + {rel}  ({core.human(size)})")
+            if len(new) > log_cap:
+                self._emit("log", line=f"      … and {len(new) - log_cap} more "
+                                       "(full list in the saved plan file below)")
+
+        # Always dump the COMPLETE plan to a file so nothing is ever hidden behind a cap.
+        try:
+            plan_path = CONFIG_PATH.parent / f"hap_plan_{s['share']}.txt"
+            lines = [f"Transfer plan   {s['local']}  ->  {s['share']}",
+                     f"remote library: {len(remote)} files | would transfer: "
+                     f"{len(core.actionable(s))} ({core.human(xfer)})"
+                     + ("  [new-only: changed files listed below are skipped]"
+                        if new_only else ""), ""]
+            if changed:
+                lines.append(f"CHANGED ({len(changed)}) — already on the HAP, bytes differ:")
+                lines += [_fmt_changed(rel, size).strip() for rel, _ap, size, _why in changed]
+                lines.append("")
+            if new:
+                lines.append(f"NEW ({len(new)}):")
+                lines += [f"+ {rel}  ({core.human(size)})" for rel, _ap, size, _why in new]
+            plan_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            self._emit("log", line=f"\n  → Full plan ({len(todo)} files) saved to: {plan_path}")
+        except OSError as e:
+            self._emit("log", line=f"  (could not write the full plan file: {e})")
 
     def _log_section(self, title: str, items: list, marker: str = "-", limit: int = 25) -> None:
         if not items:

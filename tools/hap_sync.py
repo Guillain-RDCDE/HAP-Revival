@@ -297,10 +297,11 @@ def get_remote(cfg: dict, lazy: LazySmb, share: str, refresh: bool, on_progress=
 
 
 def scan_map(cfg: dict, lazy: LazySmb, m: dict, include_unsupported: bool, refresh: bool,
-             on_scan=None, on_progress=None):
+             on_scan=None, on_progress=None, new_only: bool = False):
     """Build the transfer plan for one map. `on_scan(s)` reports the result (defaults to
     printing it for the CLI; the GUI passes its own callback). `on_progress(file_count)` is
-    forwarded to the remote listing so a GUI can show progress during the slow SMB1 scan."""
+    forwarded to the remote listing so a GUI can show progress during the slow SMB1 scan.
+    `new_only` records the add-only intent so the display and the transfer both honor it."""
     local_root = os.path.abspath(m["local"])
     share = m["share"]
     if not os.path.isdir(local_root):
@@ -316,20 +317,42 @@ def scan_map(cfg: dict, lazy: LazySmb, m: dict, include_unsupported: bool, refre
         if rsize is None or rsize != size:
             todo.append((rel, ap, size, "new" if rsize is None else "changed"))
     s = {"local": local_root, "share": share, "remote": remote,
-         "source": source, "todo": todo, "skipped": skipped}
+         "source": source, "todo": todo, "skipped": skipped, "new_only": new_only}
     (on_scan or print_scan)(s)
     return s
 
 
+def actionable(s: dict) -> list:
+    """The todo entries that will actually transfer. With `new_only`, 'changed' files (already
+    on the HAP, just different bytes) are kept as-is and skipped — only genuinely new files go."""
+    if s.get("new_only"):
+        return [t for t in s["todo"] if t[3] == "new"]
+    return list(s["todo"])
+
+
 def print_scan(s: dict):
-    tot = sum(x[2] for x in s["todo"])
+    todo, remote = s["todo"], s["remote"]
+    tot = sum(x[2] for x in todo)
     print(f"  {s['local']}  ->  {s['share']}   [{s['source']}]")
-    print(f"    remote has {len(s['remote'])} files; to transfer: {len(s['todo'])} ({human(tot)})"
+    print(f"    remote has {len(remote)} files; to transfer: {len(todo)} ({human(tot)})"
           f"   [skipped junk={s['skipped']['junk']}, unsupported={s['skipped']['unsupported']}]")
-    for rel, _ap, size, why in s["todo"][:12]:
-        print(f"      + {rel}  ({human(size)}, {why})")
-    if len(s["todo"]) > 12:
-        print(f"      … and {len(s['todo']) - 12} more")
+    changed = sorted((t for t in todo if t[3] == "changed"), key=lambda t: t[0].lower())
+    new = sorted((t for t in todo if t[3] == "new"), key=lambda t: t[0].lower())
+    # CHANGED = path already on the HAP but the byte size differs (usually a re-tag). Show both
+    # sizes + the delta so it's obvious whether the audio really changed or it's just metadata.
+    if changed:
+        tag = ("SKIPPED, kept as-is on the HAP (--new-only)" if s.get("new_only")
+               else "already on the HAP, bytes differ")
+        print(f"    CHANGED ({len(changed)}) — {tag}:")
+        for rel, _ap, size, _why in changed:
+            rsize = remote.get(rel)
+            extra = (f"local {human(size)} vs HAP {human(rsize)}, Δ{size - rsize:+d} B"
+                     if rsize is not None else f"{human(size)}")
+            print(f"      ~ {rel}  ({extra})")
+    if new:
+        print(f"    NEW ({len(new)}):")
+        for rel, _ap, size, _why in new:
+            print(f"      + {rel}  ({human(size)})")
 
 
 def _selected_maps(cfg, args):
@@ -340,11 +363,14 @@ def _selected_maps(cfg, args):
 
 def cmd_plan(cfg, args):
     lazy = LazySmb(cfg["host"])
+    new_only = getattr(args, "new_only", False)
     try:
-        total = sum(len(s["todo"]) for m in _selected_maps(cfg, args)
-                    if (s := scan_map(cfg, lazy, m, args.all, args.refresh)) is not None)
+        total = sum(len(actionable(s)) for m in _selected_maps(cfg, args)
+                    if (s := scan_map(cfg, lazy, m, args.all, args.refresh,
+                                      new_only=new_only)) is not None)
         print(f"\nPlan: {total} file(s) would transfer. Run `sync` to do it."
-              f"\n(remote index came from the on-disk cache where shown; use --refresh to re-scan)")
+              + ("  (--new-only: 'changed' files are kept as-is on the HAP)" if new_only else "")
+              + "\n(remote index came from the on-disk cache where shown; use --refresh to re-scan)")
     finally:
         lazy.close()
     return 0
@@ -393,9 +419,11 @@ def transfer(smb: "Smb", jobs: list, index_by_share: dict, on_event=None, should
 def cmd_sync(cfg, args):
     lazy = LazySmb(cfg["host"])
     try:
+        new_only = getattr(args, "new_only", False)
         scans = [s for m in _selected_maps(cfg, args)
-                 if (s := scan_map(cfg, lazy, m, args.all, args.refresh)) is not None]
-        jobs = [(s["share"], rel, ap, size) for s in scans for rel, ap, size, _ in s["todo"]]
+                 if (s := scan_map(cfg, lazy, m, args.all, args.refresh,
+                                   new_only=new_only)) is not None]
+        jobs = [(s["share"], rel, ap, size) for s in scans for rel, ap, size, _ in actionable(s)]
         if not jobs:
             print("\nNothing to transfer — already in sync.")
             return 0
@@ -523,6 +551,9 @@ def main(argv: list[str]) -> int:
         p.add_argument("--all", action="store_true", help="include unsupported formats too")
         p.add_argument("--refresh", action="store_true",
                        help="re-scan the HAP instead of using the cached index")
+        p.add_argument("--new-only", action="store_true",
+                       help="add only files missing from the HAP; never overwrite a file that "
+                            "is already there (skip 'changed')")
         if name == "sync":
             p.add_argument("--dry-run", action="store_true")
     pl = sub.add_parser("list")
