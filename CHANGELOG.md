@@ -10,12 +10,12 @@ once we ship a versioned release.
 
 ### Added (2026-06-12, transfer plan: full visibility + add-only mode)
 
-- **`Only add new files` mode** (GUI checkbox, on by default; CLI `--new-only` on `plan`/`sync`).
-  A file is "changed" when its path is already on the HAP but the byte size differs — typically a
-  past re-encode/re-tag, not something the user means to re-push. Add-only transfers genuinely new
-  files and leaves existing ones untouched, so "add an album" no longer silently re-uploads
-  gigabytes of previously-changed tracks. New engine helper `hap_sync.actionable(scan)` centralizes
-  the filter; `scan_map` records the intent so the plan and the transfer stay in sync.
+- **`Only add new files` mode** (GUI checkbox, **off by default**; CLI `--new-only` on `plan`/`sync`).
+  The local library is the source of truth, so a normal sync faithfully mirrors it — a "changed"
+  file (path already on the HAP but byte size differs, e.g. a re-tag or re-encode) **is** pushed by
+  default; no exceptions. The opt-in add-only mode is for the rare case of adding files without
+  overwriting anything already there. New engine helper `hap_sync.actionable(scan)` centralizes the
+  filter; `scan_map` records the intent so the plan and the transfer stay in sync.
 - **Plan now shows everything, grouped and explained.** Output is split into **CHANGED** (with
   `local X vs HAP Y, Δ±Z` per file, so it's obvious whether the audio really differs or it's just
   metadata) and **NEW**, sorted, no longer truncated at 12 lines. The GUI also writes the *complete*

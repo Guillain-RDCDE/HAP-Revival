@@ -175,9 +175,10 @@ class App:
         self.mac_var = tk.StringVar(value=cfg["mac"])
         self.unsupported_var = tk.BooleanVar(value=False)
         self.refresh_var = tk.BooleanVar(value=False)
-        # Default ON: "add my albums" should never silently overwrite tracks already on the HAP
-        # (e.g. ones whose bytes differ from an old re-encode). Untick to push updates too.
-        self.new_only_var = tk.BooleanVar(value=True)
+        # Default OFF: the local library is the source of truth, so a normal sync faithfully
+        # mirrors it — re-tagged / re-encoded ("changed") tracks MUST propagate to the HAP, no
+        # exceptions. Tick this only for the rare "add without overwriting anything" case.
+        self.new_only_var = tk.BooleanVar(value=False)
         self.map_rows: list[dict] = []
 
         self._build_connection_bar()
