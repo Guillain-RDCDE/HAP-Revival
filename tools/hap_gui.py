@@ -52,6 +52,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hap_sync as core      # noqa: E402
 import hap_companion as comp  # noqa: E402
 import smb_doctor             # noqa: E402
+import i18n                   # noqa: E402
+
+def _set_window_icon(root: "tk.Tk") -> None:
+    """Apply the HapSync vinyl icon to the window/taskbar, silently if missing.
+
+    The .ico lives next to this script in source, and PyInstaller bundles it
+    into the frozen exe's temp dir (sys._MEIPASS) — try both locations.
+    """
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    ico = base / "HapSync.ico"
+    if not ico.exists():
+        ico = Path(__file__).resolve().parent / "HapSync.ico"
+    try:
+        if ico.exists():
+            root.iconbitmap(default=str(ico))
+    except Exception:
+        pass  # icon is cosmetic; never let it break startup
+
 
 CONFIG_PATH = Path(__file__).resolve().parent / "hap_sync.json"
 SHARES = ("HAP_Internal", "HAP_External")
@@ -158,7 +176,12 @@ def scan_for_hap_hosts(port: int = API_PORT, timeout: float = 0.4) -> list[str]:
 class App:
     def __init__(self) -> None:
         self.root = tk.Tk()
-        self.root.title("HAP Sync")
+        # Resolve the UI language once (OS locale / HAP_LANG); the Language menu
+        # below lets the user override it live.
+        self.lang = i18n.detect_lang()
+        self._i18n: list = []  # (apply_fn, key) pairs retranslated on language change
+        self.root.title(self._T("gui.window_title"))
+        _set_window_icon(self.root)
         self.root.geometry("880x640")
         self.root.minsize(760, 520)
 
@@ -181,6 +204,7 @@ class App:
         self.new_only_var = tk.BooleanVar(value=False)
         self.map_rows: list[dict] = []
 
+        self._build_menu()
         self._build_connection_bar()
         self._build_footer()   # packed bottom before the notebook so it's always reserved
         self._build_tabs()
@@ -197,14 +221,70 @@ class App:
         # Remember settings without a manual save: persist on close.
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
+    # ---------- i18n plumbing ----------
+
+    def _T(self, key: str, **kwargs) -> str:
+        return i18n.t(key, self.lang, **kwargs)
+
+    def _reg(self, widget, key: str) -> None:
+        """Register a ttk/tk widget whose `text=` should follow the language, and
+        set it now."""
+        self._i18n.append((lambda s: widget.configure(text=s), key))
+        widget.configure(text=self._T(key))
+
+    def _reg_tab(self, nb: "ttk.Notebook", tab, key: str) -> None:
+        """Register a Notebook tab's title for retranslation."""
+        self._i18n.append((lambda s: nb.tab(tab, text=s), key))
+        nb.tab(tab, text=self._T(key))
+
+    def _retranslate(self) -> None:
+        self.root.title(self._T("gui.window_title"))
+        for apply_fn, key in self._i18n:
+            try:
+                apply_fn(self._T(key))
+            except tk.TclError:
+                pass  # widget destroyed (e.g. a removed mapping row)
+        # The idle status line is the one dynamic label worth resetting on switch.
+        if not self.busy:
+            self.status_var.set(self._T("gui.status.ready"))
+
+    def _set_language(self, code: str) -> None:
+        if code not in i18n.CATALOGS:
+            return
+        self.lang = code
+        self.lang_var.set(code)
+        self._retranslate()
+
+    def _build_menu(self) -> None:
+        menubar = tk.Menu(self.root)
+        lang_menu = tk.Menu(menubar, tearoff=0)
+        self.lang_var = tk.StringVar(value=self.lang)
+        for opt in i18n.language_options():
+            lang_menu.add_radiobutton(
+                label=opt["name"], value=opt["code"], variable=self.lang_var,
+                command=lambda c=opt["code"]: self._set_language(c),
+            )
+        menubar.add_cascade(label=self._T("gui.menu.language"), menu=lang_menu)
+        self._lang_menubar = menubar
+        self._lang_menu_index = menubar.index("end")
+        # Keep the cascade label itself translatable.
+        self._i18n.append(
+            (lambda s: menubar.entryconfigure(self._lang_menu_index, label=s), "gui.menu.language")
+        )
+        self.root.configure(menu=menubar)
+
     # ---------- UI construction ----------
 
     def _build_connection_bar(self) -> None:
         bar = ttk.LabelFrame(self.root, text="HAP")
         bar.pack(fill="x", padx=10, pady=(10, 4))
-        ttk.Label(bar, text="IP address:").grid(row=0, column=0, padx=(8, 4), pady=6, sticky="w")
+        ip_lbl = ttk.Label(bar)
+        ip_lbl.grid(row=0, column=0, padx=(8, 4), pady=6, sticky="w")
+        self._reg(ip_lbl, "gui.lbl.ip")
         ttk.Entry(bar, textvariable=self.host_var, width=18).grid(row=0, column=1, pady=6, sticky="w")
-        ttk.Label(bar, text="MAC:").grid(row=0, column=2, padx=(12, 4), pady=6, sticky="w")
+        mac_lbl = ttk.Label(bar)
+        mac_lbl.grid(row=0, column=2, padx=(12, 4), pady=6, sticky="w")
+        self._reg(mac_lbl, "gui.lbl.mac")
         ttk.Entry(bar, textvariable=self.mac_var, width=20).grid(row=0, column=3, pady=6, sticky="w")
 
         btns = ttk.Frame(bar)
@@ -212,18 +292,19 @@ class App:
         bar.columnconfigure(4, weight=1)
         self.conn_dot = ttk.Label(btns, text="●", foreground="#888")
         self.conn_dot.pack(side="left", padx=(0, 8))
-        for text, cmd in (("Auto-detect", self.on_autodetect),
-                          ("Check", self.on_check),
-                          ("Wake", self.on_wake),
-                          ("Save config", self.on_save_config)):
-            b = ttk.Button(btns, text=text, command=cmd)
+        for key, cmd in (("gui.conn.autodetect", self.on_autodetect),
+                         ("gui.conn.check", self.on_check),
+                         ("gui.conn.wake", self.on_wake),
+                         ("gui.conn.save", self.on_save_config)):
+            b = ttk.Button(btns, command=cmd)
             b.pack(side="left", padx=3)
+            self._reg(b, key)
             self._action_widgets.append(b)
         # Appears after a Check that finds fixable Windows SMB problems. Managed on its own
         # (not in _action_widgets) so it stays disabled until there is actually something to fix.
-        self.fix_btn = ttk.Button(btns, text="Fix access",
-                                  command=self.on_fix, state="disabled")
+        self.fix_btn = ttk.Button(btns, command=self.on_fix, state="disabled")
         self.fix_btn.pack(side="left", padx=3)
+        self._reg(self.fix_btn, "gui.conn.fix")
 
     def _build_footer(self) -> None:
         footer = ttk.Frame(self.root)
@@ -243,96 +324,103 @@ class App:
     def _build_transfer_tab(self, nb: ttk.Notebook) -> None:
         tab = ttk.Frame(nb)
         nb.add(tab, text="Transfer")
+        self._reg_tab(nb, tab, "gui.tab.transfer")
 
-        maps_box = ttk.LabelFrame(tab, text="Folders to sync  (PC → HAP)")
+        maps_box = ttk.LabelFrame(tab)
+        self._reg(maps_box, "gui.folders_box")
         maps_box.pack(fill="x", padx=8, pady=8)
         self.maps_frame = ttk.Frame(maps_box)
         self.maps_frame.pack(fill="x", padx=4, pady=4)
-        add = ttk.Button(maps_box, text="+ Add a folder", command=lambda: self._add_map_row())
+        add = ttk.Button(maps_box, command=lambda: self._add_map_row())
+        self._reg(add, "gui.add_folder")
         add.pack(anchor="w", padx=6, pady=(0, 6))
         self._action_widgets.append(add)
 
         opts = ttk.Frame(tab)
         opts.pack(fill="x", padx=8)
-        ttk.Checkbutton(opts, text="Only add new files (don't overwrite existing)",
-                        variable=self.new_only_var).pack(side="left")
-        ttk.Checkbutton(opts, text="Include unsupported formats",
-                        variable=self.unsupported_var).pack(side="left", padx=16)
-        ttk.Checkbutton(opts, text="Re-scan the HAP (ignore cache)",
-                        variable=self.refresh_var).pack(side="left")
+        cb_new = ttk.Checkbutton(opts, variable=self.new_only_var)
+        self._reg(cb_new, "gui.opt.new_only")
+        cb_new.pack(side="left")
+        cb_unsup = ttk.Checkbutton(opts, variable=self.unsupported_var)
+        self._reg(cb_unsup, "gui.opt.unsupported")
+        cb_unsup.pack(side="left", padx=16)
+        cb_rescan = ttk.Checkbutton(opts, variable=self.refresh_var)
+        self._reg(cb_rescan, "gui.opt.rescan")
+        cb_rescan.pack(side="left")
 
         actions = ttk.Frame(tab)
         actions.pack(fill="x", padx=8, pady=8)
-        b_plan = ttk.Button(actions, text="Analyze", command=self.on_plan)
-        b_sync = ttk.Button(actions, text="Sync", command=self.on_sync)
+        b_plan = ttk.Button(actions, command=self.on_plan)
+        self._reg(b_plan, "gui.btn.analyze")
+        b_sync = ttk.Button(actions, command=self.on_sync)
+        self._reg(b_sync, "gui.btn.sync")
         b_plan.pack(side="left")
         b_sync.pack(side="left", padx=6)
-        self.stop_btn = ttk.Button(actions, text="Stop", command=self.on_stop, state="disabled")
+        self.stop_btn = ttk.Button(actions, command=self.on_stop, state="disabled")
+        self._reg(self.stop_btn, "gui.btn.stop")
         self.stop_btn.pack(side="left", padx=6)
         self._action_widgets += [b_plan, b_sync]
 
         self.progress = ttk.Progressbar(tab, mode="determinate")
         self.progress.pack(fill="x", padx=8)
-        self.status_var = tk.StringVar(value="Ready.")
+        self.status_var = tk.StringVar(value=self._T("gui.status.ready"))
         ttk.Label(tab, textvariable=self.status_var).pack(anchor="w", padx=8, pady=(2, 4))
         self.transfer_log = self._make_log(tab)
 
     def _build_validate_tab(self, nb: ttk.Notebook) -> None:
         tab = ttk.Frame(nb)
         nb.add(tab, text="Validate")
+        self._reg_tab(nb, tab, "gui.tab.validate")
         self.validate_dir = tk.StringVar()
         row = ttk.Frame(tab)
         row.pack(fill="x", padx=8, pady=8)
-        ttk.Label(row, text="Folder:").pack(side="left")
+        folder_lbl = ttk.Label(row)
+        self._reg(folder_lbl, "gui.lbl.folder")
+        folder_lbl.pack(side="left")
         ttk.Entry(row, textvariable=self.validate_dir).pack(side="left", fill="x", expand=True, padx=6)
-        b_browse = ttk.Button(row, text="Browse…",
-                              command=lambda: self._pick_dir(self.validate_dir))
-        b_val = ttk.Button(row, text="Validate", command=self.on_validate)
+        b_browse = ttk.Button(row, command=lambda: self._pick_dir(self.validate_dir))
+        self._reg(b_browse, "gui.btn.browse")
+        b_val = ttk.Button(row, command=self.on_validate)
+        self._reg(b_val, "gui.btn.validate")
         b_browse.pack(side="left")
         b_val.pack(side="left", padx=6)
         self._action_widgets += [b_browse, b_val]
-        help_txt = (
-            "What this does: scans a PC folder before you send it and reports files the HAP "
-            "would reject or that would clutter its library — junk (Thumbs.db, .DS_Store, "
-            ".ffs_tmp…) the HAP indexes as ghost tracks, unsupported formats, PCM over 192 kHz "
-            "(above the HAP's playback limit) and albums with no cover art.\n"
-            "When to use it: optional. Sync already skips junk and unsupported files on its own, "
-            "so this is just a pre-flight report — most useful to catch >192 kHz files and "
-            "missing covers, which Sync won't fix for you.")
-        ttk.Label(tab, text=help_txt, foreground="#888", justify="left",
-                  wraplength=700).pack(anchor="w", padx=8, pady=(0, 4))
+        help_lbl = ttk.Label(tab, foreground="#888", justify="left", wraplength=700)
+        self._reg(help_lbl, "gui.validate_help")
+        help_lbl.pack(anchor="w", padx=8, pady=(0, 4))
         self.validate_log = self._make_log(tab)
 
     def _build_diff_tab(self, nb: ttk.Notebook) -> None:
         tab = ttk.Frame(nb)
         nb.add(tab, text="Compare library")
+        self._reg_tab(nb, tab, "gui.tab.compare")
         self.diff_db = tk.StringVar()
         self.diff_dir = tk.StringVar()
         r1 = ttk.Frame(tab)
         r1.pack(fill="x", padx=8, pady=(8, 2))
-        ttk.Label(r1, text="HAP database (.db):", width=18).pack(side="left")
+        db_lbl = ttk.Label(r1, width=18)
+        self._reg(db_lbl, "gui.lbl.db")
+        db_lbl.pack(side="left")
         ttk.Entry(r1, textvariable=self.diff_db).pack(side="left", fill="x", expand=True, padx=6)
-        b_db = ttk.Button(r1, text="Browse…", command=self._pick_db)
+        b_db = ttk.Button(r1, command=self._pick_db)
+        self._reg(b_db, "gui.btn.browse")
         b_db.pack(side="left")
         r2 = ttk.Frame(tab)
         r2.pack(fill="x", padx=8, pady=2)
-        ttk.Label(r2, text="Local folder:", width=18).pack(side="left")
+        local_lbl = ttk.Label(r2, width=18)
+        self._reg(local_lbl, "gui.lbl.local_folder")
+        local_lbl.pack(side="left")
         ttk.Entry(r2, textvariable=self.diff_dir).pack(side="left", fill="x", expand=True, padx=6)
-        b_dir = ttk.Button(r2, text="Browse…", command=lambda: self._pick_dir(self.diff_dir))
+        b_dir = ttk.Button(r2, command=lambda: self._pick_dir(self.diff_dir))
+        self._reg(b_dir, "gui.btn.browse")
         b_dir.pack(side="left")
-        b_diff = ttk.Button(tab, text="Compare", command=self.on_diff)
+        b_diff = ttk.Button(tab, command=self.on_diff)
+        self._reg(b_diff, "gui.btn.compare")
         b_diff.pack(anchor="w", padx=8, pady=6)
         self._action_widgets += [b_db, b_dir, b_diff]
-        help_txt = (
-            "What this does: compares a local <Artist>/<Album>/ tree against the HAP's own music "
-            "database and lists which albums are NEW vs already on the device — matched by "
-            "content (artist + album names), not by filename or date.\n"
-            "What it needs: the HAP's SQLite catalog (.db), which you only get by reading the "
-            "HAP's internal disk — so this is an advanced/occasional tool. For everyday use, just "
-            "use Sync: it already compares against the files actually on the share and transfers "
-            "only what's missing.")
-        ttk.Label(tab, text=help_txt, foreground="#888", justify="left",
-                  wraplength=700).pack(anchor="w", padx=8, pady=(0, 4))
+        help_lbl = ttk.Label(tab, foreground="#888", justify="left", wraplength=700)
+        self._reg(help_lbl, "gui.diff_help")
+        help_lbl.pack(anchor="w", padx=8, pady=(0, 4))
         self.diff_log = self._make_log(tab)
 
     def _make_log(self, parent: tk.Widget) -> tk.Text:
@@ -493,7 +581,7 @@ class App:
 
     def _need_host(self) -> bool:
         if not self.host_var.get().strip():
-            messagebox.showwarning("HAP Sync", "Enter the HAP's IP address (or click Auto-detect).")
+            messagebox.showwarning("HAP Sync", self._T("gui.warn.enter_ip"))
             return False
         return True
 
@@ -509,7 +597,7 @@ class App:
 
     def _need_maps(self) -> bool:
         if not self._collect_maps():
-            messagebox.showwarning("HAP Sync", "Add at least one local folder to transfer.")
+            messagebox.showwarning("HAP Sync", self._T("gui.warn.add_folder"))
             return False
         return True
 
@@ -745,7 +833,7 @@ class App:
     def on_validate(self) -> None:
         folder = self.validate_dir.get().strip()
         if not folder or not os.path.isdir(folder):
-            messagebox.showwarning("HAP Sync", "Choose a valid folder to validate.")
+            messagebox.showwarning("HAP Sync", self._T("gui.warn.valid_folder"))
             return
 
         def job():
@@ -768,10 +856,10 @@ class App:
     def on_diff(self) -> None:
         db, folder = self.diff_db.get().strip(), self.diff_dir.get().strip()
         if not db or not os.path.isfile(db):
-            messagebox.showwarning("HAP Sync", "Choose the HAP library .db file.")
+            messagebox.showwarning("HAP Sync", self._T("gui.warn.choose_db"))
             return
         if not folder or not os.path.isdir(folder):
-            messagebox.showwarning("HAP Sync", "Choose a local folder to compare.")
+            messagebox.showwarning("HAP Sync", self._T("gui.warn.choose_local"))
             return
 
         def job():

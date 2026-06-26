@@ -16,8 +16,11 @@ python -m pip install --quiet --upgrade pyinstaller pysmb
 if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 
 Write-Host "Building HapSync.exe..." -ForegroundColor Cyan
+$icon = Join-Path $here "HapSync.ico"
 python -m PyInstaller --noconfirm --onefile --windowed --name HapSync `
     --collect-submodules smb `
+    --icon $icon `
+    --add-data "$icon;." `
     (Join-Path $here "hap_gui.py")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
 
