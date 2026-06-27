@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD033 MD041 -->
 <p align="center">
-  <img alt="HAP-Revival — Modernizing Sony's audiophile HDD players" src=".github/social-preview.png" width="100%">
+  <img alt="HAP Revival — keeping the Sony HAP-Z1ES & HAP-S1 alive" src=".github/social-banner.png" width="100%">
 </p>
 
 # HAP-Revival
