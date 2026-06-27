@@ -46,7 +46,7 @@ import threading
 import time
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Callable
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Tiny PNG encoder (so cover art needs no Pillow)

@@ -4,11 +4,14 @@ on:
   pull_request:
     paths:
       - "tools/**/*.py"
+      - "tests/**/*.py"
       - ".github/workflows/python-lint.yml"
   push:
     branches: [main]
     paths:
       - "tools/**/*.py"
+      - "tests/**/*.py"
+      - ".github/workflows/python-lint.yml"
 
 jobs:
   ruff:
@@ -23,7 +26,7 @@ jobs:
       - name: Install ruff
         run: pip install ruff
       - name: Run ruff
-        run: ruff check tools/
+        run: ruff check tools/ tests/
 
   syntax-check:
     name: Python syntax check
@@ -35,3 +38,17 @@ jobs:
           python-version: "3.12"
       - name: Compile all tools
         run: python -m compileall -q tools/
+
+  tests:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run the test suite
+        # Stdlib + pytest only — pure-logic + a loopback mock device. No HAP needed.
+        run: python -m pytest tests/ -q
