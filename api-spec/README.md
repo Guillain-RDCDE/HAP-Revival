@@ -1,13 +1,16 @@
 # API spec
 
-This directory will hold a machine-readable specification of the HAP ScalarWebAPI as we map it, plus annotated request/response examples.
+A machine-readable specification of the HAP **ScalarWebAPI** — to come.
 
-Current state: **stub**. The catalog lives in [`../research/api-method-catalog.md`](../research/api-method-catalog.md) as a hand-maintained markdown table. Once that stabilizes, it will be promoted to a proper OpenAPI 3.1 spec here.
+**Current state: stub.** The live source of truth is the hand-maintained catalog at
+[`../research/api-method-catalog.md`](../research/api-method-catalog.md) (~30 methods, validated
+against a real device). Once it stabilizes it gets promoted to a proper OpenAPI 3.1 spec here.
 
-Planned files:
+**Planned layout:**
 
 - `openapi.yaml` — the spec proper.
 - `examples/` — annotated request/response pairs per method.
-- `schema/` — JSON schema definitions for the request/response shapes (the URI scheme `audio:track?id=N`, the `coverArtUrl` format, etc.).
+- `schema/` — JSON Schema for the request/response shapes (the `audio:track?id=N` URI scheme, the `coverArtUrl` format, …).
 
-If you want to start the OpenAPI conversion: open an issue with the proposed structure first. The spec should be derivable from the markdown catalog mechanically, not curated by hand.
+The spec should be **derivable from the markdown catalog mechanically**, not curated by hand. If
+you want to start that conversion, open an issue with the proposed structure first.
