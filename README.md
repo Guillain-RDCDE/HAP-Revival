@@ -5,6 +5,8 @@
 
 # 🎵 HAP-Revival
 
+> **The DACs still sing. The software died in January 2021. HAP-Revival is the second half of the story Sony stopped telling.**
+
 [![status](https://img.shields.io/badge/status-pre--alpha-orange)](#-where-we-are)
 [![devices](https://img.shields.io/badge/devices-HAP--Z1ES%20%7C%20HAP--S1-blue)](#-supported-devices)
 [![license code](https://img.shields.io/badge/code-MIT-green)](LICENSE)
@@ -12,9 +14,10 @@
 
 **Keeping the Sony HAP-Z1ES and HAP-S1 alive — for the music, not the plumbing.**
 
-Sony shipped its last firmware in January 2021 and walked away. The hardware still sounds
-superb; the software rotted. HAP-Revival is rebuilding the parts Sony abandoned — one piece
-you can actually use today — and reverse-engineering the rest toward a modern, open OS.
+The hardware is a 2014 audiophile masterpiece that still measures and sounds superb. The
+software rotted: Sony shipped one last firmware, walked away, and never looked back. HAP-Revival
+rebuilds the parts it abandoned — one piece you can use today — and reverse-engineers the rest
+toward a modern, open OS.
 
 > 🟢 **New here, or not a programmer?** → **[Start Here — the 5-minute friendly guide](docs/START-HERE.md)**
 > What this machine is, what you can do *today*, and how deep you want to go. No jargon. The rest of this page is the technical side.
@@ -81,10 +84,10 @@ confirms before sending. The whole client is one stdlib-only file — readable i
 
 Put a 24/96 FLAC on a HAP-Z1ES, sit down, and the room changes. There's a stillness around the
 instruments; cellos have weight, voices have a body, you can hear the space the recording was
-made in. This is what audiophile source hardware is *supposed* to do — and what €500 streamers
-still don't.
+made in. This is what audiophile source hardware is *supposed* to do — and what most modern
+streamers, however clever, still don't.
 
-The HAP-Z1ES (2014, ~€2000) does it with a chain Sony's "ES" engineers built to last: dual
+The HAP-Z1ES (2014) does it with a chain Sony's "ES" engineers built to last: dual
 Burr-Brown **PCM1795** DACs, an Analog Devices **ADSP-21488 SHARC** DSP, a custom Sony **FPGA**
 on the clock domain, an isolated linear PSU, a 14 kg chassis. A decade on, it still measures and
 sounds outstanding. **What didn't last is the software:**
