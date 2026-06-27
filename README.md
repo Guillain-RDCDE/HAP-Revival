@@ -116,7 +116,7 @@ The hardware deserves better. This is the open project to give it better.
 - ✅ Shipped the usable tools above (Web UI, CLI, HAP Sync, library browser/audit, demo mode).
 - ⏳ Heading for the **UART console** (i.MX6 UART1, `ttymxc0 @ 115200`) for a root shell + NAND dump — firmware 19404R is OTA-only, so the OS must be dumped from the device, not downloaded.
 
-### 🗺️ Roadmap
+### 🗺 Roadmap
 
 | Phase | Goal | Device risk |
 |---|---|---|
@@ -130,7 +130,7 @@ The analog chain (FPGA → SHARC → PCM1795) is the whole point of this hardwar
 
 ---
 
-## 🎛️ Supported devices
+## 🎛 Supported devices
 
 | Device | Role | Notes |
 |---|---|---|
