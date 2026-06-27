@@ -136,6 +136,8 @@ Same i.MX6 SoC, same firmware images, same network protocols, same GPL bundle. W
 | **Music sync — GUI + CLI** (a HAP-dedicated FreeFileSync replacement) | ✅ | **`tools/hap_gui.py`** — one-click Windows app (auto-detect, remembered folders, live progress; build to `HapSync.exe` via `tools/build_gui.ps1`), sharing the **`tools/hap_sync.py`** engine: incremental SMB1 transfer to **both** `HAP_Internal` + `HAP_External` from two PC folders, auto-skips junk (`.ffs_tmp`…) and unsupported formats, preserves `<Artist>/<Album>/`, WoL + post-transfer auto-reindex. Speaks SMB1 via `pysmb`, so **no need to enable Windows SMB1**. CLI engine live-tested end-to-end; GUI is new (beta) |
 | **Pre-flight checks** (validate / library diff) | ✅ | `tools/hap_companion.py` — standalone `validate` (compat / junk / >192 kHz / cover report) and `diff` against the library DB; the same filtering is built into `hap_sync` |
 | **Installable control app** (PWA — add to iPhone/iPad home screen) | ✅ | `tools/webui.py` is a PWA: own icon, full-screen, standalone. See [control-app install guide](docs/13-control-app.md) |
+| **Multilingual UI** (web · CLI · sync app) | ✅ | `tools/i18n.py` — every interface auto-detects your language and switches live (no reload). Ships **EN · FR · JA · DE · ES · IT**; one dict adds a language |
+| **Demo mode — no hardware needed** | ✅ | `tools/mock_hap.py` is a stand-in HAP-Z1ES (living 4-track demo library, generated cover art, faithful API). `python tools/webui.py --demo` drives the web UI straight from it — perfect for screenshots and contributors without a device |
 | Native iOS / iPad app | ❌ | The installable web app above works in Safari on iPhone/iPad today; native app planned |
 | Modern streaming services (Tidal, Qobuz, Roon) | ❌ | Requires custom userland (Phase 4) |
 | Custom OS replacement | ❌ | Long-term goal; UART root shell + NAND dump required first |
@@ -158,7 +160,16 @@ python tools/hap_client.py <hap-ip> sound
 
 # Or launch the web UI and open http://localhost:8080
 python tools/webui.py <hap-ip>
+
+# No HAP handy? Run everything against a built-in mock device:
+python tools/webui.py --demo            # web UI on a fake HAP, zero hardware
+python tools/mock_hap.py                # or run the mock standalone on :60200
+python tools/hap_client.py 127.0.0.1 now-playing   # CLI against the mock
 ```
+
+Every interface speaks your language: the web UI, the CLI (`--lang fr`) and the
+sync app auto-detect the OS locale and ship English, French, Japanese, German,
+Spanish and Italian out of the box (switch live from the ⚙ panel / Language menu).
 
 The web UI polls every 3 seconds — slightly tighter than Sony's own 5 s cadence for snappier feedback, well within what the device handles gracefully. (The HAP has no push mechanism; polling is the only option, as confirmed from the decompiled Sony app. So we just ask politely, every three seconds.) Cover art renders inline. The accent color follows the cover's dominant hue — the HAP itself computes that RGB and exposes it via the API, a small Sony detail that's genuinely delightful once you notice it. Click the progress bar to seek. The ⚙ icon top-right opens a theme switcher with adaptive text contrast.
 

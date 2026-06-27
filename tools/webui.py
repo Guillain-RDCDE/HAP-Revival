@@ -50,6 +50,7 @@ from typing import Any
 # Allow `python tools/webui.py …` from repo root
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import i18n  # noqa: E402
 from hap_client import HAP, HAPError  # noqa: E402
 
 
@@ -91,10 +92,10 @@ def _live_html_template() -> str | None:
 
 # >>> HTML_PAGE TEMPLATE BEGIN >>>
 HTML_PAGE = """<!doctype html>
-<html lang="en">
+<html lang="__LANG__">
 <head>
 <meta charset="utf-8" />
-<title>HAP-Revival — control</title>
+<title data-i18n="web.title">HAP-Revival — control</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <!-- PWA: installable on iPhone/iPad home screen via Safari → Share → "Add to Home Screen" -->
 <link rel="manifest" href="/manifest.webmanifest" />
@@ -389,115 +390,122 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
 <div class="gear-wrap">
   <button class="gear-btn" id="gear-btn" onclick="toggleSettings()" title="Settings" aria-label="Settings">⚙</button>
   <div class="settings-panel" id="settings-panel">
-    <h3>Background</h3>
+    <h3 data-i18n="web.lang.title">Language</h3>
+    <div class="set-row">
+      <select id="lang-sel" onchange="setLang(this.value)" style="min-width:100%"></select>
+    </div>
+
+    <section>
+    <h3 data-i18n="web.bg.title">Background</h3>
     <div class="theme-option" id="opt-ambient">
       <input type="radio" name="theme" id="t-ambient" value="ambient" onchange="setTheme('ambient')">
-      <label for="t-ambient">Ambient cover</label>
+      <label for="t-ambient" data-i18n="web.bg.ambient">Ambient cover</label>
     </div>
     <div class="theme-option" id="opt-cover-solid">
       <input type="radio" name="theme" id="t-cover-solid" value="cover-solid" onchange="setTheme('cover-solid')">
-      <label for="t-cover-solid">Solid (from cover)</label>
+      <label for="t-cover-solid" data-i18n="web.bg.cover_solid">Solid (from cover)</label>
     </div>
     <div class="theme-option" id="opt-dark">
       <input type="radio" name="theme" id="t-dark" value="dark" onchange="setTheme('dark')">
-      <label for="t-dark">Dark</label>
+      <label for="t-dark" data-i18n="web.bg.dark">Dark</label>
     </div>
     <div class="theme-option" id="opt-custom">
       <input type="radio" name="theme" id="t-custom" value="custom" onchange="setTheme('custom')">
-      <label for="t-custom">Custom</label>
+      <label for="t-custom" data-i18n="web.bg.custom">Custom</label>
       <input type="color" id="custom-color" value="#1a1f2c" oninput="setCustomColor(this.value)">
     </div>
     <div class="theme-debug" id="theme-debug">current: ambient</div>
+    </section>
 
     <section>
-      <h3>Display</h3>
+      <h3 data-i18n="web.display.title">Display</h3>
       <div class="set-row">
-        <span class="k" title="Hide the HAP-Revival title, the device subtitle and the bottom footer for a cleaner look.">Minimal mode</span>
+        <span class="k" data-i18n="web.display.minimal">Minimal mode</span>
         <span class="pill-toggle" id="disp-minimal">
-          <button data-v="on" onclick="setMinimal('on')">on</button>
-          <button data-v="off" onclick="setMinimal('off')">off</button>
+          <button data-v="on" data-i18n="common.on" onclick="setMinimal('on')">on</button>
+          <button data-v="off" data-i18n="common.off" onclick="setMinimal('off')">off</button>
         </span>
       </div>
-      <div class="set-note">Hides the header (title + device info) and the footer. The now-playing card and the gear stay.</div>
+      <div class="set-note" data-i18n="web.display.minimal_note">Hides the header (title + device info) and the footer. The now-playing card and the gear stay.</div>
     </section>
 
     <section>
-      <h3>Sound</h3>
+      <h3 data-i18n="web.sound.title">Sound</h3>
       <div class="set-row">
-        <span class="k" title="Sony's lossy-codec upscaler. Tries to rebuild the high frequencies that were thrown away when audio was compressed (MP3/AAC) or downsampled. Off = strict bit-perfect playback.">DSEE</span>
+        <span class="k" data-i18n="web.sound.dsee">DSEE</span>
         <span class="pill-toggle" id="snd-dsee">
-          <button data-v="auto" onclick="setSound('dsee','auto')">auto</button>
-          <button data-v="off" onclick="setSound('dsee','off')">off</button>
+          <button data-v="auto" data-i18n="common.auto" onclick="setSound('dsee','auto')">auto</button>
+          <button data-v="off" data-i18n="common.off" onclick="setSound('dsee','off')">off</button>
         </span>
       </div>
-      <div class="set-note">Sony's upscaler. Auto tries to rebuild high frequencies lost in MP3/AAC. Off keeps the signal bit-perfect.</div>
+      <div class="set-note" data-i18n="web.sound.dsee_note">Sony's upscaler. Auto tries to rebuild high frequencies lost in MP3/AAC. Off keeps the signal bit-perfect.</div>
       <div class="set-row">
-        <span class="k" title="Converts PCM (FLAC, WAV, AIFF, ALAC) to DSD inside the device before the DAC sees it. The HAP's PCM1795 DACs handle DSD natively. Some find DSD playback smoother and more analog-like.">DSD remastering</span>
+        <span class="k" data-i18n="web.sound.dsd">DSD remastering</span>
         <span class="pill-toggle" id="snd-dsdRemastering">
-          <button data-v="on" onclick="setSound('dsdRemastering','on')">on</button>
-          <button data-v="off" onclick="setSound('dsdRemastering','off')">off</button>
+          <button data-v="on" data-i18n="common.on" onclick="setSound('dsdRemastering','on')">on</button>
+          <button data-v="off" data-i18n="common.off" onclick="setSound('dsdRemastering','off')">off</button>
         </span>
       </div>
-      <div class="set-note">Converts PCM (FLAC/WAV) to DSD before the DAC. Some hear it as smoother; off keeps the file's native format.</div>
+      <div class="set-note" data-i18n="web.sound.dsd_note">Converts PCM (FLAC/WAV) to DSD before the DAC. Some hear it as smoother; off keeps the file's native format.</div>
       <div class="set-row">
-        <span class="k" title="Plays consecutive tracks with no silence between them. Critical for live albums, classical movements, and electronic / DJ mixes that depend on continuous flow.">Gapless</span>
+        <span class="k" data-i18n="web.sound.gapless">Gapless</span>
         <span class="pill-toggle" id="snd-gaplessPlayback">
-          <button data-v="auto" onclick="setSound('gaplessPlayback','auto')">auto</button>
-          <button data-v="off" onclick="setSound('gaplessPlayback','off')">off</button>
+          <button data-v="auto" data-i18n="common.auto" onclick="setSound('gaplessPlayback','auto')">auto</button>
+          <button data-v="off" data-i18n="common.off" onclick="setSound('gaplessPlayback','off')">off</button>
         </span>
       </div>
-      <div class="set-note">Removes the silence between consecutive tracks. Auto follows album metadata; off always inserts ~0.1 s.</div>
+      <div class="set-note" data-i18n="web.sound.gapless_note">Removes the silence between consecutive tracks. Auto follows album metadata; off always inserts ~0.1 s.</div>
       <div class="set-row">
-        <span class="k" title="Levels playback volume across tracks of different loudness — quiet songs don't disappear, loud ones don't blast. Reads ReplayGain tags from your files when present.">Volume normalize</span>
+        <span class="k" data-i18n="web.sound.volnorm">Volume normalize</span>
         <span class="pill-toggle" id="snd-volumeNormalization">
-          <button data-v="auto" onclick="setSound('volumeNormalization','auto')">auto</button>
-          <button data-v="off" onclick="setSound('volumeNormalization','off')">off</button>
+          <button data-v="auto" data-i18n="common.auto" onclick="setSound('volumeNormalization','auto')">auto</button>
+          <button data-v="off" data-i18n="common.off" onclick="setSound('volumeNormalization','off')">off</button>
         </span>
       </div>
-      <div class="set-note">Evens out loudness between tracks using ReplayGain tags. Useful for shuffled playback across albums.</div>
+      <div class="set-note" data-i18n="web.sound.volnorm_note">Evens out loudness between tracks using ReplayGain tags. Useful for shuffled playback across albums.</div>
       <div class="set-row">
-        <span class="k" title="Shape of the DAC's oversampling reconstruction filter. Precision = sharper frequency rolloff (less aliasing, more pre-ringing). Normal = softer rolloff. A subtle, listening-preference choice; precision is the more 'accurate' modern default.">Oversampling</span>
+        <span class="k" data-i18n="web.sound.oversampling">Oversampling</span>
         <span class="pill-toggle" id="snd-oversampling">
-          <button data-v="precision" onclick="setSound('oversampling','precision')">precision</button>
-          <button data-v="normal" onclick="setSound('oversampling','normal')">normal</button>
+          <button data-v="precision" data-i18n="web.val.precision" onclick="setSound('oversampling','precision')">precision</button>
+          <button data-v="normal" data-i18n="web.val.normal" onclick="setSound('oversampling','normal')">normal</button>
         </span>
       </div>
-      <div class="set-note">DAC reconstruction filter shape. Precision = sharper cutoff (more accurate). Normal = softer (smoother to some).</div>
+      <div class="set-note" data-i18n="web.sound.oversampling_note">DAC reconstruction filter shape. Precision = sharper cutoff (more accurate). Normal = softer (smoother to some).</div>
     </section>
 
     <section>
-      <h3>Playback</h3>
+      <h3 data-i18n="web.playback.title">Playback</h3>
       <div class="set-row">
-        <span class="k" title="Master volume out of the device. HAP-Z1ES has no internal amplifier so this is read-only on Z1ES; HAP-S1 controls its built-in amp.">Volume</span>
+        <span class="k" data-i18n="web.playback.volume">Volume</span>
         <input type="range" id="vol-slider" min="0" max="100" value="50" oninput="onVolumeChange(this.value)" disabled>
       </div>
-      <div class="set-note" id="vol-note">HAP-Z1ES has no internal amp — volume is fixed (controlled by your preamp / external amp).</div>
+      <div class="set-note" id="vol-note" data-i18n="web.playback.volume_note">HAP-Z1ES has no internal amp — volume is fixed (controlled by your preamp / external amp).</div>
       <div class="set-row">
-        <span class="k" title="Auto-power-off after a chosen duration of inactive playback. The device fades out and goes to standby.">Sleep timer</span>
+        <span class="k" data-i18n="web.playback.sleep">Sleep timer</span>
         <select id="sleep-sel" onchange="onSleepChange(this.value)">
-          <option value="off">Off</option>
+          <option value="off" data-i18n="common.off">Off</option>
         </select>
       </div>
-      <div class="set-note">Turns the HAP off after the selected duration. Useful for falling asleep to music.</div>
+      <div class="set-note" data-i18n="web.playback.sleep_note">Turns the HAP off after the selected duration. Useful for falling asleep to music.</div>
     </section>
 
     <section>
-      <h3>Current track</h3>
+      <h3 data-i18n="web.current.title">Current track</h3>
       <div class="set-row">
-        <span class="k" title="Tags the currently-playing track in the HAP's on-device library database. Only works for tracks stored on the HAP (HDD or USB), not for streamed sources like Spotify Connect.">Favorite</span>
+        <span class="k" data-i18n="web.current.favorite">Favorite</span>
         <div class="fav-row" id="fav-row">
-          <button data-v="favorite" onclick="setFavorite('favorite')" title="Mark as favorite">♥</button>
-          <button data-v="normal" onclick="setFavorite('normal')" title="Clear favorite / dislike">—</button>
-          <button data-v="dislike" onclick="setFavorite('dislike')" title="Mark as dislike">👎</button>
+          <button data-v="favorite" onclick="setFavorite('favorite')" data-i18n-title="web.fav.title.favorite" title="Mark as favorite">♥</button>
+          <button data-v="normal" onclick="setFavorite('normal')" data-i18n-title="web.fav.title.clear" title="Clear favorite / dislike">—</button>
+          <button data-v="dislike" onclick="setFavorite('dislike')" data-i18n-title="web.fav.title.dislike" title="Mark as dislike">👎</button>
         </div>
       </div>
-      <div class="set-note" id="fav-note">Marks the current track in the HAP library. Buttons disable when playing a non-HDD source (Spotify, radio).</div>
+      <div class="set-note" id="fav-note" data-i18n="web.current.favorite_note">Marks the current track in the HAP library. Buttons disable when playing a non-HDD source (Spotify, radio).</div>
     </section>
   </div>
 </div>
 <header>
   <h1>HAP-Revival</h1>
-  <div class="device" id="device-info">connecting…</div>
+  <div class="device" id="device-info" data-i18n="web.connecting">connecting…</div>
 </header>
 <main>
   <div class="card" id="now-playing">
@@ -510,7 +518,7 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
       <div class="tech" id="tech"></div>
     </div>
     <div class="progress-wrap">
-      <div class="progress-bar" id="progress-bar" title="Click to seek">
+      <div class="progress-bar" id="progress-bar" data-i18n-title="web.seek_hint" title="Click to seek">
         <div class="progress-fill" id="progress-fill" style="width:0%"></div>
       </div>
       <div class="progress-times">
@@ -519,27 +527,76 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
       </div>
     </div>
     <div class="controls">
-      <button class="btn" onclick="hapCall('previous')" title="Previous">⏮</button>
-      <button class="btn primary" onclick="togglePlay()" id="btn-play" title="Pause/resume">⏸</button>
-      <button class="btn" onclick="hapCall('next')" title="Next">⏭</button>
-      <button class="btn danger" onclick="if(confirm('Standby?')) hapCall('standby')" title="Standby">⏻</button>
+      <button class="btn" onclick="hapCall('previous')" data-i18n-title="web.ctrl.previous" title="Previous">⏮</button>
+      <button class="btn primary" onclick="togglePlay()" id="btn-play" data-i18n-title="web.ctrl.play" title="Pause/resume">⏸</button>
+      <button class="btn" onclick="hapCall('next')" data-i18n-title="web.ctrl.next" title="Next">⏭</button>
+      <button class="btn danger" onclick="confirmStandby()" data-i18n-title="web.ctrl.standby" title="Standby">⏻</button>
     </div>
   </div>
   <div class="card settings">
     <table>
-      <tr><td class="k">DSEE</td><td class="v" id="s-dsee">—</td></tr>
-      <tr><td class="k">DSD remastering</td><td class="v" id="s-dsd">—</td></tr>
-      <tr><td class="k">Gapless playback</td><td class="v" id="s-gapless">—</td></tr>
-      <tr><td class="k">Volume normalization</td><td class="v" id="s-volnorm">—</td></tr>
-      <tr><td class="k">Oversampling</td><td class="v" id="s-oversample">—</td></tr>
+      <tr><td class="k" data-i18n="web.tbl.dsee">DSEE</td><td class="v" id="s-dsee">—</td></tr>
+      <tr><td class="k" data-i18n="web.tbl.dsd">DSD remastering</td><td class="v" id="s-dsd">—</td></tr>
+      <tr><td class="k" data-i18n="web.tbl.gapless">Gapless playback</td><td class="v" id="s-gapless">—</td></tr>
+      <tr><td class="k" data-i18n="web.tbl.volnorm">Volume normalization</td><td class="v" id="s-volnorm">—</td></tr>
+      <tr><td class="k" data-i18n="web.tbl.oversampling">Oversampling</td><td class="v" id="s-oversample">—</td></tr>
     </table>
   </div>
   <div id="error-banner"></div>
 </main>
 <footer>
-  <a href="https://github.com/Guillain-RDCDE/HAP-Revival" target="_blank">github.com/Guillain-RDCDE/HAP-Revival</a> · polls every 3s · stdlib only · MIT
+  <a href="https://github.com/Guillain-RDCDE/HAP-Revival" target="_blank">github.com/Guillain-RDCDE/HAP-Revival</a> · <span data-i18n="web.footer.polls">polls every 3s</span> · <span data-i18n="web.footer.stdlib">stdlib only</span> · MIT
 </footer>
 <script>
+/* ===== i18n (embedded: every catalog, so switching is instant + offline) ===== */
+const I18N = __I18N_JSON__;
+const LANGS = __LANGS_JSON__;
+const LANG_KEY = "hap-revival.lang";
+let LANG = localStorage.getItem(LANG_KEY) || "__DEFAULT_LANG__";
+if (!I18N[LANG]) LANG = "en";
+
+function t(key, params) {
+  let s = (I18N[LANG] && I18N[LANG][key]) || (I18N["en"] && I18N["en"][key]) || key;
+  if (params) for (const k in params) s = s.split("{" + k + "}").join(params[k]);
+  return s;
+}
+function applyI18n() {
+  document.documentElement.setAttribute("lang", LANG);
+  document.title = t("web.title");
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    el.textContent = t(el.getAttribute("data-i18n"));
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach(el => {
+    el.title = t(el.getAttribute("data-i18n-title"));
+  });
+}
+function buildLangSelect() {
+  const sel = document.getElementById("lang-sel");
+  if (!sel) return;
+  sel.innerHTML = "";
+  LANGS.forEach(l => {
+    const o = document.createElement("option");
+    o.value = l.code;
+    o.textContent = l.name;
+    if (l.code === LANG) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+function setLang(code) {
+  if (!I18N[code]) return;
+  LANG = code;
+  localStorage.setItem(LANG_KEY, code);
+  applyI18n();
+}
+function confirmStandby() {
+  if (confirm(t("web.confirm_standby"))) hapCall("standby");
+}
+function powerLabel(p) {
+  if (p === "active") return t("web.power.active");
+  if (p === "standby" || p === "off") return t("web.power.standby");
+  return p;
+}
+
 let lastState = null;
 let lastDuration = 0;
 
@@ -678,7 +735,7 @@ function applySleepUI(timer) {
       const opt = document.createElement("option");
       opt.value = String(sec);
       const min = Math.round(sec / 60);
-      opt.textContent = min + " min";
+      opt.textContent = t("web.minutes", {n: min});
       sel.appendChild(opt);
     });
   }
@@ -693,14 +750,14 @@ function applyVolumeUI(vol) {
   if (!slider || !vol) return;
   if (vol.maxVolume <= 0) {
     slider.disabled = true;
-    note.textContent = "HAP-Z1ES has no internal amp — volume is fixed (use external amp / preamp).";
+    note.textContent = t("web.vol.no_amp");
   } else {
     slider.disabled = false;
     slider.min = vol.minVolume || 0;
     slider.max = vol.maxVolume;
     slider.step = vol.step || 1;
     if (vol.volume >= 0) slider.value = vol.volume;
-    note.textContent = "HAP-S1 / amp output. Step: " + (vol.step || 1) + ".";
+    note.textContent = t("web.vol.amp", {step: vol.step || 1});
   }
 }
 
@@ -714,8 +771,8 @@ function applyFavoriteUI(np) {
     b.classList.toggle("active", isHddTrack && b.getAttribute("data-v") === (np.favorite_type || "normal"));
   });
   note.textContent = isHddTrack
-    ? "Acts on the current track in the HAP library."
-    : "Favorites only work on HDD tracks (current source: " + (np.storage_uri || "external") + ").";
+    ? t("web.fav.hdd")
+    : t("web.fav.nonhdd", {src: np.storage_uri || "external"});
 }
 
 document.addEventListener("click", (e) => {
@@ -756,15 +813,15 @@ async function refresh() {
     document.getElementById("error-banner").innerHTML = "";
   } catch (e) {
     document.getElementById("error-banner").innerHTML =
-      '<div class="error">Cannot reach HAP: ' + e.message + "</div>";
+      '<div class="error">' + t("web.err.unreachable", {msg: e.message}) + "</div>";
   }
 }
 
 function apply(d) {
   const np = d.now_playing, sys = d.system, snd = d.sound;
   document.getElementById("device-info").textContent =
-    sys.model + " · firmware " + sys.version + " · " + sys.power;
-  document.getElementById("state").textContent = np.state;
+    sys.model + " · " + t("web.firmware") + " " + sys.version + " · " + powerLabel(sys.power);
+  document.getElementById("state").textContent = t("web.state." + np.state);
   document.getElementById("state").className = "state-tag " + np.state;
   document.getElementById("title").textContent = np.title || "—";
   document.getElementById("artist").textContent = np.artist || "";
@@ -773,7 +830,7 @@ function apply(d) {
     ? (np.sample_rate_hz
         ? np.codec.toUpperCase() + " · " + (np.sample_rate_hz/1000) + " kHz / " + np.bit_depth + "-bit"
         : np.codec.toUpperCase())
-    : (np.storage_uri ? "streaming · " + np.storage_uri : "");
+    : (np.storage_uri ? t("web.np.streaming", {src: np.storage_uri}) : "");
   document.getElementById("tech").textContent = tech;
 
   const cover = document.getElementById("cover");
@@ -843,7 +900,7 @@ async function hapCall(action, params) {
     setTimeout(refresh, 300);
   } catch (e) {
     document.getElementById("error-banner").innerHTML =
-      '<div class="error">Action failed: ' + e.message + "</div>";
+      '<div class="error">' + t("web.err.action", {msg: e.message}) + "</div>";
   }
 }
 
@@ -855,6 +912,8 @@ document.getElementById("progress-bar").addEventListener("click", (e) => {
   hapCall("seek", {position_sec: pos});
 });
 
+buildLangSelect();
+applyI18n();
 refresh();
 setInterval(refresh, 3000);
 
@@ -1005,11 +1064,25 @@ class HAPHandler(BaseHTTPRequestHandler):
             # can't find ourselves on disk for any reason.
             template = _live_html_template() or HTML_PAGE
             cover_css = f'url("{cover}")' if cover else "none"
+            # Pick the initial language: ?lang= query → Accept-Language → OS.
+            # The browser can still switch instantly afterwards (localStorage),
+            # since every catalog is embedded below.
+            qs = urllib.parse.parse_qs(parsed.query)
+            lang = i18n.detect_lang(
+                accept_language=self.headers.get("Accept-Language"),
+                override=qs.get("lang", [None])[0],
+            )
+            i18n_json = json.dumps(i18n.all_catalogs(), ensure_ascii=False)
+            langs_json = json.dumps(i18n.language_options(), ensure_ascii=False)
             html = (
                 template.replace("__ACCENT_R__", str(bg[0]))
                 .replace("__ACCENT_G__", str(bg[1]))
                 .replace("__ACCENT_B__", str(bg[2]))
                 .replace("__INITIAL_COVER_URL__", cover_css)
+                .replace("__I18N_JSON__", i18n_json)
+                .replace("__LANGS_JSON__", langs_json)
+                .replace("__DEFAULT_LANG__", lang)
+                .replace("__LANG__", lang)
             )
             body = html.encode("utf-8")
             self.send_response(200)
@@ -1161,10 +1234,24 @@ class HAPHandler(BaseHTTPRequestHandler):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("ip", help="HAP device IP address")
+    parser.add_argument("ip", nargs="?", help="HAP device IP address (omit when using --demo)")
     parser.add_argument("--port", type=int, default=8080, help="Local HTTP port (default 8080)")
     parser.add_argument("--bind", default="127.0.0.1", help="Bind address (default 127.0.0.1)")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Start an in-process mock HAP and drive the UI from it — no device needed.",
+    )
     args = parser.parse_args()
+
+    if args.demo:
+        import mock_hap
+
+        mock_hap.serve_in_thread("127.0.0.1", 60200)
+        args.ip = "127.0.0.1"
+        print("Demo mode: in-process mock HAP-Z1ES on 127.0.0.1:60200 (no hardware needed).")
+    if not args.ip:
+        parser.error("an ip address is required (or pass --demo for the mock device)")
 
     HAPHandler.hap = HAP(args.ip)
     try:

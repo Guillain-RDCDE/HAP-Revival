@@ -44,6 +44,21 @@ from typing import Any
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
+try:  # local sibling module; keep the client importable even if it's absent
+    import i18n
+except ImportError:  # pragma: no cover
+    i18n = None  # type: ignore[assignment]
+
+# Active CLI language, resolved once in main(); None until then.
+_LANG: str | None = None
+
+
+def _t(key: str, **kwargs: object) -> str:
+    """Translate a CLI string. Degrades to the key if i18n.py is unavailable."""
+    if i18n is None:
+        return key
+    return i18n.t(key, _LANG, **kwargs)
+
 
 # ---------- Data classes ----------
 
@@ -588,7 +603,7 @@ def _cli_now_playing(hap: HAP, _args) -> None:
             tech = np.codec.upper()
         else:
             src = np.storage_uri or "?"
-            tech = f"streaming ({src})"
+            tech = _t("cli.np.streaming", src=src)
         print(f"{np.state:8s}  {prog}  [{tech}]")
         if np.artist:
             print(f"  {np.artist}")
@@ -597,73 +612,90 @@ def _cli_now_playing(hap: HAP, _args) -> None:
         if np.album:
             print(f"  {np.album}")
         if np.cover_art_url:
-            print(f"  art: {np.cover_art_url}")
+            print(f"  {_t('cli.np.art', url=np.cover_art_url)}")
     else:
         print(f"{np.state}")
 
 
 def _cli_pause(hap: HAP, _args) -> None:
     hap.pause()
-    print("pause sent")
+    print(_t("cli.sent.pause"))
 
 
 def _cli_resume(hap: HAP, _args) -> None:
     hap.resume()
-    print("resume sent")
+    print(_t("cli.sent.resume"))
 
 
 def _cli_seek(hap: HAP, args) -> None:
     hap.seek_seconds(float(args.position))
-    print(f"seek to {args.position}s sent")
+    print(_t("cli.sent.seek", pos=args.position))
 
 
 def _cli_play_track(hap: HAP, args) -> None:
     result = hap.play_track(args.track_id)
-    print(f"playing track {args.track_id} on {result.get('uri', '?')}")
+    print(_t("cli.sent.play_track", id=args.track_id, uri=result.get("uri", "?")))
 
 
 def _cli_next(hap: HAP, _args) -> None:
     hap.next_track()
-    print("next sent")
+    print(_t("cli.sent.next"))
 
 
 def _cli_prev(hap: HAP, _args) -> None:
     hap.previous_track()
-    print("previous sent")
+    print(_t("cli.sent.previous"))
+
+
+def _row(label: str, value: object) -> None:
+    """Print an aligned 'label: value' row (label padded to a stable width)."""
+    print(f"  {label + ':':<22}{value}")
 
 
 def _cli_system(hap: HAP, _args) -> None:
     info = hap.system_info()
-    print(f"  model:    {info.model}")
-    print(f"  name:     {info.name}")
-    print(f"  product:  {info.product}")
-    print(f"  version:  {info.version}")
-    print(f"  gen:      {info.generation}")
-    print(f"  mac:      {info.mac}")
-    print(f"  lang:     {info.language}")
-    print(f"  power:    {hap.power_status()}")
+    _row(_t("cli.sys.model"), info.model)
+    _row(_t("cli.sys.name"), info.name)
+    _row(_t("cli.sys.product"), info.product)
+    _row(_t("cli.sys.version"), info.version)
+    _row(_t("cli.sys.gen"), info.generation)
+    _row(_t("cli.sys.mac"), info.mac)
+    _row(_t("cli.sys.lang"), info.language)
+    _row(_t("cli.sys.power"), hap.power_status())
 
 
 def _cli_sound(hap: HAP, _args) -> None:
     s = hap.sound_settings()
-    print(f"  DSEE:               {s.dsee}")
-    print(f"  DSD remastering:    {s.dsd_remastering}")
-    print(f"  Gapless playback:   {s.gapless_playback}")
-    print(f"  Volume normaliz:    {s.volume_normalization}")
-    print(f"  Oversampling:       {s.oversampling}")
+    _row(_t("cli.snd.dsee"), s.dsee)
+    _row(_t("cli.snd.dsd"), s.dsd_remastering)
+    _row(_t("cli.snd.gapless"), s.gapless_playback)
+    _row(_t("cli.snd.volnorm"), s.volume_normalization)
+    _row(_t("cli.snd.oversampling"), s.oversampling)
 
 
 def _cli_sleep_timer(hap: HAP, _args) -> None:
     t = hap.sleep_timer()
-    print(f"  status:   {t.status}")
-    print(f"  remain:   {t.remain_sec}s")
-    print(f"  sleep:    {t.sleep_sec}s")
-    print(f"  options:  {t.candidate_sec}")
+    _row(_t("cli.sleep.status"), t.status)
+    _row(_t("cli.sleep.remain"), f"{t.remain_sec}s")
+    _row(_t("cli.sleep.sleep"), f"{t.sleep_sec}s")
+    _row(_t("cli.sleep.options"), t.candidate_sec)
 
 
 def main() -> int:
+    # Windows consoles default to cp1252 and choke on accents / CJK; force UTF-8
+    # so translated output (Français, 日本語, …) renders without PYTHONUTF8=1.
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+        except (AttributeError, ValueError):
+            pass
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ip", help="HAP device IP address")
+    parser.add_argument(
+        "--lang",
+        help="Output language: en, fr, ja, de, es, it (default: auto from OS locale / HAP_LANG).",
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("now-playing", help="Show current playback").set_defaults(
@@ -686,15 +718,18 @@ def main() -> int:
     p.set_defaults(func=_cli_play_track)
 
     args = parser.parse_args()
+    global _LANG
+    if i18n is not None:
+        _LANG = i18n.detect_lang(override=args.lang)
     hap = HAP(args.ip)
     try:
         args.func(hap, args)
         return 0
     except HAPMethodError as e:
-        print(f"API error: {e}", file=sys.stderr)
+        print(_t("cli.err.api", msg=e), file=sys.stderr)
         return 1
     except HAPTransportError as e:
-        print(f"Transport error: {e}", file=sys.stderr)
+        print(_t("cli.err.transport", msg=e), file=sys.stderr)
         return 2
 
 
