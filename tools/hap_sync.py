@@ -166,7 +166,10 @@ class Smb:
     def open(self):
         from smb.SMBConnection import SMBConnection
         last = None
-        for direct, port in ((True, 445), (False, 139)):  # try direct-TCP then NetBIOS
+        # NetBIOS (139) first: the HAP's ancient Samba 3.0.37 desyncs SMB1 framing over
+        # Direct TCP (445) after a file or two ("Invalid protocol header for Direct TCP
+        # session message"), so prefer the transport it handles cleanly; 445 is the fallback.
+        for direct, port in ((False, 139), (True, 445)):
             try:
                 c = SMBConnection("", "", "hap-sync", "HAP", use_ntlm_v2=False, is_direct_tcp=direct)
                 if c.connect(self.host, port, timeout=10):
@@ -393,6 +396,10 @@ def transfer(smb: "Smb", jobs: list, index_by_share: dict, on_event=None, should
         if should_cancel and should_cancel():
             on_event("cancelled", i=i, total=total)
             break
+        # A fresh session per file: the HAP's SMB1 stack desyncs if a single connection is
+        # reused across many stores, so we never let it live long enough to drift.
+        smb.reconnect()
+        made.clear()
         ensure_dirs(smb, share, rel, made)
         ok = False
         for attempt in (1, 2):  # retry once on a fresh connection

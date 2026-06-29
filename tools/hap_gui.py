@@ -71,7 +71,12 @@ def _set_window_icon(root: "tk.Tk") -> None:
         pass  # icon is cosmetic; never let it break startup
 
 
-CONFIG_PATH = Path(__file__).resolve().parent / "hap_sync.json"
+# When frozen (PyInstaller onefile), __file__ lives in the temp _MEIPASS extraction dir,
+# so the config must sit next to the .exe to persist across runs; in source it sits next
+# to this script.
+_APP_DIR = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
+            else Path(__file__).resolve().parent)
+CONFIG_PATH = _APP_DIR / "hap_sync.json"
 SHARES = ("HAP_Internal", "HAP_External")
 POLL_MS = 80          # how often the UI drains the worker->UI queue
 API_PORT = 60200      # ScalarWebAPI — the port we scan for to find the HAP
