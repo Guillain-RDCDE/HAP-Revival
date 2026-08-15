@@ -11,6 +11,7 @@ Sony shipped a 2014 audiophile masterpiece, then walked away from its software i
 
 [![docs](https://github.com/Guillain-RDCDE/HAP-Revival/actions/workflows/docs-lint.yml/badge.svg)](https://github.com/Guillain-RDCDE/HAP-Revival/actions/workflows/docs-lint.yml)
 [![python](https://github.com/Guillain-RDCDE/HAP-Revival/actions/workflows/python-lint.yml/badge.svg)](https://github.com/Guillain-RDCDE/HAP-Revival/actions/workflows/python-lint.yml)
+[![release](https://img.shields.io/github/v/release/Guillain-RDCDE/HAP-Revival?color=2ea043&label=HAP%20Sync)](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest)
 [![tests](https://img.shields.io/badge/tests-116%20passing-2ea043)](tests)
 [![devices](https://img.shields.io/badge/devices-HAP--Z1ES%20·%20HAP--S1-1f6feb)](#-supported-devices)
 [![languages](https://img.shields.io/badge/UI-6%20languages-30363d)](tools/i18n.py)

@@ -8,6 +8,33 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Changed (2026-08-15, README rebuilt around what actually ships)
+
+- The landing page opened on the manifesto and buried the working tools in a compressed table, so a
+  visitor read *"pre-alpha research project"* before learning that ten finished tools are one click
+  away. Rebuilt: hero with call-to-action buttons, **"What you can use today"** directly under it
+  (one line per tool, each linked to its source, HAP Sync marked as the entry point), then the
+  5-minute quickstart. The manifesto, the SMB story and the reverse-engineering status now sit
+  *below* the tools. Dropped the `pre-alpha` badge; added release, test-count and language badges.
+
+## [hap-sync-v0.2.0] — 2026-08-15
+
+First published release with a downloadable binary
+([`HapSync.exe`](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe),
+Windows x64, 14.7 MB, self-contained — SHA-256
+`8ca8edf7a9cbbed89c96d83a025cadfd9a9066a5cf8c454cefef01efd3d94db3`). The `hap-sync-v0.1.0` tag was
+never attached to a GitHub release, so every download link in the README pointed at nothing.
+
+### Fixed (2026-06-29, SMB1 transfer drops)
+
+- **Transfers no longer stall mid-library.** The HAP's Samba 3.0.37 desyncs SMB1 framing over
+  Direct TCP (port 445) after a file or two — surfacing as *"Invalid protocol header for Direct TCP
+  session message"*. [`tools/hap_sync.py`](tools/hap_sync.py) now connects over **NetBIOS (139)**
+  first, falling back to 445, and opens a **fresh session per file** so the connection never lives
+  long enough to drift mid-stream. Validated against real hardware: files stuck for years go through.
+- **Frozen-app settings persist** — [`tools/hap_gui.py`](tools/hap_gui.py) reads and writes
+  `hap_sync.json` next to `sys.executable` instead of PyInstaller's temporary `_MEIPASS` dir.
+
 ### Added (2026-06-12, transfer plan: full visibility + add-only mode)
 
 - **`Only add new files` mode** (GUI checkbox, **off by default**; CLI `--new-only` on `plan`/`sync`).
