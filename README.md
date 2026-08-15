@@ -1,122 +1,125 @@
-<!-- markdownlint-disable MD033 MD041 -->
-<p align="center">
-  <img alt="HAP Revival — keeping the Sony HAP-Z1ES & HAP-S1 alive" src=".github/social-banner.png" width="100%">
-</p>
+<!-- markdownlint-disable MD001 MD026 MD033 MD041 -->
+<div align="center">
 
-# 🎵 HAP-Revival
+<img alt="HAP Revival — keeping the Sony HAP-Z1ES & HAP-S1 alive" src=".github/social-banner.png" width="100%">
 
-> **The DACs still sing. The software died in January 2021. HAP-Revival is the second half of the story Sony stopped telling.**
+# HAP-Revival
 
-[![status](https://img.shields.io/badge/status-pre--alpha-orange)](#-where-we-are)
-[![devices](https://img.shields.io/badge/devices-HAP--Z1ES%20%7C%20HAP--S1-blue)](#-supported-devices)
+### The open software the Sony HAP-Z1ES and HAP-S1 never got — working tools you can use tonight, and the reverse engineering of everything Sony left behind.
+
+Sony shipped a 2014 audiophile masterpiece, then walked away from its software in January 2021: still SMBv1, no Tidal, no Qobuz, no Roon, no AirPlay. The DACs still sing. This repo rebuilds the rest — **starting with the parts that already work**.
+
+[![docs](https://github.com/Guillain-RDCDE/HAP-Revival/actions/workflows/docs-lint.yml/badge.svg)](https://github.com/Guillain-RDCDE/HAP-Revival/actions/workflows/docs-lint.yml)
+[![python](https://github.com/Guillain-RDCDE/HAP-Revival/actions/workflows/python-lint.yml/badge.svg)](https://github.com/Guillain-RDCDE/HAP-Revival/actions/workflows/python-lint.yml)
+[![tests](https://img.shields.io/badge/tests-116%20passing-2ea043)](tests)
+[![devices](https://img.shields.io/badge/devices-HAP--Z1ES%20·%20HAP--S1-1f6feb)](#-supported-devices)
+[![languages](https://img.shields.io/badge/UI-6%20languages-30363d)](tools/i18n.py)
 [![license code](https://img.shields.io/badge/code-MIT-green)](LICENSE)
 [![license docs](https://img.shields.io/badge/docs-CC--BY--SA%204.0-lightgrey)](LICENSE-docs)
 
-**Keeping the Sony HAP-Z1ES and HAP-S1 alive — for the music, not the plumbing.**
+<br>
 
-The hardware is a 2014 audiophile masterpiece that still measures and sounds superb. The
-software rotted: Sony shipped one last firmware, walked away, and never looked back. HAP-Revival
-rebuilds the parts it abandoned — one piece you can use today — and reverse-engineers the rest
-toward a modern, open OS.
+[![Download HAP Sync](https://img.shields.io/badge/⬇_Download_HAP_Sync-2ea043?style=for-the-badge)](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest) &nbsp;
+[![Start here](https://img.shields.io/badge/Start_here_—_no_jargon-1f6feb?style=for-the-badge)](docs/START-HERE.md) &nbsp;
+[![The research](https://img.shields.io/badge/The_research-30363d?style=for-the-badge)](docs/00-overview.md)
 
-> 🟢 **New here, or not a programmer?** → **[Start Here — the 5-minute friendly guide](docs/START-HERE.md)**
-> What this machine is, what you can do *today*, and how deep you want to go. No jargon. The rest of this page is the technical side.
+<img src=".github/hap-sync.png" width="820" alt="HAP Sync: the HAP auto-detected, two PC folders mapped to the internal and external shares, scanning a library before transfer">
+
+<sub>HAP Sync — the HAP found by itself, two folders mapped, a library scanned and ready to transfer.</sub>
+
+</div>
 
 ---
 
-## ⬇️ What you can use today
+## What you can use today
 
-| Tool | What it does | Platform |
-|---|---|---|
-| **🎵 HAP Sync** | Copy music to the HAP in one click — auto-finds the device, remembers your folders, skips what the HAP can't play | Windows — [**download `.exe`**](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe) |
-| **🌐 Web UI** | Browser remote: now-playing, play / pause / seek, sound settings, cover art | Any browser |
-| **📱 Control app** | The web UI installed to your phone's home screen — own icon, full-screen, no App Store | iOS · iPadOS · Android — [guide](docs/13-control-app.md) |
-| **📚 Library browser & audit** | Browse and health-check the on-disk catalog offline (formats, hi-res mix, duplicates, missing art) | Any OS |
-| **📟 Python client / CLI** | Scriptable control of every mapped API method, stdlib-only | Any OS |
+Ten finished tools. **No HAP on hand? Every one of them runs against the built-in mock device.**
+
+| | What it does |
+|---|---|
+| **🎵 [HAP Sync](tools/hap_gui.py)** — *the one most people want* | Copies your music to the HAP in one click: finds the device by itself, remembers your folders, skips what the HAP can't play. One `.exe`, no install, **and you never enable Windows' insecure SMB1 client**. |
+| **⌨️ [HAP Sync CLI](tools/hap_sync.py)** | The same transfer engine, scriptable — for cron jobs, NAS boxes and people who like pipes. |
+| **🌐 [Web UI](tools/webui.py)** | A remote in your browser: now-playing, play / pause / seek, sound settings, cover art. One stdlib-only file. |
+| **📱 [Control app](docs/13-control-app.md)** | The web UI installed to your phone's home screen — own icon, full-screen, no App Store, no account. |
+| **📟 [Python client](tools/hap_client.py)** | Scriptable access to every API method we mapped, from the shell or your own code. |
+| **📡 [Discovery](tools/discover.py)** | Finds the HAP on your network over SSDP and dumps its description — no IP to hunt down. |
+| **📚 [Library browser](tools/library_browser.py)** | Browses the HAP's on-disk catalogue offline, straight from its SQLite database. |
+| **🩺 [Library audit](tools/library_audit.py)** | Health-checks your collection: formats, hi-res mix, duplicates, missing artwork, ghost tracks. |
+| **🔧 [SMB Doctor](tools/smb_doctor.py)** | Repairs the exact Windows settings that updates keep breaking, in one click. |
+| **🎭 [Mock device](tools/mock_hap.py)** | A fake HAP that answers the real protocol — try everything with no hardware, break nothing. |
 
 Every interface ships in **6 languages** (EN · FR · JA · DE · ES · IT) and switches live.
-*Planned:* custom firmware with hi-res streaming (Tidal · Qobuz · Roon · AirPlay) and a native iOS app — see the [roadmap](#-roadmap).
-
-### 🎵 HAP Sync — getting music onto the HAP, finally painless
-
-![HAP Sync: the HAP auto-detected, two PC folders mapped to the internal and external shares, scanning a library before transfer](.github/hap-sync.png)
-
-Sony's only supported transfer path is an **SMBv1** share that modern Windows and macOS fight
-you over. HAP Sync does it properly — one self-contained `.exe`, no install:
-
-- **Auto-detects the HAP** on your network — no IP to hunt down.
-- **Speaks SMB1 directly** (via `pysmb`) — you never enable Windows' insecure SMB1 client.
-- **Two folders → both shares** (internal disk + USB), folders remembered between runs.
-- **Skips the junk** (`Thumbs.db`, `.DS_Store`, `.ffs_tmp`, AppleDouble) that becomes ghost tracks, and formats the HAP can't play.
-- **Incremental & fast** — only changed files, remote index cached, WoL to wake a sleeping HAP, auto-reindex after.
-- **Fix Windows access** button repairs the exact settings Windows updates keep breaking, in one click.
-
-```powershell
-# Run from source (Python 3.10+)         |  # …or build the standalone .exe (no Python to run it)
-pip install pysmb                        |  powershell -ExecutionPolicy Bypass -File tools/build_gui.ps1
-python tools/hap_gui.py                  |
-```
-
-Prefer scripting it? The same engine ships as a CLI — see [`tools/hap_sync.py`](tools/hap_sync.py) and the [music-sync guide](docs/12-music-sync.md). · First `.exe` launch: SmartScreen → *More info → Run anyway* (not code-signed yet). Background on the SMB mess: [docs/04-smb.md](docs/04-smb.md).
+**Nothing here can damage your device:** reads are pure, playback is bounded, standby confirms first.
 
 ---
 
-## ▶️ Try it in 5 minutes — zero risk
+## Run it in 5 minutes
 
-You need a HAP-Z1ES or HAP-S1 on your LAN and Python 3.10+. **No HAP? Use the built-in mock device.**
+Grab **HAP Sync** as a single Windows `.exe` from the [**latest release**](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest) — nothing to install.
+First launch: SmartScreen → *More info → Run anyway* (not code-signed yet).
+
+Everything else is Python 3.10+ and stdlib-only:
 
 ```bash
 git clone https://github.com/Guillain-RDCDE/HAP-Revival.git && cd HAP-Revival
 
-python tools/discover.py                 # find your HAP automatically (SSDP)
-python tools/webui.py <hap-ip>           # web UI → http://localhost:8080
-python tools/hap_client.py <hap-ip> now-playing   # or the CLI
+python tools/discover.py                        # find your HAP on the LAN (SSDP)
+python tools/webui.py <hap-ip>                  # web remote → http://localhost:8080
+python tools/hap_client.py <hap-ip> now-playing # …or drive it from the CLI
 
-python tools/webui.py --demo             # no hardware: drive the web UI off a fake HAP
+python tools/webui.py --demo                    # no HAP? run the whole UI off the mock device
 ```
 
-**Nothing in this UI can damage the device.** Reads are pure, playback is bounded, standby
-confirms before sending. The whole client is one stdlib-only file — readable in an afternoon.
+```powershell
+# HAP Sync from source, or build the .exe yourself
+pip install pysmb ; python tools/hap_gui.py
+powershell -ExecutionPolicy Bypass -File tools/build_gui.ps1
+```
+
+New here, or not a programmer? → **[Start Here — the 5-minute friendly guide](docs/START-HERE.md)**.
 
 ---
 
-## 🎼 Why we're doing this
+## Why HAP Sync exists
 
-Put a 24/96 FLAC on a HAP-Z1ES, sit down, and the room changes. There's a stillness around the
-instruments; cellos have weight, voices have a body, you can hear the space the recording was
-made in. This is what audiophile source hardware is *supposed* to do — and what most modern
-streamers, however clever, still don't.
+Sony's only supported way to get music onto the machine is an **SMBv1** share that modern Windows and macOS actively fight you over — and when it half-works, it drops files silently.
 
-The HAP-Z1ES (2014) does it with a chain Sony's "ES" engineers built to last: dual
-Burr-Brown **PCM1795** DACs, an Analog Devices **ADSP-21488 SHARC** DSP, a custom Sony **FPGA**
-on the clock domain, an isolated linear PSU, a 14 kg chassis. A decade on, it still measures and
-sounds outstanding. **What didn't last is the software:**
+- **Auto-detects the HAP** on your network, wakes it over Wake-on-LAN if it's asleep.
+- **Speaks SMB1 itself** (via `pysmb`), so your OS keeps its defences up.
+- **Two folders → both shares** — internal disk and USB, remembered between runs.
+- **Skips the junk** (`Thumbs.db`, `.DS_Store`, `.ffs_tmp`, AppleDouble) that becomes ghost tracks, and formats the HAP can't play.
+- **Incremental & fast** — only what changed, remote index cached, auto-reindex when done.
+- **Survives Sony's ancient Samba** — the 3.0.37 daemon desyncs on modern Direct-TCP SMB1; HAP Sync negotiates over NetBIOS and reconnects per file. *(Files that had been stuck for years now go through.)*
 
-- still **SMBv1** for transfers (broken on modern macOS, off by default on Windows),
-- Spotify **only in standard resolution** — on a deck designed for hi-res,
-- **no Tidal, Qobuz, Roon, or AirPlay 2** — nothing added since 2016,
-- an iOS remote untouched since 2022 that may vanish from the App Store any day,
-- a **Linux 3.0.35** kernel with OpenWrt-era userland.
+Background on the whole SMB mess: [docs/04-smb.md](docs/04-smb.md) · sync guide: [docs/12-music-sync.md](docs/12-music-sync.md).
+
+---
+
+## Why we're doing this
+
+Put a 24/96 FLAC on a HAP-Z1ES, sit down, and the room changes. There's a stillness around the instruments; cellos have weight, voices have a body, you can hear the space the recording was made in. This is what audiophile source hardware is *supposed* to do — and what most modern streamers, however clever, still don't.
+
+The HAP-Z1ES does it with a chain Sony's "ES" engineers built to last: dual Burr-Brown **PCM1795** DACs, an Analog Devices **ADSP-21488 SHARC** DSP, a custom **FPGA** on the clock domain, an isolated linear PSU, a 14 kg chassis. A decade on, it still measures and sounds outstanding. **What didn't last is the software** — SMBv1 transfers, standard-resolution Spotify on a hi-res deck, nothing added since 2016, a remote app untouched since 2022, a Linux 3.0.35 kernel with OpenWrt-era userland.
 
 The hardware deserves better. This is the open project to give it better.
 
-> *I bought a HAP-Z1ES years ago because it sounded right, and it still does. Watching Sony
-> abandon software this good felt like watching a beautiful instrument get locked in a cupboard.
-> This repo is the lockpick. — Guillain*
+> *I bought a HAP-Z1ES years ago because it sounded right, and it still does. Watching Sony abandon software this good felt like watching a beautiful instrument get locked in a cupboard. This repo is the lockpick. — Guillain*
 
 ---
 
-## 📍 Where we are
+## The research half
 
-**Pre-alpha — research & reverse-engineering, and unapologetically a music project pretending to be a software project.** Everything in this repo is network-passive and read-only; **nothing here will brick your device.**
+The tools above exist because the machine was taken apart, on paper, first. That research is the other half of this repo — and the most complete public record of these players anywhere.
 
-- ✅ Mapped the network API (ScalarWebAPI on port 60200) and live-validated ~30 methods.
-- ✅ Decompiled Sony's `HDDAudioRemote` Android app — the first public decompile of this client.
-- ✅ Read the internal disk: it holds **no OS** — just a SQLite catalog + your music. Full schema in hand.
-- ✅ Shipped the usable tools above (Web UI, CLI, HAP Sync, library browser/audit, demo mode).
-- ⏳ Heading for the **UART console** (i.MX6 UART1, `ttymxc0 @ 115200`) for a root shell + NAND dump — firmware 19404R is OTA-only, so the OS must be dumped from the device, not downloaded.
+- ✅ **Network API mapped** — ScalarWebAPI on port 60200, ~30 methods live-validated, [machine-readable spec](api-spec/) included.
+- ✅ **Sony's `HDDAudioRemote` Android app decompiled** — the first public decompile of this client.
+- ✅ **Internal disk read** — it holds **no OS**, just a SQLite catalogue plus your music. Full schema in hand.
+- ✅ **Hardware identified from the metal up** — SoC, DACs, both DSPs, FPGA, PSU, and the Forza kernel driver's ioctl surface.
+- ⏳ **Next: the UART console** — i.MX6 UART1, `ttymxc0 @ 115200`, for a root shell and a NAND dump. Firmware 19404R is OTA-only, so the OS has to be pulled off the device, not downloaded.
 
-### 🗺 Roadmap
+Everything published so far is **network-passive and read-only — nothing in this repo will brick your device.**
+
+### Roadmap
 
 | Phase | Goal | Device risk |
 |---|---|---|
@@ -126,6 +129,7 @@ The hardware deserves better. This is the open project to give it better.
 | **4 — Custom userland** | Keep Sony's kernel + audio driver, swap the playback daemon for MPD + streaming bridges | Gated behind a tested recovery path |
 | **5 — Modern OS** | Mainline where feasible, new control plane, our own API | Opt-in only |
 
+Phases 4–5 are where hi-res streaming (Tidal · Qobuz · Roon · AirPlay 2) and a native iOS app live.
 The analog chain (FPGA → SHARC → PCM1795) is the whole point of this hardware. **We preserve it, period** — every phase keeps it untouched.
 
 ---
@@ -139,11 +143,9 @@ The analog chain (FPGA → SHARC → PCM1795) is the whole point of this hardwar
 
 Same i.MX6 SoC, same firmware images, same protocols — work on one transfers to the other.
 
----
-
 ## 📖 Documentation
 
-The full research lives in [`docs/`](docs/). Start with **[Overview](docs/00-overview.md)** for the project in one page, or [**Start Here**](docs/START-HERE.md) if you're new.
+Start with **[Start Here](docs/START-HERE.md)** if you're new, or the **[Overview](docs/00-overview.md)** for the project in one page.
 
 <details>
 <summary>Full doc index (hardware, API, disk, firmware, UART, audio path…)</summary>
@@ -158,14 +160,9 @@ The full research lives in [`docs/`](docs/). Start with **[Overview](docs/00-ove
 Active reconnaissance: [`research/`](research/) · Tools: [`tools/`](tools/) · API spec: [`api-spec/`](api-spec/).
 </details>
 
----
-
 ## 🤝 Contributing
 
-Found a Japanese teardown blog from 2015? Captured iOS traffic in Wireshark? Scanned a service
-manual? You have something to contribute. Run `python tools/discover.py` (read-only — it just
-probes your LAN and dumps the device description for triage), then read
-[CONTRIBUTING](.github/CONTRIBUTING.md) and open an issue. We read all of them.
+Found a Japanese teardown blog from 2015? Captured iOS traffic in Wireshark? Scanned a service manual? You have something to contribute. Run `python tools/discover.py` (read-only — it just probes your LAN and dumps the device description for triage), then read [CONTRIBUTING](.github/CONTRIBUTING.md) and open an issue. We read all of them.
 
 ## ⚖️ License & disclaimer
 
@@ -176,4 +173,4 @@ The HAP-Z1ES is out of warranty in 2026 regardless. Opening the case, probing UA
 ## 🙏 Acknowledgements
 
 [danielrweber/HAPxFer](https://github.com/danielrweber/HAPxFer) (SMB reference) · [frazei's gist](https://gist.github.com/frazei/09d69242a8beed0cf0a1c193a45a650a) (first public API docs) · [rytilahti/python-songpal](https://github.com/rytilahti/python-songpal) (protocol cousin) · the **Japanese audiophile community** (emuzu, briareos, saionjihouse, the kakaku.com regulars) for a decade of HDD-swap documentation nobody else matched — 本当にありがとうございます · **Sony Engineering** for outstanding 2014 hardware *and* publishing the GPL bundle that makes this possible. · And **you**, if you contribute — especially if you actually *listen* on one of these.
-<!-- markdownlint-enable MD033 MD041 -->
+<!-- markdownlint-enable MD001 MD026 MD033 MD041 -->
