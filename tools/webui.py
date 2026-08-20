@@ -4,8 +4,14 @@ HAP-Revival web UI — a minimal HTML5 control surface for the Sony HAP-Z1ES /
 HAP-S1, served by Python's stdlib http.server.
 
 This is the first working third-party HAP control web app. Open it in any
-modern browser; it polls the device every 3 seconds (matching Sony's own
-polling model) and displays now-playing + lets you pause/resume/seek.
+modern browser; it displays now-playing and lets you pause/resume/seek.
+
+Updates arrive by push: the server subscribes to the player's UDP notification
+stream (see hap_notify.py) and the browser long-polls /api/events, so a track
+change shows up the moment it happens rather than on the next poll. A timer
+still runs underneath — it moves the progress bar and it takes over entirely
+when push isn't available (player asleep, mock device, or --no-push). It ticks
+at 3 s without push and 10 s with it.
 
 It is also an installable **PWA**: on iPhone/iPad, Safari → Share → "Add to
 Home Screen" gives a standalone full-screen remote with its own icon (no App
@@ -23,7 +29,7 @@ Then open http://localhost:8080 in your browser.
 Features in this V0:
     - Now-playing: title, artist, album, cover art (with cross-CDN proxy for
       Spotify Connect album art), elapsed/total time, audio quality info.
-    - Live progress bar updated every 3s.
+    - Live progress bar, advanced locally once a second between refreshes.
     - Pause / Resume / Next / Previous buttons.
     - Seek by clicking on the progress bar.
     - Sound settings (DSEE, DSD remastering, gapless, oversampling) — read-only.
@@ -33,7 +39,7 @@ Features in this V0:
 Not in V0:
     - Library browse (waiting on downloadByDiff to return non-empty location).
     - Playlist management.
-    - WebSocket / push (HAP only supports polling).
+    - WebSocket (the HAP has none — its push mechanism is UDP, and it is used).
     - Multi-device fleet view.
 """
 
@@ -42,6 +48,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -50,8 +58,13 @@ from typing import Any
 # Allow `python tools/webui.py …` from repo root
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import hap_notify  # noqa: E402
 import i18n  # noqa: E402
 from hap_client import HAP, HAPError  # noqa: E402
+
+# How long a browser long-poll waits before returning empty-handed. Short
+# enough to sit well inside any proxy or phone-radio idle timeout.
+EVENT_POLL_TIMEOUT = 25.0
 
 
 _TEMPLATE_OPEN = "# >>> HTML_PAGE TEMPLATE BEGIN >>>"
@@ -545,7 +558,7 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
   <div id="error-banner"></div>
 </main>
 <footer>
-  <a href="https://github.com/Guillain-RDCDE/HAP-Revival" target="_blank">github.com/Guillain-RDCDE/HAP-Revival</a> · <span data-i18n="web.footer.polls">polls every 3s</span> · <span data-i18n="web.footer.stdlib">stdlib only</span> · MIT
+  <a href="https://github.com/Guillain-RDCDE/HAP-Revival" target="_blank">github.com/Guillain-RDCDE/HAP-Revival</a> · <span data-i18n="web.footer.live">live updates</span> · <span data-i18n="web.footer.stdlib">stdlib only</span> · MIT
 </footer>
 <script>
 /* ===== i18n (embedded: every catalog, so switching is instant + offline) ===== */
@@ -599,6 +612,12 @@ function powerLabel(p) {
 
 let lastState = null;
 let lastDuration = 0;
+// Anchors for the local progress ticker: the last position the player told us,
+// when it told us, and whether the clock should be running.
+let localPosition = 0;
+let localDuration = 0;
+let localPlaying = false;
+let localStamp = 0;
 
 /* ===== Theme handling ===== */
 const THEME_KEY = "hap-revival.theme";
@@ -846,6 +865,12 @@ function apply(d) {
   document.getElementById("t-duration").textContent = fmt(np.duration_sec);
   lastDuration = np.duration_sec;
 
+  // Anchor for the local progress ticker (see "Live updates" below).
+  localPosition = np.position_sec || 0;
+  localDuration = np.duration_sec || 0;
+  localPlaying = np.state === "PLAYING";
+  localStamp = Date.now();
+
   if (snd) {
     document.getElementById("s-dsee").textContent = snd.dsee || "—";
     document.getElementById("s-dsd").textContent = snd.dsd_remastering || "—";
@@ -912,10 +937,65 @@ document.getElementById("progress-bar").addEventListener("click", (e) => {
   hapCall("seek", {position_sec: pos});
 });
 
+/* ===== Live updates =====
+   The player pushes a UDP notification the moment anything changes; the server
+   turns that into a long-poll on /api/events. We refresh as soon as one lands,
+   so a track change shows up immediately instead of on the next tick.
+
+   The timer is still there for two reasons: it moves the progress bar, and it
+   is the whole story when push is unavailable (player asleep, mock device, or
+   --no-push). So it runs fast when push is off and slows right down when push
+   is carrying the news. */
+const TICK_PUSH_MS = 10000;
+const TICK_POLL_MS = 3000;
+let pushActive = false;
+let generation = 0;
+let tickTimer = null;
+
+function scheduleTick() {
+  clearTimeout(tickTimer);
+  tickTimer = setTimeout(async () => {
+    await refresh();
+    scheduleTick();
+  }, pushActive ? TICK_PUSH_MS : TICK_POLL_MS);
+}
+
+async function eventLoop() {
+  for (;;) {
+    try {
+      const r = await fetch("/api/events?since=" + generation);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      const was = pushActive;
+      pushActive = !!d.push;
+      if (was !== pushActive) scheduleTick();   // retune the safety net
+      if (d.generation > generation) {
+        generation = d.generation;
+        refresh();
+      }
+      if (!pushActive) await new Promise((r2) => setTimeout(r2, 5000));
+    } catch (e) {
+      // Server gone or endpoint absent — fall back to the timer and retry.
+      if (pushActive) { pushActive = false; scheduleTick(); }
+      await new Promise((r2) => setTimeout(r2, 5000));
+    }
+  }
+}
+
+/* Between refreshes the position is advanced locally, so the bar stays smooth
+   at one frame a second no matter how rarely we talk to the player. */
+setInterval(() => {
+  if (!localPlaying || !localDuration) return;
+  const pos = Math.min(localDuration, localPosition + (Date.now() - localStamp) / 1000);
+  document.getElementById("progress-fill").style.width = (pos / localDuration * 100) + "%";
+  document.getElementById("t-position").textContent = fmt(pos);
+}, 1000);
+
 buildLangSelect();
 applyI18n();
 refresh();
-setInterval(refresh, 3000);
+scheduleTick();
+eventLoop();
 
 /* ===== PWA: register the service worker (enables "installable" on
    Chrome/Edge/Android; harmless on iOS, which installs via the manifest +
@@ -985,10 +1065,82 @@ self.addEventListener("fetch", (e) => {
 """
 
 
+class PushWatcher:
+    """Subscribes to the player's UDP push stream and counts what arrives.
+
+    The browser long-polls `/api/events?since=N`; every notification bumps the
+    generation, which releases every waiting request at once and makes the UI
+    refresh the instant something actually changed, instead of on the next
+    three-second tick.
+
+    Degrades quietly. If the player refuses the subscription — powered off, or
+    a mock device that doesn't implement it — `active` stays False and the UI
+    falls back to its timer. The watcher keeps retrying in the background, so a
+    player that comes online later starts pushing without a restart.
+    """
+
+    RETRY_SECONDS = 30
+
+    def __init__(self, ip: str, listen_port: int = hap_notify.DEFAULT_LISTEN_PORT) -> None:
+        self.ip = ip
+        self.listen_port = listen_port
+        self.generation = 0
+        self.active = False
+        self.last_error: str | None = None
+        self._condition = threading.Condition()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _bump(self) -> None:
+        with self._condition:
+            self.generation += 1
+            self._condition.notify_all()
+
+    def _run(self) -> None:
+        while True:
+            notifier = hap_notify.HapNotifier(self.ip, listen_port=self.listen_port)
+            try:
+                notifier.open()
+                self.active = True
+                self.last_error = None
+                for _event in notifier.events():
+                    self._bump()
+            except (hap_notify.NotifyError, OSError) as exc:
+                self.last_error = str(exc)
+            finally:
+                notifier.close()
+                if self.active:
+                    self.active = False
+                    # Release the long-polls so the UI can fall back to its timer
+                    # rather than hanging until their own deadline.
+                    self._bump()
+            time.sleep(self.RETRY_SECONDS)
+
+    def wait_for_change(self, since: int, timeout: float) -> int:
+        """Block until the generation moves past `since`, or `timeout` elapses.
+
+        Returns the current generation either way — a caller that times out
+        simply long-polls again.
+        """
+        deadline = time.monotonic() + timeout
+        with self._condition:
+            while self.generation <= since:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._condition.wait(remaining)
+            return self.generation
+
+
 class HAPHandler(BaseHTTPRequestHandler):
-    """Serves /, /api/state (GET), and /api/<action> (POST)."""
+    """Serves /, /api/state (GET), /api/events (GET, long-poll), and
+    /api/<action> (POST)."""
 
     hap: HAP  # set on subclass before serve
+    push: PushWatcher | None = None  # set on subclass before serve
 
     # Silence the default request logging
     def log_message(self, fmt, *args):
@@ -1093,6 +1245,28 @@ class HAPHandler(BaseHTTPRequestHandler):
             self.send_header("Expires", "0")
             self.end_headers()
             self.wfile.write(body)
+            return
+
+        if path == "/api/events":
+            # Long-poll. Returns as soon as the player pushes a notification,
+            # or after EVENT_POLL_TIMEOUT so the connection never goes stale.
+            # `push: false` tells the browser to keep its own timer running.
+            if self.push is None:
+                self._send_json(200, {"push": False, "generation": 0})
+                return
+            try:
+                since = int(urllib.parse.parse_qs(parsed.query).get("since", ["0"])[0])
+            except (TypeError, ValueError):
+                since = 0
+            generation = self.push.wait_for_change(since, EVENT_POLL_TIMEOUT)
+            self._send_json(
+                200,
+                {
+                    "push": self.push.active,
+                    "generation": generation,
+                    "error": self.push.last_error,
+                },
+            )
             return
 
         if path == "/api/state":
@@ -1242,6 +1416,17 @@ def main() -> int:
         action="store_true",
         help="Start an in-process mock HAP and drive the UI from it — no device needed.",
     )
+    parser.add_argument(
+        "--no-push",
+        action="store_true",
+        help="Don't subscribe to the player's UDP notifications; poll on a timer instead.",
+    )
+    parser.add_argument(
+        "--notify-port",
+        type=int,
+        default=hap_notify.DEFAULT_LISTEN_PORT,
+        help=f"Local UDP port to receive notifications on (default {hap_notify.DEFAULT_LISTEN_PORT}).",
+    )
     args = parser.parse_args()
 
     if args.demo:
@@ -1260,6 +1445,12 @@ def main() -> int:
     except HAPError as e:
         print(f"WARNING: could not connect to HAP on first try: {e}", file=sys.stderr)
         print("The web UI will still start; refresh in a browser once the device is online.")
+
+    if args.no_push:
+        print("Push notifications disabled; the UI will poll every 3s.")
+    else:
+        HAPHandler.push = PushWatcher(args.ip, listen_port=args.notify_port)
+        HAPHandler.push.start()
 
     server = ThreadingHTTPServer((args.bind, args.port), HAPHandler)
     print(f"HAP-Revival web UI: http://{args.bind}:{args.port}")

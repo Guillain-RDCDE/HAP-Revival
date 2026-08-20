@@ -64,6 +64,22 @@ from typing import Callable, Iterator
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+try:  # local sibling module; keep the client importable even if it's absent
+    import i18n
+except ImportError:  # pragma: no cover
+    i18n = None  # type: ignore[assignment]
+
+# Active CLI language, resolved once in main(); None until then.
+_LANG: str | None = None
+
+
+def _t(key: str, **kwargs: object) -> str:
+    """Translate a CLI string. Degrades to the key if i18n.py is unavailable."""
+    if i18n is None:
+        return key
+    return i18n.t(key, _LANG, **kwargs)
+
+
 DEFAULT_API_PORT = 60200
 DEFAULT_LISTEN_PORT = 9999
 SUBSCRIBE_PATH = "/sony/notification/status"
@@ -378,6 +394,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("ip", help="player address, e.g. 192.168.1.28")
     parser.add_argument(
+        "--lang",
+        help="Output language: en, fr, ja, de, es, it (default: auto from OS locale / HAP_LANG).",
+    )
+    parser.add_argument(
         "--api-port", type=int, default=DEFAULT_API_PORT, help="player API port"
     )
     parser.add_argument(
@@ -400,23 +420,31 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--raw", action="store_true", help="also print the raw datagram")
     args = parser.parse_args(argv)
 
+    global _LANG
+    if i18n is not None:
+        _LANG = i18n.detect_lang(override=args.lang)
+
     try:
         notifier = HapNotifier(
             args.ip, api_port=args.api_port, listen_port=args.port
         )
         notifier.open()
     except NotifyError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(_t("notify.err.subscribe", msg=str(exc)), file=sys.stderr)
         return 1
     except OSError as exc:
-        print(f"error: cannot listen on UDP port {args.port}: {exc}", file=sys.stderr)
+        print(_t("notify.err.bind", port=args.port, msg=str(exc)), file=sys.stderr)
         return 1
 
     print(
-        f"subscribed to {args.ip}:{args.api_port}, listening on UDP {args.port} "
-        f"(renewed every {int((notifier.subscription_seconds or 0) * REARM_FRACTION)}s)"
+        _t(
+            "notify.subscribed",
+            ip=f"{args.ip}:{args.api_port}",
+            port=args.port,
+            renew=int((notifier.subscription_seconds or 0) * REARM_FRACTION),
+        )
     )
-    print("waiting for events — change the track on the player to see one\n")
+    print(_t("notify.waiting") + "\n")
 
     count = 0
     try:
@@ -428,10 +456,10 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print()
     except NotifyError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(_t("notify.err.subscribe", msg=str(exc)), file=sys.stderr)
         return 1
 
-    print(f"{count} event(s) received")
+    print(_t("notify.received", count=count))
     return 0
 
 

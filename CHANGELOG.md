@@ -8,6 +8,31 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Changed (2026-08-20, the web UI stops polling)
+
+Follow-up to the teardown below, closing the two gaps that commit left open.
+
+- **[`tools/webui.py`](tools/webui.py) is push-driven.** The server subscribes to the player's UDP
+  notification stream and the browser long-polls `/api/events`, which is released the moment
+  something changes — a track change now appears immediately instead of up to three seconds later.
+  Verified end-to-end against a live Z1ES: a real push released the long-poll in 5.6 s of a 25 s
+  window and moved the generation counter.
+- **The timer stays, with a job.** It advances the progress bar and it is the whole story when push
+  is unavailable — player asleep, `--demo`'s mock device, or the new `--no-push`. It ticks at 3 s
+  without push and 10 s with it, and retunes itself when push comes or goes. `PushWatcher` retries
+  in the background, so a player switched on later starts pushing without restarting the UI.
+- **The progress bar is smoother while talking less.** Position is now advanced locally once a
+  second from the last anchor the player gave us, instead of jumping on each poll.
+- **`--no-push` and `--notify-port`** added for people who would rather not open a UDP port, or who
+  need a different one.
+- **The six-language claim now holds for the whole surface.** `hap_notify.py`'s CLI strings were
+  English-only; they are in the catalogue in all six languages, and the tool takes `--lang` like
+  every other. The web footer's `web.footer.polls` ("polls every 3s") became `web.footer.live`,
+  since it was describing behaviour the UI no longer has.
+- **18 new tests** (146 → **164**), all offline: the generation/long-poll semantics, one event
+  releasing every waiting browser tab, junk `since` parameters, the no-watcher fallback, and three
+  guards that fail if any of the new strings ever falls back to English.
+
 ### Added (2026-08-20, Crestron module teardown — two corrections and a second API)
 
 The Crestron certified module for the HAP-Z1ES, contributed by **Amos**, who bought it for $0.00

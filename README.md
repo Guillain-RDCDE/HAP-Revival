@@ -14,7 +14,7 @@ The hardware still sings. This is the rest of the story.
 
 [![Release](https://img.shields.io/github/v/release/Guillain-RDCDE/HAP-Revival?color=2ea043&label=HAP%20Sync&style=flat-square)](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest)
 &nbsp;
-[![Tests](https://img.shields.io/badge/tests-146%20passing-2ea043?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-164%20passing-2ea043?style=flat-square)](tests)
 &nbsp;
 [![License](https://img.shields.io/badge/code-MIT-blue?style=flat-square)](LICENSE)
 
@@ -48,6 +48,7 @@ Each one runs against a built-in mock device, so you can try everything with no 
 ### Control the player
 
 - [**Web UI**](tools/webui.py) — now playing, transport, sound settings and cover art, in a browser.
+  Updates the instant the music changes, because the player says so.
 - [**Control app**](docs/13-control-app.md) — the same UI on your phone's home screen. No App Store.
 - [**Python client**](tools/hap_client.py) — every mapped API method, from the shell or your code.
 - [**Push notifications**](tools/hap_notify.py) — the player tells you the moment anything changes,

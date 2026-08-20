@@ -43,7 +43,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 - Whether the device rescans `/mnt/internal/storage/` on a cold disk mount (not just on SMB drop) — the open question gating a direct-to-disk bulk transfer tool. See [`09-disk-layout.md`](09-disk-layout.md).
 - The physical UART test-point location on the board and the live U-Boot boot-log behaviour. (The SoC-side console pinout is now **known** — i.MX6 UART1, balls M1/M3, `ttymxc0 @ 115200`; see [`01-hardware.md`](01-hardware.md) / [`10-uart-console.md`](10-uart-console.md).)
 - The FPGA bitstream programming model (we have the `forza_snd_driver` source, but the FPGA logic itself is closed).
-- The exact protocol used by the official **iOS** app for real-time updates. The **Android** equivalent has been confirmed (APK decompile, 2026-05-25) to use plain HTTP polling at 5 s cadence — no WebSocket, no push, four background threads polling four endpoints. The iOS app likely behaves identically, pending Wireshark capture.
+- The exact protocol used by the official **iOS** app for real-time updates. The **Android** equivalent has been confirmed (APK decompile, 2026-05-25) to use plain HTTP polling at 5 s cadence — four background threads polling four endpoints, no WebSocket. Note this is a choice Sony's app makes, not a limit of the device: the HAP does have a UDP push mechanism, found in the Crestron module and verified live on 2026-08-20 ([`03-network-api.md`](03-network-api.md#real-time-updates--push-notifications-over-udp)). Our own clients use it. The iOS app likely polls like the Android one, pending Wireshark capture.
 
 Filling these gaps is the work of Phase 1 — see [`README.md`](../README.md#roadmap).
 

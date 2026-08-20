@@ -87,9 +87,13 @@ it, edit `tools/make_pwa_icons.py` and re-run `python tools/make_pwa_icons.py`.
   Remote access would need a VPN / reverse proxy — out of scope for now.
 - **The helper machine must be running** for the app to work. This goes away once
   the control daemon runs on the HAP itself (Phase 4).
-- **No push.** The HAP has no push channel, so the app polls every 3 s — exactly
-  as the browser UI and Sony's own app do. (Our future on-device daemon *can*
-  speak push; the HAP firmware can't.)
+- **Push, via the helper machine.** *(Corrected 2026-08-20 — this previously said
+  the HAP has no push channel. It has one: UDP, see
+  [`03-network-api.md`](03-network-api.md#real-time-updates--push-notifications-over-udp).)*
+  The player pushes to the helper machine, which releases the phone's long-poll,
+  so changes reach the phone as they happen. The timer underneath drops to 10 s
+  and only moves the progress bar. Note the player pushes to **one** subscribed
+  port, so the helper machine is what makes this work for several phones at once.
 - iOS only installs PWAs from **Safari**, and only with the device on Wi-Fi.
 
 ## Roadmap from here
