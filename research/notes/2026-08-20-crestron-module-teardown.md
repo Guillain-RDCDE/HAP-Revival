@@ -194,7 +194,36 @@ Base `http://<ip>:60200`. Query parameters are lowercased field names:
 `<setting>` ∈ `dsee`, `gaplessplayback`, `volumenormalization`, `dsdremastering`, `oversampling`,
 `tonecontrolbypass`, `tonecontrolbass`, `tonecontroltreble`.
 
-**All writes go to the single `/operation` endpoint**, discriminated by a `method` field:
+**All writes go to the single `/operation` endpoint**, discriminated by a `method` field.
+
+Verified live 2026-08-20 with an idempotent write — reading `dsee`, posting the identical value
+back, reading again:
+
+```http
+POST /sony/contentplayer/v100/operation
+Content-Type: application/json; charset=UTF-8
+
+{"method":"setsoundsetting","setting":{"name":"dsee","value":"auto"}}
+```
+
+```
+200 {}
+```
+
+**A successful write returns `200` with an empty object `{}`, not a confirmation.** Read the setting
+back to see the effect — an empty reply is success, not silence. Failure shapes, same session:
+
+| What was sent | Reply |
+|---|---|
+| Body wrapped in single quotes (the Windows `cmd` quoting trap) | `400 {"error_code":400,"description":"Bad Request"}` |
+| Body with no `method` field | `400 Bad Request` |
+| `method` fine, unknown `setting.name` | `500 Internal Server Error` |
+| `GET` on `/operation` instead of `POST` | `404 Not Found` |
+
+So a 400 means the daemon could not parse what arrived — nearly always a shell quoting problem
+rather than a wrong schema. A 500 means it parsed fine and did not like the contents.
+
+The full method table below is read from the module; only `setsoundsetting` is verified live.
 
 | Body | Effect |
 |---|---|
@@ -244,7 +273,10 @@ understand — their code renders it literally as `"UNDOCUMENTED STREAM"`.
 
 - `404`/`500` when powered off — the module treats these as "server is likely powered off".
 - `204`/`400` return `{"error_code": N, "description": "…"}`.
-- Bare-text `not found` (no JSON) means the request never reached the application.
+- Bare-text `not found` (no JSON) means the request never reached the application; a JSON 404 means
+  it did, and the application rejected the path.
+- On a write: `400` = unparseable body (check shell quoting first), `500` = parsed but rejected,
+  `200 {}` = done.
 
 ## Licensing
 
