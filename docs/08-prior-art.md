@@ -58,8 +58,9 @@ Total count: **7**. That's the entire world's HAP-specific output across a decad
 - **URL**: <https://applicationmarket.crestron.com/sony-hap-z1es/>
 - **Date**: last updated 2016-07-26
 - **What**: SIMPL Windows TCP/IP control module for the HAP-Z1ES. Closed source. The accompanying Help PDF documents the wire protocol Crestron uses.
-- **Access**: requires a Crestron developer account. Not freely scraped.
-- **Why it matters**: this is the **only quasi-official protocol document** known to exist. If a contributor with Crestron access pulls this PDF, it could leapfrog several phases of API reverse-engineering.
+- **Access**: requires a Crestron developer account. **Obtained 2026-08-20** — contributed by Amos, who registered and downloaded it for $0.00.
+- **Why it matters**: this was the **only quasi-official protocol document** known to exist, and it delivered. It contained far more than the PDF: `Crestron.Sony.ContentServiceWebApi.dll` is a complete, non-obfuscated client that decompiles cleanly. It revealed a second REST API on port 60200 and a working UDP push-notification mechanism, and corrected two of our published conclusions. Teardown: [`research/notes/2026-08-20-crestron-module-teardown.md`](../research/notes/2026-08-20-crestron-module-teardown.md).
+- **Licence**: © Crestron Electronics. Protocol facts are documented; no decompiled code enters this repository.
 
 ### 7. `com.sony.HAP.HDDAudioRemote` Android APK
 

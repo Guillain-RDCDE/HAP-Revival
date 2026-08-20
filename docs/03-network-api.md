@@ -65,18 +65,36 @@ Other endpoints on port 60100:
 - `/MusicConnect_SCPD.xml` — declares `TransportState` (STOPPED/PLAYING/PAUSED_PLAYBACK/NO_MEDIA_PRESENT) and `LastChange` evented variables.
 - `/HAP-Z1ES_120.png`, `/HAP-Z1ES_48.png`, etc. — device icons.
 
-### Vestigial / advertised-but-unimplemented endpoints (don't waste time on these)
+### The second API: REST on the same port
 
-Firmware 19404R advertises a few endpoints that the daemon does **not** actually serve — leftovers
-from a shared Sony codebase. Confirmed dead on 19404R:
+Port 60200 serves **two** APIs. Besides the JSON-RPC ScalarWebAPI below, there is a REST surface —
+the one the embedded `HAP_app.html` admin UI calls, and the one the Crestron control module speaks
+exclusively. It splits in two, and the two halves have opposite fates on 19404R:
+
+- **`/sony/contentplayer/v100/...` — alive.** Power, transport, now-playing, sound settings,
+  external input, and a single `POST …/operation` endpoint for every write. Verified live
+  2026-08-20. Fully mapped in
+  [`research/notes/2026-08-20-crestron-module-teardown.md`](../research/notes/2026-08-20-crestron-module-teardown.md).
+- **`/sony/contentdb/v100/...` — dead.** The library half (`audio/{albums,artists,genres,tracks,playlists}`,
+  `services/{sensme,favorite,directory}`). A GET **hangs and times out (0 bytes)**.
+
+The hang is not the generic unknown-path behaviour: an unknown path under `/sony` 404s in
+milliseconds, and so does `/sony/contentdb/v100` itself. Only its leaves hang. The route is
+registered and its handler never answers — a feature that shipped in firmware `0017310R` (which the
+2016 Crestron module targets) and was later disabled. `HAP_app.html` is therefore not a UI pointed
+at a backend this device never had; it is a UI for a backend this device **lost**.
+
+Until that changes, reach the library via the JSON-RPC `avContent.*` methods, or read it off disk
+([`09-disk-layout.md`](09-disk-layout.md)).
+
+**Trap — the daemon serialises requests.** While a `contentdb` request is pending, *every* endpoint
+times out, including ones that answered seconds earlier; it recovers on its own once the pending
+request is abandoned. Probe sequentially, with a known-good request as a health check between each,
+or you will record false negatives across the whole surface.
+
+### Genuinely vestigial
 
 - **`MusicConnect`** — declared in the UPnP description, but `POST /MusicConnect/control` returns **404**.
-- **`/sony/contentdb/v100/...`** (a REST-style content API the embedded `HAP_app.html` admin UI
-  calls — `audio/{albums,artists,genres,tracks,playlists}`, `contentplayer/v100/...`). On 19404R a
-  **GET hangs and times out (0 bytes)** and a **POST returns 404**, while the same `:60200` answers
-  a normal ScalarWebAPI `getPowerStatus`. So `HAP_app.html` is a generic/older UI pointed at a
-  backend this firmware lacks. The library is reachable via the JSON-RPC `avContent.*` methods (or
-  read directly off disk — [`09-disk-layout.md`](09-disk-layout.md)), **not** this REST surface.
 
 ## JSON-RPC ScalarWebAPI (port 60200)
 
@@ -169,11 +187,68 @@ Notice the typo `playinglist` (instead of `playlist`) — preserved here verbati
 
 `http://<ip>:60200/sony/avContent/storage/cover_art/<8-hex-id>` returns the album art as JPEG (probably). The 8-hex ID is opaque — it does not match the album ID in `audio:album?id=NNN` directly.
 
-## Real-time updates — polling, not WebSocket
+## Real-time updates — push notifications over UDP
 
-**The HAP exposes no push-notification mechanism.** Confirmed via APK decompile (2026-05-25): Sony's own Android client uses **four background polling threads at 5 s cadence** rather than subscribing to events. There is no `switchNotifications` call anywhere in the client. No `ws://` URLs. No WebSocket upgrade handshake. The phrase "WebSocket" appears in zero decompiled source files. Our earlier WebSocket upgrade probe on port 60200 returned 405 because the device doesn't speak WebSocket on that port at all.
+> **Corrected 2026-08-20.** This section previously stated that the HAP exposes no push mechanism.
+> That was wrong. The 2026-05-25 APK decompile searched for `switchNotifications` and for WebSocket
+> and correctly found neither — but the mechanism is neither of those, and Sony's own Android app
+> simply does not use it. Found in the Crestron module and **verified live on 19404R**.
 
-Sony's polling endpoints (replicate this model in any third-party client):
+**The HAP pushes events as pseudo-HTTP `NOTIFY` datagrams over UDP.** Subscribe:
+
+```http
+POST http://<ip>:60200/sony/notification/status
+Content-Type: application/json; charset=UTF-8
+
+{"status": "enable", "port": 9999}
+```
+
+```json
+{ "timeout": 300, "port": 9999 }
+```
+
+`timeout` is the subscription lifetime in seconds — re-arm every ~250 s. Subscribe only while
+`power_state` is `on`. The device then sends to `<your-ip>:<port>` from `<hap-ip>:60200`:
+
+```http
+NOTIFY * HTTP/1.1
+Content-Length: 112
+Content-Type: application/json
+SEQ: 1
+X-ContentServiceHostUUID: uuid:00000000-0000-1010-8000-104FA86F4B84
+
+{ "event": "playingtrackChanged", "url": "http://192.168.1.28:60200/sony/contentplayer/v100/playinginfo" }
+```
+
+The event says *what changed and where to read it*; it does not carry the new state — GET the `url`.
+**Every event is transmitted three times with the same `SEQ`**, so deduplicate on `SEQ`.
+`X-ContentServiceHostUUID` follows the SSDP UUID format, so one listener can serve several HAPs.
+
+| Event | Read back from |
+|---|---|
+| `playingtrackChanged` ✅ observed | `/sony/contentplayer/v100/playinginfo` |
+| `playinginfoChanged` | `/sony/contentplayer/v100/playinginfo` |
+| `playqueueChanged` | `/sony/contentplayer/v100/playqueue` |
+| `powerstateChanged` | `/sony/contentplayer/v100/powerstate` |
+| `volumeChanged` | `/sony/contentplayer/v100/volumelevel` |
+
+Only `playingtrackChanged` is confirmed on 19404R; the other four are read from the Crestron module
+and not yet observed. On Windows, send one datagram outbound from the listening socket to the HAP
+before subscribing — otherwise Windows Firewall drops the unsolicited inbound UDP.
+
+[`tools/hap_notify.py`](../tools/hap_notify.py) implements all of this:
+
+```bash
+python tools/hap_notify.py <hap-ip> --follow
+```
+
+Note that `switchNotifications` (the WebSocket mechanism used on cousin devices) really is absent —
+that part of the earlier finding stands. The two are unrelated mechanisms.
+
+### Polling, as a fallback
+
+Sony's own app polls rather than subscribing. Any client should now prefer the push mechanism above
+and keep this as a fallback:
 
 | Thread | Endpoint | Method | Cadence |
 |---|---|---|---|

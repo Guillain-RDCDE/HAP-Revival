@@ -8,6 +8,51 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-20, Crestron module teardown — two corrections and a second API)
+
+The Crestron certified module for the HAP-Z1ES, contributed by **Amos**, who bought it for $0.00
+from the Crestron Application Market. `docs/08-prior-art.md` had it listed as the single most
+valuable missing artefact. It delivered more than the Help PDF: `Crestron.Sony.ContentServiceWebApi.dll`
+is a complete, non-obfuscated protocol client that decompiles cleanly. Findings re-verified live
+against a Z1ES on 19404R. Full teardown in
+[`research/notes/2026-08-20-crestron-module-teardown.md`](research/notes/2026-08-20-crestron-module-teardown.md).
+
+- **The HAP has push notifications — we said it didn't.** `POST /sony/notification/status` with
+  `{"status":"enable","port":N}` returns `{"timeout":300,"port":N}` and the device then pushes
+  pseudo-HTTP `NOTIFY` datagrams over UDP, each carrying an `event` name and a `url` to read the new
+  state from, retransmitted three times under one `SEQ`. Verified live. The earlier "polling-only"
+  conclusion came from an APK search for `switchNotifications` and WebSocket — both genuinely
+  absent, but the mechanism is neither, and Sony's own app never subscribes. Corrected in
+  `docs/03-network-api.md` and `research/api-method-catalog.md`.
+- **`/sony/contentplayer/v100` is alive — we had the whole REST surface down as vestigial.** Power,
+  transport, now-playing, sound settings, external input, plus one `POST …/operation` endpoint for
+  every write, discriminated by a `method` field. Only the `contentdb` half is dead.
+- **The `contentdb` hang is a dead handler, not an unknown route.** Unknown paths 404 in
+  milliseconds; only `contentdb`'s leaves hang. Combined with the PDF naming vendor firmware
+  `0017310R`, this points at a library API that was withdrawn between that firmware and 19404R —
+  the first evidence an older firmware is functionally richer. See `docs/07-firmware.md`.
+- **Trap documented: the daemon serialises requests.** One pending `contentdb` request makes every
+  other endpoint time out, including ones that answered seconds earlier. Concurrent probing
+  manufactures false negatives across the entire surface — it produced one on the notification
+  endpoint during this very session. Probe sequentially with health checks.
+- **New surface**: S1 tone control (`tonecontrolbass`/`treble`/`bypass`, −10…+10), SensMe channels,
+  a `spotify_connect` source type absent from the 2016 enum, and an undocumented `streaming`
+  content type that Crestron themselves could not parse.
+
+Licence: the binaries are © Crestron Electronics. Protocol facts are documented and re-verified; no
+decompiled code enters this repository.
+
+- **New tool: [`tools/hap_notify.py`](tools/hap_notify.py)** — subscribes to the push stream and
+  streams events, with `--follow` to read back the new state. Handles the three traps for you:
+  `SEQ` deduplication, re-arming at 80% of the server-declared timeout, and priming Windows'
+  stateful UDP filter so the firewall stops dropping the inbound datagrams. Smoke-tested against a
+  live Z1ES: 15 datagrams in, 5 events out.
+- **30 new tests** (116 → **146**), all offline. The parser is tested against a datagram captured
+  verbatim from the device, the deduplicator against the real three-times-per-event retransmission
+  pattern, and the notifier end-to-end over loopback. One test pins `SUBSCRIBE_PATH` to
+  `/sony/notification/status` as a regression guard, since the Crestron module's own path omits the
+  `/sony` prefix and 404s.
+
 ### Changed (2026-08-15, README rebuilt around what actually ships)
 
 - The landing page opened on the manifesto and buried the working tools in a compressed table, so a

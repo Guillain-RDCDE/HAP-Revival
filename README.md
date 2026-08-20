@@ -14,7 +14,7 @@ The hardware still sings. This is the rest of the story.
 
 [![Release](https://img.shields.io/github/v/release/Guillain-RDCDE/HAP-Revival?color=2ea043&label=HAP%20Sync&style=flat-square)](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest)
 &nbsp;
-[![Tests](https://img.shields.io/badge/tests-116%20passing-2ea043?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-146%20passing-2ea043?style=flat-square)](tests)
 &nbsp;
 [![License](https://img.shields.io/badge/code-MIT-blue?style=flat-square)](LICENSE)
 
@@ -32,7 +32,7 @@ The hardware still sings. This is the rest of the story.
 
 ## What you can use today
 
-Ten finished tools. Stdlib-only Python, no accounts, no telemetry.
+Eleven finished tools. Stdlib-only Python, no accounts, no telemetry.
 Each one runs against a built-in mock device, so you can try everything with no HAP at all.
 
 <br>
@@ -50,6 +50,8 @@ Each one runs against a built-in mock device, so you can try everything with no 
 - [**Web UI**](tools/webui.py) — now playing, transport, sound settings and cover art, in a browser.
 - [**Control app**](docs/13-control-app.md) — the same UI on your phone's home screen. No App Store.
 - [**Python client**](tools/hap_client.py) — every mapped API method, from the shell or your code.
+- [**Push notifications**](tools/hap_notify.py) — the player tells you the moment anything changes,
+  instead of being asked every five seconds.
 - [**Discovery**](tools/discover.py) — finds the HAP on your network. No IP to hunt down.
 
 <br>
@@ -155,7 +157,9 @@ The tools exist because the machine was taken apart on paper first. Everything p
 network-passive and read-only.
 
 - The network API is mapped — ScalarWebAPI on port 60200, around thirty methods validated live,
-  with a [machine-readable spec](api-spec/).
+  with a [machine-readable spec](api-spec/). A second, REST API sits on the same port, and the
+  player pushes state changes over UDP rather than needing to be polled —
+  [both found in the Crestron module](research/notes/2026-08-20-crestron-module-teardown.md).
 - Sony's `HDDAudioRemote` Android app is decompiled — the first public decompile of this client.
 - The internal disk is read. It holds no operating system: a SQLite catalogue and your music, and
   the full schema is in hand.
@@ -231,6 +235,8 @@ is provided as-is, without warranty. You are responsible for your own hardware.
 
 ## Acknowledgements
 
+**Amos**, for tracking down the Crestron module and handing over the protocol —
+[two of our conclusions were wrong](research/notes/2026-08-20-crestron-module-teardown.md) until he did ·
 [danielrweber/HAPxFer](https://github.com/danielrweber/HAPxFer) for the SMB reference ·
 [frazei's gist](https://gist.github.com/frazei/09d69242a8beed0cf0a1c193a45a650a) for the first
 public API notes · [rytilahti/python-songpal](https://github.com/rytilahti/python-songpal) for the

@@ -134,7 +134,18 @@ Crestron sells a control module for the HAP-Z1ES, last updated 2016-07-26:
 
 - <https://applicationmarket.crestron.com/sony-hap-z1es/>
 
-The module ships with a Help PDF documenting the TCP/IP command set Crestron uses. Access requires a Crestron account; we have not yet obtained or analyzed this PDF. If you have access, the PDF is the closest thing to an official Sony protocol document that exists in 2026.
+**Obtained and analysed 2026-08-20** (contributed by Amos) — see
+[`research/notes/2026-08-20-crestron-module-teardown.md`](../research/notes/2026-08-20-crestron-module-teardown.md).
+
+Its relevance to *firmware* specifically: the Help PDF names the vendor firmware it was written
+against, **`0017310R`**. The module is built entirely on the `/sony/contentdb/v100` REST library API,
+which on our `19404R` unit is a registered route whose handler never answers — while its sibling
+`/sony/contentplayer/v100` still works. A whole library API therefore appears to have been
+**withdrawn between `0017310R` and `19404R`**.
+
+That is the first concrete evidence that an older firmware is functionally *richer* than the last
+one, and it raises the value of two open questions: whether any `0017310R` image survives anywhere,
+and whether the HAP will accept a downgrade. Both are unanswered.
 
 ## License note
 

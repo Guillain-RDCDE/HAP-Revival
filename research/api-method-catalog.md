@@ -128,13 +128,21 @@ Version"]` at v1.1+. So they exist but are effectively neutered/empty on 19404R 
 | `getMethodTypes` | 1.0 | ✅ but empty | `["<version>"]` | Returns `{results: []}` — same |
 | `getServiceProtocols` | **1.0** | 🟡 | unknown | Exists; `[5, "illegal Request"]` with empty params. Should return supported transports (xhrpost, websocket). |
 | `getSupportedApiInfo` | n/a | ❌ | — | `No Such Method` — confirms [python-songpal#29](https://github.com/rytilahti/python-songpal/issues/29) finding. HAP family deliberately does not expose this. |
-| `switchNotifications` | n/a | ❌ | — | **`No Such Method` — confirmed absent from the HAP entirely** by APK decompile (2026-05-25). Sony's own Android client never calls `switchNotifications` anywhere, and there is no `ws://` URL anywhere in the binary. The HAP is a polling-only device. |
+| `switchNotifications` | n/a | ❌ | — | **`No Such Method`** — absent, confirmed by APK decompile (2026-05-25). No `ws://` URL anywhere in the binary. This stands. It does **not** mean the HAP has no push mechanism — see below. |
 
-## Real-time updates — polling, not WebSocket
+## Real-time updates — UDP push, with polling as fallback
 
-**The HAP exposes no push-notification mechanism.** Confirmed via APK decompile (2026-05-25): Sony's own Android client uses **four background polling threads at 5 s cadence** rather than subscribing to events. There is no `switchNotifications` call anywhere in the client. No `ws://` URLs. No WebSocket upgrade handshake. Our earlier WebSocket upgrade probe on port 60200 returned 405 because the device doesn't speak WebSocket on that port at all.
+> **Corrected 2026-08-20.** This section previously concluded "the HAP is a polling-only device".
+> Wrong: it pushes events as pseudo-HTTP `NOTIFY` datagrams over UDP, via
+> `POST /sony/notification/status`. Found in the Crestron module, verified live on 19404R. Full
+> protocol in [`docs/03-network-api.md`](../docs/03-network-api.md#real-time-updates--push-notifications-over-udp)
+> and [`notes/2026-08-20-crestron-module-teardown.md`](notes/2026-08-20-crestron-module-teardown.md).
+>
+> The earlier reasoning was sound but the search was too narrow — it looked for `switchNotifications`
+> and WebSocket, which genuinely are absent, and concluded from their absence that nothing existed.
+> Sony's own Android client polls and never subscribes, so the APK could not have revealed it.
 
-Sony's polling endpoints (replicate this model in any third-party client):
+Sony's app polls at 5 s. Prefer the push mechanism; keep these as a fallback:
 
 | Thread | Endpoint | Method | Cadence |
 |---|---|---|---|
