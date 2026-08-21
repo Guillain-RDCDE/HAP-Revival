@@ -12,9 +12,11 @@ How the HAP-Z1ES talks to the world over the LAN.
 | 60100 | TCP | HTTP (lighttpd) | UPnP device description + embedded web UI |
 | 60200 | TCP | HTTP (lighttpd) | **JSON-RPC ScalarWebAPI** — the control plane |
 
-**Not open** (verified empirically): 22 (SSH), 23 (telnet), 80 (HTTP), 443 (HTTPS), 5000, 8000, 8080, 8443, 10000 (Sony Home Audio API on cousin devices), 54480 (Sony Personal Audio API), 52323 (BRAVIA).
+**Not open** (verified empirically): 22 (SSH), 23 (telnet), 80 (HTTP), 443 (HTTPS), 5000, 8000, 8080, 8443, 10000 (Sony Home Audio API on cousin devices), 54480 (Sony Personal Audio API), 52323 (BRAVIA), 33335 (Sony receiver "External Control", per the Crestron STR-DN1050 module — refused, 2026-08-21).
 
 **Implication**: the alternate Sony ports referenced in `python-songpal#29` are **not** used by the HAP — the HAP family is its own generation with its own port assignment. Don't waste time probing those.
+
+Three Sony generations, three unrelated control planes: receivers of 2014 on **raw TCP 33335**, the HAP of 2014 on **HTTP 60200**, the STR-DN1080 of 2017 on **ScalarWebAPI 10000**. "Sony device, similar year" predicts nothing about the protocol. Only the HAP-S1 shares the Z1ES's. See [`08-prior-art.md`](08-prior-art.md) §6b.
 
 ## SSDP discovery
 
@@ -119,7 +121,12 @@ Services exposed:
 ### Quirks observed
 
 - **Per-method versioning is non-uniform.** Each method advertises its own version, and the server returns `error: [14, "Unsupported Version"]` if you call the wrong one. There is no `1.0` for everything. See [`research/api-method-catalog.md`](../research/api-method-catalog.md) for the working version of each known method.
-- **HTTP `Expect: 100-continue` triggers `417 Expectation Failed`.** Most Python and PowerShell clients send this header by default; you must disable it. In Python with `requests`: `session = requests.Session(); session.headers.update({'Expect': ''})`.
+- **HTTP `Expect: 100-continue` triggers `417 Expectation Failed`.** Most Python and PowerShell clients send this header by default; you must disable it. It only bites on requests *with a body*, so reads work fine and writes fail — which reads as a syntax problem and isn't one. (Cost a contributor an evening on 2026-08-21.)
+  - Python `requests`: `session = requests.Session(); session.headers.update({'Expect': ''})`
+  - Python stdlib (`http.client`, `urllib`): unaffected, sends no `Expect`.
+  - PowerShell `Invoke-RestMethod` / `Invoke-WebRequest`: `[System.Net.ServicePointManager]::Expect100Continue = $false`. **Set it before the first request to that host** — `ServicePoint` copies the value when it is created and ignores later changes, so putting the line after a GET silently does nothing. Reproduced and fixed on PowerShell 5.1 against a Z1ES, 2026-08-21: `$true` → `417`, `$false` → `200`.
+  - `curl` / `curl.exe`: unaffected below 1 KB of body; force it off with `-H "Expect:"` if needed.
+  - Note that in Windows PowerShell 5.1 `curl` is an **alias for `Invoke-WebRequest`**, not curl. Call `curl.exe` explicitly, or the `-X`/`-H`/`-d` flags will be misparsed.
 - **Introspection is neutered.** `getMethodTypes` returns `{"results": []}` at every version on every service, and `getSupportedApiInfo` returns `[12, "No Such Method"]`. The full method dictionary has been recovered via APK decompile (see [`research/notes/2026-05-25-apk-decompile-findings.md`](../research/notes/2026-05-25-apk-decompile-findings.md) and [`research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md`](../research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md)) plus live fuzzing.
 - **Response bytes are UTF-8 JSON.** Some libraries return them as `byte[]` — decode with UTF-8 before parsing.
 

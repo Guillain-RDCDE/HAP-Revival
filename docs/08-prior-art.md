@@ -62,6 +62,47 @@ Total count: **7**. That's the entire world's HAP-specific output across a decad
 - **Why it matters**: this was the **only quasi-official protocol document** known to exist, and it delivered. It contained far more than the PDF: `Crestron.Sony.ContentServiceWebApi.dll` is a complete, non-obfuscated client that decompiles cleanly. It revealed a second REST API on port 60200 and a working UDP push-notification mechanism, and corrected two of our published conclusions. Teardown: [`research/notes/2026-08-20-crestron-module-teardown.md`](../research/notes/2026-08-20-crestron-module-teardown.md).
 - **Licence**: © Crestron Electronics. Protocol facts are documented; no decompiled code enters this repository.
 
+### 6b. Crestron STR-DN1050 module — checked, and a dead end (negative result)
+
+- **URL**: <https://applicationmarket.crestron.com/sony-str-dn1050/> · Help PDF:
+  <https://applicationmarket.crestron.com/content/Help/Sony/Sony%20STR-DN1050%20IP%20v1.0%20Help.pdf>
+- **Date**: April 2014, v1.0, the only release. Vendor firmware `S9602.1005.0`.
+- **Verdict: no value for this project.** Recorded so nobody spends time re-discovering that.
+
+Suggested 2026-08-21 by Amos, on the reasonable hunch that another 2014-era Sony module might share
+the HAP's protocol. It does not. The STR-DN1050 module is a **raw TCP socket on port 33335** — the
+Crestron symbols are `{{TCP/IP_Client_>>_RX$}}` / `{{TX$_>>_TCP/IP_Client}}`, a byte stream, not
+HTTP. No JSON, no REST, no ScalarWebAPI. It polls every 30–60 s and has no push mechanism. Control
+must first be enabled on the receiver itself (*Settings → Network → External Control → On*), which
+has no equivalent on the HAP.
+
+**Verified**: `192.168.1.28:33335` is **connection-refused** on the HAP (2026-08-21). The HAP does
+not speak the receiver protocol.
+
+This sharpens rather than changes the picture in [`03-network-api.md`](03-network-api.md): three
+Sony generations, three unrelated control planes — receivers of 2014 on raw TCP 33335, the HAP of
+2014 on HTTP 60200, and the STR-DN1080 of 2017 on ScalarWebAPI 10000. "Sony device, similar year"
+predicts nothing. Only the HAP-S1 shares the HAP-Z1ES's protocol.
+
+The module's own note — *"Sony uses the same protocol on most of their receivers"* — is worth
+keeping in mind: it scopes that protocol to **receivers**, a family the HAP is not part of.
+
+### Method: any Crestron module's Help PDF is public
+
+Worth reusing, since it costs nothing and needs no account:
+
+1. Fetch the product page, e.g. `https://applicationmarket.crestron.com/sony-str-dn1050/`.
+2. Grep it for `content/Help/` — the PDF link is in the HTML.
+3. Fetch that URL directly. Plain GET, no cookie, HTTP 200.
+
+Only the module *package* (the `.clz` with the real protocol client inside) needs an account. The
+PDF alone is usually enough to tell whether a module is worth chasing — for the STR-DN1050 it took
+one PDF to rule the whole thing out.
+
+A sweep of the market on 2026-08-21 found **18 Sony products** — mostly Bravia TV series, a Blu-ray
+series, two cameras, a projector, the STR-DN1050 and the HAP-Z1ES. None of the others is in the HAP
+family. This avenue is now exhausted.
+
 ### 7. `com.sony.HAP.HDDAudioRemote` Android APK
 
 - **URL**: <https://www.apkmirror.com/apk/sony-corporation/hdd-audio-remote/hdd-audio-remote-4-3-1-release/>

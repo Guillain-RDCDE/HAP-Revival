@@ -8,6 +8,30 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-21, the 417 trap, and a cousin module ruled out)
+
+- **The `Expect: 100-continue` → `417` quirk now has a fix for every client, and the fix is tested.**
+  We had documented the quirk but only given a remedy for Python `requests`. It cost a contributor
+  an evening, because it bites *only requests with a body* — reads work, writes fail, and it reads
+  like a syntax error. Reproduced against a Z1ES on PowerShell 5.1 (`$true` → 417, `$false` → 200)
+  and confirmed at the protocol level: `POST /operation` returns 200 without the header and 417 with
+  it. The subtlety that makes the fix fail silently is now written down — `ServicePoint` copies
+  `Expect100Continue` when it is created, so the line must come before the *first* request to that
+  host. Also noted: in Windows PowerShell 5.1 `curl` is an alias for `Invoke-WebRequest`, so `-X`,
+  `-H` and `-d` are misparsed; call `curl.exe`.
+- **Crestron STR-DN1050 module: checked and ruled out** (`docs/08-prior-art.md` §6b). Suggested by
+  Amos on the reasonable hunch that another 2014-era Sony module might share the HAP's protocol. It
+  does not: raw TCP on port 33335, a byte stream with no JSON, no REST, polling only. Verified that
+  port 33335 is connection-refused on the HAP. Three Sony generations, three unrelated control
+  planes — receivers on 33335, the HAP on 60200, the STR-DN1080 of 2017 on ScalarWebAPI 10000. Only
+  the HAP-S1 shares the Z1ES's protocol.
+- **Method recorded: any Crestron module's Help PDF is public** — fetch the product page, grep for
+  `content/Help/`, fetch that URL. No account. Only the module package needs one. A sweep found 18
+  Sony products on the market, none of them in the HAP family; that avenue is exhausted.
+- **Reported on a real HAP-S1** (Amos): all three tone-control reads return data, and a
+  `tonecontrolbass` write returns `200 {}`. Marked as a contributor report pending the capture
+  files, not as verified. `volumelevel` on an S1 is still the open question.
+
 ### Changed (2026-08-20, the web UI stops polling)
 
 Follow-up to the teardown below, closing the two gaps that commit left open.

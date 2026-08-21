@@ -244,6 +244,17 @@ Sound setting values are not uniform: `dsee`/`gaplessplayback`/`volumenormalizat
 **Tone control is new to us** — it is an S1 feature (the Z1ES has no tone stage) and appears nowhere
 else in our documentation.
 
+**Reported working on a real HAP-S1** (Amos, 2026-08-21): all three tone-control reads return data,
+and a write —
+`{"method":"setsoundsetting","setting":{"name":"tonecontrolbass","value":"+3"}}` — returned `200 {}`,
+the same success shape verified on the Z1ES. This is a contributor report; the capture files have
+not reached us yet, so it is not marked verified here. If it holds, it is the first confirmation of
+tone control on an S1 and the first S1 write of any kind.
+
+Still open on the S1: `volumelevel`, which returns `500` on the Z1ES because it has no volume stage.
+The S1 has an amp, so it should return real `volume_level_min` / `_max` / `_level` values. That
+would make the Z1ES/S1 divergence an observed fact rather than an inference from the hardware.
+
 ### `contentdb` — dead on 19404R, presumed live on 0017310R
 
 | Method | Path |
