@@ -230,7 +230,7 @@ The full method table below is read from the module; only `setsoundsetting` is v
 | `{"method":"controlplayback","operation":"play\|pause\|next\|previous"}` | Transport |
 | `{"method":"playcontent","content_url":…,"content_type":"track\|container\|streaming","play_type":"now\|next\|last","firstplay_trackid":N,"firstplay_index":N,"shuffle_mode":…,"repeat_mode":…}` | Load and play |
 | `{"method":"setpowerstate","power_state":"on\|off"}` | Power |
-| `{"method":"setvolumelevel","volume_level":"N"}` or `{"method":"setvolumelevel","mute":"on\|off"}` | Volume (**absolute**, between `volume_level_min` and `volume_level_max`, not a percentage) |
+| `{"method":"setvolumelevel","volume_level":"N"}` or `{"method":"setvolumelevel","mute":"on\|off"}` | Volume. `N` is an **absolute integer sent as a string**, not a percentage. The module rescales it against `volume_level_min`/`_max`, which a real S1 does not send — see the `volumelevel` section below before copying that logic. Z1ES has no volume stage at all. |
 | `{"method":"setsoundsetting","setting":{"name":…,"value":…}}` | Sound settings |
 | `{"method":"setexternalinput","source":"none\|optical\|coaxial\|linein1\|linein2"}` | Input |
 | `{"method":"setrepeatmode","repeat_mode":"off\|one\|all"}` | Repeat |
@@ -251,9 +251,45 @@ the same success shape verified on the Z1ES. This is a contributor report; the c
 not reached us yet, so it is not marked verified here. If it holds, it is the first confirmation of
 tone control on an S1 and the first S1 write of any kind.
 
-Still open on the S1: `volumelevel`, which returns `500` on the Z1ES because it has no volume stage.
-The S1 has an amp, so it should return real `volume_level_min` / `_max` / `_level` values. That
-would make the Z1ES/S1 divergence an observed fact rather than an inference from the hardware.
+### `volumelevel`: the Z1ES/S1 divergence, confirmed — and a defect in the module
+
+`GET /sony/contentplayer/v100/volumelevel` returns `500 Internal Server Error` on the Z1ES, which
+has no volume stage. On a **HAP-S1 it answers** (Amos, 2026-08-21):
+
+```json
+{"mute": "off", "request": "http://…/sony/contentplayer/v100/volumelevel", "volume_level": 7}
+```
+
+The divergence is now observed rather than inferred from the hardware. But look at what is
+**missing**: no `volume_level_min`, no `volume_level_max`. The module's parser requires both:
+
+```csharp
+audioObject.Max   = (ushort)response["volume_level_max"];   // absent on a real S1
+audioObject.Min   = (ushort)response["volume_level_min"];   // absent on a real S1
+audioObject.Value = (ushort)response["volume_level"];
+…
+if (audioObject2.Max > audioObject2.Min) { /* rescale to 0–100 */ }
+return null;                                                 // otherwise: no feedback
+```
+
+Either the cast of an absent field throws, or it yields zeros and the `Max > Min` guard falls
+through to `return null`. Both end in the same place: **the module produces no volume feedback on
+this response.** `SetVolume` is gated on the same object (`_audioObject != null && Max > Min`), so
+writes never fire either.
+
+Cross-checking the rest of the package makes the picture unambiguous. The SIMPL+ module exposes
+**no volume signal at all** — the only match for "volume" in the source is `VolumeNormalization`,
+which is a sound setting, not a level — and the Help PDF documents none. So Crestron implemented
+volume in the DLL against a response shape that no shipping HAP produces, found it could not work,
+and shipped with volume disconnected from the installer-facing module. It is dead code.
+
+**Rule for our own client**: treat `volume_level` as an **opaque integer**. Do not assume `min`/`max`
+are present and do not rescale to a percentage — the module's `(value - min) / (max - min) * 100`
+is unusable here. `mute` (`"on"`/`"off"`) is present and behaves as documented.
+
+Still open: the actual range on an S1 (read the endpoint at minimum and maximum physical volume),
+and whether any firmware ever sent `volume_level_min` / `_max`. `7` on a device whose panel goes to
+50 suggests a raw scale, not a percentage — but that is a guess from a single sample.
 
 ### `contentdb` — dead on 19404R, presumed live on 0017310R
 

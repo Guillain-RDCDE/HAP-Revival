@@ -30,7 +30,14 @@ once we ship a versioned release.
   Sony products on the market, none of them in the HAP family; that avenue is exhausted.
 - **Reported on a real HAP-S1** (Amos): all three tone-control reads return data, and a
   `tonecontrolbass` write returns `200 {}`. Marked as a contributor report pending the capture
-  files, not as verified. `volumelevel` on an S1 is still the open question.
+  files, not as verified.
+- **The Z1ES/S1 volume divergence is now observed, and it exposes dead code in the module.** An S1
+  answers `GET …/volumelevel` with `{"mute":"off","volume_level":7}` where the Z1ES returns `500` —
+  but the response carries **no `volume_level_min` / `_max`**, the two fields the Crestron parser
+  requires before it will emit any volume feedback at all. Cross-checked against the rest of the
+  package: the SIMPL+ module exposes no volume signal, and the Help PDF documents none. Crestron
+  wrote volume support against a response shape no shipping HAP produces and left it disconnected.
+  Our client must treat `volume_level` as an opaque integer and must not rescale it to a percentage.
 
 ### Changed (2026-08-20, the web UI stops polling)
 
