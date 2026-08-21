@@ -97,6 +97,28 @@ There is also a cheaper way to want the same thing. If the OTA URL turns out to 
 string, older images may be downloadable straight from Sony's CDN with no downgrade and no risk —
 see [`07-firmware.md`](07-firmware.md). **Capture an update check first; gamble a machine last.**
 
+##### The backup slot holds exactly one image, and re-flashing burns it
+
+Learned the hard way by the same contributor, 2026-08-21, and the single most useful thing on this
+page for anyone planning a downgrade:
+
+> *"it let me downgrade and then upgrade again and overwrote the backup firmware with the current
+> firmware so now if I ask it to downgrade it asks me if I want to go from `0017310R` to
+> `0017310R`."*
+
+So the device keeps **one** previous image, not a history. Every flash — including re-applying the
+version you are already on — overwrites that slot with what was running. Consequences:
+
+- **A downgrade is one-shot.** Going back up burns the only copy of the old image and leaves the
+  menu offering to "downgrade" a version to itself.
+- Confirming the two firmwares actually differ in that dialog **before** accepting is the whole
+  safety check.
+- A unit that has been downgraded and left there is far more valuable to this project than one that
+  has been cycled — it is the only way to reach an older firmware once the slot is spent.
+- Re-flashing the same version does **not** restore withdrawn cloud services. That was the
+  contributor's motivation, and it did not work, because the removal was server-side — see the
+  `netService` section of [`api-method-catalog.md`](../research/api-method-catalog.md).
+
 ## Why this matters for HAP-Revival
 
 These menus are the **only official sanctioned way to change device behavior without flashing firmware**. If we can find an undocumented entry that, say, enables Dropbear SSH or exposes a developer mode, the entire Phase 3 (root shell) becomes a 30-second exercise instead of a UART probing project.
