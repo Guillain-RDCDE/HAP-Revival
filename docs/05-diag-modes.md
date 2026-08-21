@@ -64,6 +64,39 @@ Behavior: setting SMB Version then choosing Restart applies the change. **If you
 
 The existence of a hidden menu structure strongly suggests Sony added other gated options across firmware revisions. We do not know what's there beyond the two documented entries. **Photograph anything else you see** in Special Mode and report it.
 
+#### Reported: a firmware downgrade entry (Amos, 2026-08-21 — unverified)
+
+> *"You can downgrade your firmware to the previous version if you hold down home and push power to
+> turn it on while still holding down home. I forget what the menu option is but it's pretty
+> self-explanatory."*
+
+That entry sequence is exactly the Special Mode combo above, on firmware `0019404R`. If it is real,
+it is the "other gated option" this section has been asking about since the page was written, and it
+matters a lot: **firmware `0017310R` served the `/sony/contentdb/v100` library API that 19404R has
+withdrawn** (see [`08-prior-art.md`](08-prior-art.md) §6 and the
+[teardown note](../research/notes/2026-08-20-crestron-module-teardown.md)). A downgrade would turn
+that inference into a live, testable API.
+
+**Treat as unconfirmed.** The reporter says himself he does not remember the menu wording, and our
+own documentation of this menu lists only *SMB Version* and *Restart*. Either the entry is there and
+we simply never enumerated it, or it belongs to the 4-key DIAG menu, or the recollection is off.
+**Photograph the menu before acting on it.**
+
+##### Before anyone downgrades
+
+Unlike everything else on this page, a downgrade is a **firmware write**, and it leaves the
+risk-free part of the roadmap:
+
+- The HAP has no documented recovery mechanism. Per [`07-firmware.md`](07-firmware.md), *"the only
+  way back from a bricked SPI flash is a JTAG re-flash."*
+- Sony has shipped nothing since January 2021 and the units are long out of production.
+- We do not know whether "downgrade" rolls back to an image already held in NAND or re-fetches one
+  over the network — and that distinction decides whether there is anything to capture at all.
+
+There is also a cheaper way to want the same thing. If the OTA URL turns out to carry the version
+string, older images may be downloadable straight from Sony's CDN with no downgrade and no risk —
+see [`07-firmware.md`](07-firmware.md). **Capture an update check first; gamble a machine last.**
+
 ## Why this matters for HAP-Revival
 
 These menus are the **only official sanctioned way to change device behavior without flashing firmware**. If we can find an undocumented entry that, say, enables Dropbear SSH or exposes a developer mode, the entire Phase 3 (root shell) becomes a 30-second exercise instead of a UART probing project.

@@ -8,6 +8,30 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-21, the firmware blob may not need a NAND dump after all)
+
+- **Sony's update host is alive and is a plain file server.** `info.update.sony.net` resolves to
+  Akamai, its certificate was **renewed on 2025-12-04**, and it answers **plain HTTP with no
+  redirect to HTTPS**, `Server: AkamaiNetStorage`, `Accept-Ranges: bytes`, body `Not a file`. That
+  is a static file store, not an application — so the firmware blob is very likely a public file
+  fetchable with `curl` once we know its path, rather than something extractable only by dumping
+  NAND over UART. `07-firmware.md` said the NAND route was "the realistic path"; that now reads as
+  too pessimistic, and the page says so.
+- **Recommended next step, and it risks nothing**: trigger *Settings → Network Update* on a device
+  already running 19404R while capturing traffic. There is nothing newer, so nothing is written —
+  but the request reveals the path scheme and the transport. If the version string is part of the
+  path, older images including `0017310R` may be directly downloadable, which would hand us the
+  live `contentdb` API **without downgrading anything**.
+- **Reported: a firmware downgrade entry in Special Mode** (Amos, on 19404R) — the "other gated
+  option" `05-diag-modes.md` has been asking about since it was written. Recorded as unverified: the
+  reporter does not remember the wording, and our own notes list only *SMB Version* and *Restart* in
+  that menu. Documented with the safety case attached, because unlike everything else on that page a
+  downgrade is a firmware write and the only way back from a brick is a JTAG re-flash.
+- **S1 volume range measured: 0–74**, not a percentage and not discoverable from the API. The
+  earlier guess of a 50 ceiling was wrong.
+- **The S1 runs `0019404R` too**, so the `volumelevel` divergence (200 on S1, 500 on Z1ES) is a
+  **model** difference, not a firmware one. Question closed.
+
 ### Added (2026-08-21, the 417 trap, and a cousin module ruled out)
 
 - **The `Expect: 100-continue` → `417` quirk now has a fix for every client, and the fix is tested.**

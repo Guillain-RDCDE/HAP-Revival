@@ -287,9 +287,16 @@ and shipped with volume disconnected from the installer-facing module. It is dea
 are present and do not rescale to a percentage — the module's `(value - min) / (max - min) * 100`
 is unusable here. `mute` (`"on"`/`"off"`) is present and behaves as documented.
 
-Still open: the actual range on an S1 (read the endpoint at minimum and maximum physical volume),
-and whether any firmware ever sent `volume_level_min` / `_max`. `7` on a device whose panel goes to
-50 suggests a raw scale, not a percentage — but that is a guess from a single sample.
+**Range measured on a real S1** (Amos, 2026-08-21): **0 to 74**. Not a percentage, and not
+discoverable from the API — a client either hardcodes it or learns it. The earlier guess that the
+ceiling might be 50 was wrong.
+
+**And the S1 runs `0019404R`, the same firmware as our Z1ES.** So the `volumelevel` divergence —
+`200` with data on the S1, `500` on the Z1ES — is a **model** difference, not a firmware one. The
+Z1ES has no volume stage and its daemon says so with a 500. That closes the question.
+
+Still open: whether any firmware ever sent `volume_level_min` / `_max` at all, which would explain
+why Crestron's parser expects them.
 
 ### `contentdb` — dead on 19404R, presumed live on 0017310R
 

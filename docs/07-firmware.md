@@ -34,10 +34,48 @@ OTA payload size, not a clickable link.
 
 **Why nobody ever mirrored it:** the HDD-swap modding scene never needed the blob — the OS lives on
 internal NAND, so a blank replacement drive re-initializes on-device via factory reset (~5 min),
-restoring firmware + bundled music from NAND. **The realistic path to the OS is therefore a NAND dump
-via the UART console** — see [`10-uart-console.md`](10-uart-console.md) — not a blob download. (If
-anyone ever captures the OTA blob, [`ma1co/fwtool.py`](https://github.com/ma1co/fwtool.py) is the
-likely unpacker for Sony's `.SonyAP`/FDAT container.)
+restoring firmware + bundled music from NAND. (If anyone captures the OTA blob,
+[`ma1co/fwtool.py`](https://github.com/ma1co/fwtool.py) is the likely unpacker for Sony's
+`.SonyAP`/FDAT container.)
+
+### The update host is alive, and it is a plain file server (2026-08-21)
+
+That "the realistic path is a NAND dump" conclusion now looks too pessimistic. Probing
+`info.update.sony.net` — no device involved, no credentials:
+
+| Fact | Value |
+|---|---|
+| Resolves | `23.194.190.156`, `.147` via `info.update.sony.net.edgesuite.net` — **Akamai** |
+| TLS certificate | Valid, `CN=info.update.sony.net`, Sony Global Manufacturing & Operations, **renewed 2025-12-04**, expires 2027-01-04 |
+| Plain HTTP | **Works.** `GET http://info.update.sony.net/` → `404`, and **no redirect to HTTPS** |
+| `Server:` | **`AkamaiNetStorage`** |
+| Body at `/` | `Not a file` |
+| `Accept-Ranges` | `bytes` |
+
+Three things follow. Sony is **still paying to renew that certificate in December 2025**, so the
+update infrastructure is maintained, not abandoned. `AkamaiNetStorage` plus `Not a file` means the
+origin is a **static file store**, not an application — give it a valid path and it hands back a
+file. And it serves that file over **plain HTTP with range support and no HTTPS redirect**, which is
+what you would expect a 2014 device running Linux 3.0.35 to require.
+
+**So the blob is very likely a static file on a public CDN, fetchable with `curl`, if we learn its
+path.** That is a different problem from "dump the NAND over UART" — and a much smaller one.
+
+We do **not** know the path, and we will not find it by guessing at someone else's CDN. The way to
+learn it is to capture one update check from a real device (see below). If the version string turns
+out to be part of the path, older firmwares may be directly addressable too — which would give us
+`0017310R`, and with it the live `contentdb` API, **without downgrading anything**.
+
+The UART/NAND route ([`10-uart-console.md`](10-uart-console.md)) remains the way to get the
+*running* system and the proprietary userland. This CDN route, if it works, gets us the *shipped
+image* — cheaper, and with zero risk to hardware. Try it first.
+
+### Next step: capture one update check (zero risk)
+
+On a device already running the latest firmware, trigger **Settings → Network Update** while
+capturing its traffic. There is nothing newer than 19404R, so the check finds no update and nothing
+is written to the device — but the request itself reveals the host, the path scheme, and whether the
+device speaks HTTP or HTTPS. That single capture is the whole unlock, and it risks nothing.
 
 ## GPL source code (what Sony is legally required to publish)
 
