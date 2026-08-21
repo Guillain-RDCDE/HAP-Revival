@@ -8,6 +8,22 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-21, the netService whitelist, and a service withdrawn under the device)
+
+- **`getContentList`'s `netService` shape is live-tested at last**, closing a gap the APK notes left
+  open in May. The firmware's internet-radio whitelist is exactly **`{tunein, radiko}`**: both return
+  `[1, "Any"]` (name accepted, service fails downstream), while `vtuner`, `spotify`, `bivl` and a
+  nonsense control all return `[3, "illegal Argument"]`. Scope makes no difference. `getSourceList`
+  is pinned to **v1.0** — every other version returns `[14, "Unsupported Version"]`.
+- **Two independent sources now agree that vTuner was never supported**: the 2016 Crestron Help PDF
+  marks `Source_Type_VTuner` as *"not currently supported by the device"*, and the 2026 firmware
+  rejects the name outright.
+- **TuneIn was withdrawn server-side during 2026, with no firmware change** (contributor report,
+  Amos, corroborated by the `[1, "Any"]` signature above — the name is valid, the far end is gone).
+  The device still carries the code. Recorded in `api-method-catalog.md`, because it is the clearest
+  statement of why this project exists: the hardware is *still* losing functionality by remote
+  action, a decade after release and five years after its last firmware.
+
 ### Added (2026-08-21, the firmware blob may not need a NAND dump after all)
 
 - **Sony's update host is alive and is a plain file server.** `info.update.sony.net` resolves to

@@ -90,9 +90,38 @@ Each method row shows:
 | `createPlayingListAndQuickPlay` | **1.0** | ✅ | `[{uri: "audio:track?id=N", listIndex: 0, listCount: 1, playbackControlMode: "folder"}]` | **LIVE-CONFIRMED 2026-05-25**. THE primary HDD playback primitive. Builds a play queue and starts playback. Returns `{playbackControlMode, uri: "audio:playinglist?id=<new-id>"}` — note the new playinglist id (in our test: 70, previous was 69). |
 | `scanPlayingContent` | **1.0** | 🟡 | `[{direction: "fwd"\|"bwd"}]` per APK | **Press-and-hold fast-forward / rewind** (NOT scrub-to-position — that's `setPlayContent + positionSec`). The device accelerates playback rate while called. Untested live with this shape. |
 | `getContentInfo` | **1.1** | ✅ | `[{uri: "audio:track?id=N"}]` | **CONFIRMED 2026-05-25**: returns `{title, coverArtUrl, backgroundColorR/G/B/A}` (a *subset* of `getPlayingContentInfo` — no artist/album/codec/duration). Album URIs `audio:album?id=N` return `[1, "Any"]` — only track URIs work for this method. The reduced metadata set suggests there's a separate "full info" call we haven't found yet. |
-| `getContentList` | **1.3** | 🟡 | `[{uri: "netService:audio?serviceName=X[&path=Y]", scope: "directory"\|"favorite"\|"search"\|"connected"\|"unconfirmed"\|"unconnected", stIdx: 0, cnt: 100, finish: false, search?: {word: "..."}}]` | **APK reveals**: this method is for **internet radio / netService browsing only** (TuneIn/vTuner). For HDD content (`audio:track`, `audio:album`), Sony's app **does not use this method** — it browses via the local SQLite cache it sync'd via the `database` service's `downloadByDiff`. That's why all our `audio:album` shapes failed: wrong category of URI entirely. Untested live with the netService shape. |
+| `getContentList` | **1.3** | 🟡 | `[{uri: "netService:audio?serviceName=X[&path=Y]", scope: "directory"\|"favorite"\|"search"\|"connected"\|"unconfirmed"\|"unconnected", stIdx: 0, cnt: 100, finish: false, search?: {word: "..."}}]` | **APK reveals**: this method is for **internet radio / netService browsing only** (TuneIn/vTuner). For HDD content (`audio:track`, `audio:album`), Sony's app **does not use this method** — it browses via the local SQLite cache it sync'd via the `database` service's `downloadByDiff`. That's why all our `audio:album` shapes failed: wrong category of URI entirely. **The netService shape is now LIVE-TESTED (2026-08-21, 19404R)** — see the service-name whitelist below. |
 | `deleteContent` | **1.1** | 🟡 | `[{uri: ["audio:track?id=N", "audio:track?id=M", ...]}]` per APK | **CORRECTED**: `uri` is a JSON ARRAY of URI strings (bulk delete), not a scalar. Use `audio:track?id=N` or `audio:folder?id=N` (folder for bulk dir delete). **DANGEROUS** — destroys library content. Test with disposable test track + backup. |
-| `getSourceList` | 1.0 | ✅ but empty | `[{scheme: "<scheme>"}]` | Returns empty result with empty params. Needs the right scheme. Try `"storage"`, `"audio"`, `"radio"`, `"hap"`. |
+| `getSourceList` | **1.0** | ✅ but empty | `[{scheme: "<scheme>"}]` | **Version pinned 2026-08-21**: only `1.0` is accepted — `1.1`/`1.2`/`1.3` all return `[14, "Unsupported Version"]`. At `1.0` it returns `{"result": []}` even with `scheme: "netService"`. Still needs the right scheme, or is neutered like the rest of introspection. |
+
+### The `netService` whitelist — live-tested 2026-08-21 on 19404R
+
+The APK notes suggested enumerating `serviceName` values to learn which internet-radio services the
+firmware understands. Done, via `getContentList` v1.3. The firmware distinguishes sharply between a
+**name it knows** and a **name it doesn't**, which makes it a clean oracle:
+
+| `serviceName` | Reply | Reading |
+|---|---|---|
+| `tunein` | `[1, "Any"]` | **Known.** Passed argument validation, then failed downstream |
+| `radiko` | `[1, "Any"]` | **Known.** Same |
+| `vtuner` | `[3, "illegal Argument"]` | **Rejected outright** |
+| `spotify` | `[3, "illegal Argument"]` | Rejected — Spotify Connect is not a `netService` |
+| `bivl` | `[3, "illegal Argument"]` | Rejected |
+| `nosuchservice` | `[3, "illegal Argument"]` | Rejected (the control) |
+
+**So the whitelist is exactly `{tunein, radiko}`.** Every `scope` value (`directory`, `favorite`,
+`connected`, `unconfirmed`, `unconnected`) gives the same `[1, "Any"]` for `tunein` — the failure is
+not scope-dependent.
+
+Two cross-confirmations fall out of this. The 2016 Crestron Help PDF marks `Source_Type_VTuner` as
+*"not currently supported by the device"* — and ten years later the firmware still rejects the name
+as an illegal argument. And `[1, "Any"]` rather than `[3, ...]` for `tunein` means the name is valid
+but the service does not answer, which matches a contributor's account (Amos, 2026-08-21) that
+**Sony withdrew TuneIn during 2026 server-side, without shipping any firmware change**. The device
+still has the code; the far end is gone.
+
+That is worth naming plainly: this project is documenting a machine that is *still losing*
+functionality, by remote action, a decade after release and five years after its last firmware.
 | `getSchemeList` | 1.0 | ✅ but empty | `[]` | Returns empty result. |
 | `getCurrentExternalTerminalsStatus` | 1.0 | ✅ | `[]` | Returns empty array. |
 | `getPlaybackModeSettings` | 1.0 | ✅ | `[{target: ""}]` | Returned empty result. |
