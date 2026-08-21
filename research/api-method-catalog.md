@@ -122,6 +122,60 @@ still has the code; the far end is gone.
 
 That is worth naming plainly: this project is documenting a machine that is *still losing*
 functionality, by remote action, a decade after release and five years after its last firmware.
+
+### Browse is dead, but playback still works — internet radio can be restored
+
+Contributed 2026-08-21 via Amos: an independent HTML remote by a German HAP owner (met on the Steve
+Hoffman forums) that still plays TuneIn stations on a device where Sony removed radio from the
+front panel and from both mobile apps. Its entire protocol content is one call:
+
+```json
+POST /sony/avContent
+{
+  "id": 1,
+  "method": "createPlayingListAndQuickPlay",
+  "params": [{
+    "playbackControlMode": "station",
+    "listCount": 0,
+    "uri": "netService:audio?serviceName=tunein&path=1/1/1&id=s20291",
+    "listIndex": 0
+  }],
+  "version": "1.0"
+}
+```
+
+**This is the same primitive we already use for HDD playback, in a mode we did not know about.** Our
+entry above documents `createPlayingListAndQuickPlay` v1.0 with `playbackControlMode: "folder"`,
+`listCount: 1` and an `audio:track?id=N` URI. Here it takes **`playbackControlMode: "station"`**,
+`listCount: 0`, and a `netService:` URI. New enum value, new URI category, same method and version.
+
+It also **contradicts our APK-derived assumption**: the catalogue says radio is played with
+`setPlayContent` + `{uri: "netService:…", playlistName}`. This author uses a different primitive
+altogether. Either both work, or the APK shape is stale.
+
+The important consequence: `getContentList` for `tunein` returns `[1, "Any"]` — **discovery is
+gone** — yet direct playback by station ID still works. Sony withdrew the *browse* service and left
+the *streaming* path intact. So internet radio is restorable on the HAP from the outside, with no
+firmware work: all a client needs is a station ID, which is the `s#####` in a tunein.com URL.
+
+This is also the likeliest explanation for the `streaming` content type that the Crestron module
+encounters and renders literally as `"UNDOCUMENTED STREAM"` — netService items in a directory
+listing.
+
+#### Open: what is `path`?
+
+`path=1/1/1`, `1/1/2`, `1/1/3` … The author's instruction is *"do not forget to increase the data
+number"*, so it must be distinct per station, and he notes *"not every station is properly loaded"*.
+
+**Hypothesis, untested:** his own station list reuses `1/1/5` for two entries (Radio Paradise Global
+Mix and Main Mix), which would make his loading complaint self-inflicted and `path` a positional
+slot rather than a real browse path. Worth testing — resolving it is what makes a radio feature
+reliable rather than flaky.
+
+**Attribution / licence**: the script was shared privately. The protocol facts above are documented
+because facts are not copyrightable, but the file itself is not vendored here and must not be
+without its author's permission. His name is not yet known to us — ask before crediting, and credit
+before shipping anything built on this.
 | `getSchemeList` | 1.0 | ✅ but empty | `[]` | Returns empty result. |
 | `getCurrentExternalTerminalsStatus` | 1.0 | ✅ | `[]` | Returns empty array. |
 | `getPlaybackModeSettings` | 1.0 | ✅ | `[{target: ""}]` | Returned empty result. |
