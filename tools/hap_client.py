@@ -171,6 +171,25 @@ class HAPTransportError(HAPError):
 DEFAULT_CLIENT_ID = "HAP-Revival:0.1:python_client"
 
 
+def _first_field(reply: Any, key: str, default: Any = None) -> Any:
+    """Read `key` out of whatever shape a call came back in.
+
+    `HAP.call` unwraps a single-element `result` list, so the normal case is a
+    plain dict. This also tolerates the wrapped and plural forms rather than
+    silently returning the default when the device surprises us.
+    """
+    if isinstance(reply, dict):
+        if key in reply:
+            return reply[key]
+        for wrapper in ("result", "results"):
+            entries = reply.get(wrapper)
+            if isinstance(entries, list) and entries and isinstance(entries[0], dict):
+                return entries[0].get(key, default)
+    elif isinstance(reply, list) and reply and isinstance(reply[0], dict):
+        return reply[0].get(key, default)
+    return default
+
+
 class HAP:
     """A connection to one Sony HAP-Z1ES or HAP-S1 device on the LAN."""
 
@@ -441,6 +460,83 @@ class HAP:
             ],
         )
 
+    # ---------- Internet radio (TuneIn) ----------
+    #
+    # Reminder for anyone extending this: `call()` already unwraps a
+    # single-element `result` list, so it hands back the inner dict. Writing
+    # `reply["result"][0]` here would silently read nothing — and a test whose
+    # fake `call` returns the wrapped shape will happily agree with you.
+    #
+    # Discovered from an HTML remote written by a HAP owner on the Steve Hoffman
+    # forums, contributed via Amos, 2026-08-21. The call shape is his; the
+    # registration gate below is ours, found when it did not work on an
+    # unregistered player. See research/api-method-catalog.md.
+
+    def radio_registration(self, method: str = "check") -> dict:
+        """Query the TuneIn device-registration state.
+
+        `method` is one of:
+          - ``"check"``  → ``{"isRegistered": bool}``
+          - ``"getPin"`` → ``{"pinCode": "XXXXXX"}``, the pairing code to enter
+            on TuneIn's side. Safe to call; generating a PIN registers nothing.
+          - ``"unregister"`` → unbinds the device. **Destructive**; untested.
+
+        LIVE-CONFIRMED 2026-08-21 for ``check`` and ``getPin``.
+        """
+        if method not in ("check", "getPin", "unregister"):
+            raise ValueError(f"unknown registration method: {method!r}")
+        return self.call(
+            "avContent",
+            "registerDevice",
+            "1.0",
+            [{"uri": "netService:audio?serviceName=tunein", "method": method}],
+        )
+
+    def radio_is_registered(self) -> bool:
+        """True if this player is bound to a TuneIn account.
+
+        **Radio does nothing without this.** On an unregistered player,
+        `play_station` is accepted and returns a playlist URI, the queue stays
+        empty, nothing plays, and whatever was playing is cleared. There is no
+        error to catch — check here first.
+        """
+        return bool(_first_field(self.radio_registration("check"), "isRegistered"))
+
+    def play_station(self, station_id: str, path: str = "1/1/1") -> dict:
+        """Play a TuneIn station by its station id.
+
+        `station_id` is the ``s#####`` in a tunein.com URL — open the station in
+        a browser and read it out of the address bar.
+
+        `path` must differ between stations; its exact meaning is unresolved
+        (see the catalogue). Reusing one value across two stations is believed
+        to be why some stations fail to load.
+
+        **Requires a registered player** — see `radio_is_registered`. This call
+        reports success either way, so it cannot tell you on its own.
+
+        Note the device does not validate `playbackControlMode`; it echoes back
+        whatever it is given. A plausible-looking reply proves nothing.
+        """
+        if not str(station_id).strip():
+            raise ValueError("station_id is required")
+        return self.call(
+            "avContent",
+            "createPlayingListAndQuickPlay",
+            "1.0",
+            [
+                {
+                    "uri": (
+                        "netService:audio?serviceName=tunein"
+                        f"&path={path}&id={station_id}"
+                    ),
+                    "listIndex": 0,
+                    "listCount": 0,
+                    "playbackControlMode": "station",
+                }
+            ],
+        )
+
     def next_track(self) -> None:
         """Skip to next track in the current play queue."""
         self.call("avContent", "setPlayNextContent", "1.0", [{}])
@@ -673,6 +769,29 @@ def _cli_sound(hap: HAP, _args) -> None:
     _row(_t("cli.snd.oversampling"), s.oversampling)
 
 
+def _cli_radio_status(hap: HAP, _args) -> None:
+    registered = hap.radio_is_registered()
+    _row("TuneIn registered", "yes" if registered else "no")
+    if not registered:
+        code = _first_field(hap.radio_registration("getPin"), "pinCode")
+        _row("Pairing PIN", code or "-")
+        print()
+        print("This player is not bound to a TuneIn account, so radio playback")
+        print("will silently do nothing. Pair it on TuneIn's site with the PIN")
+        print("above, then re-run this command to confirm.")
+
+
+def _cli_play_station(hap: HAP, args) -> None:
+    if not hap.radio_is_registered():
+        print("Refusing: this player is not registered with TuneIn, so the")
+        print("station would not play and current playback would be cleared.")
+        print("Run `radio-status` first.")
+        return
+    hap.play_station(args.station_id, args.path)
+    _row("Station", args.station_id)
+    _row("Path", args.path)
+
+
 def _cli_sleep_timer(hap: HAP, _args) -> None:
     t = hap.sleep_timer()
     _row(_t("cli.sleep.status"), t.status)
@@ -712,6 +831,17 @@ def main() -> int:
     p = sub.add_parser("seek")
     p.add_argument("position", type=float, help="Position in seconds")
     p.set_defaults(func=_cli_seek)
+
+    sub.add_parser(
+        "radio-status", help="TuneIn registration state (and a pairing PIN if unbound)"
+    ).set_defaults(func=_cli_radio_status)
+
+    p = sub.add_parser("play-station", help="Play a TuneIn station by its s##### id")
+    p.add_argument("station_id", help="TuneIn station id, e.g. s13606")
+    p.add_argument(
+        "--path", default="1/1/1", help="Slot path; must differ per station (default 1/1/1)"
+    )
+    p.set_defaults(func=_cli_play_station)
 
     p = sub.add_parser("play-track")
     p.add_argument("track_id", type=int, help="Track ID")

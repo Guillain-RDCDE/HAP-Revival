@@ -325,7 +325,10 @@ understand — their code renders it literally as `"UNDOCUMENTED STREAM"`.
 
 ## Errors
 
-- `404`/`500` when powered off — the module treats these as "server is likely powered off".
+- `404`/`500` when powered off — the module treats these as "server is likely powered off". **That
+  reading is incomplete**: `GET …/playinginfo` also returns `500` when the play queue is simply
+  **empty**, on a fully awake player (verified 2026-08-21), and `…/volumelevel` returns `500`
+  permanently on a Z1ES. Check `powerstate` — which stays `200` — before reporting a device offline.
 - `204`/`400` return `{"error_code": N, "description": "…"}`.
 - Bare-text `not found` (no JSON) means the request never reached the application; a JSON 404 means
   it did, and the application rejected the path.

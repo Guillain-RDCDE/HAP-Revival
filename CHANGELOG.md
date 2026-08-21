@@ -8,6 +8,40 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-21, internet radio — and why it does nothing here)
+
+A HAP owner on the Steve Hoffman forums wrote an HTML remote that plays TuneIn stations on a player
+where Sony removed radio from the front panel and both mobile apps. Contributed via Amos. Its whole
+protocol content is one call, and it turned out to be a mode of a primitive we already use.
+
+- **`createPlayingListAndQuickPlay` has a `"station"` mode.** Same method and version as HDD
+  playback, but `playbackControlMode: "station"`, `listCount: 0`, and a
+  `netService:audio?serviceName=tunein&path=…&id=s#####` URI. Documented in the catalogue.
+- **Corrected within the day, before anything was built on it.** The first write-up concluded that
+  Sony had withdrawn only *browse* and left *playback* working, so radio was restorable from
+  outside. Testing it on our own Z1ES said otherwise: the call is accepted, returns a plausible
+  playlist URI, and does nothing — the queue stays empty and the previous session is cleared.
+- **The real gate is registration.** `registerDevice` with `method: "check"` returns
+  `{"isRegistered": false}` here, and TuneIn on the HAP requires per-device pairing. That one fact
+  explains both the empty queue and the `[1, "Any"]` from `getContentList`. The pairing flow is
+  still alive — `method: "getPin"` returns a real code.
+- **`registerDevice` is now LIVE-CONFIRMED** for `check` and `getPin`, having been APK-derived and
+  untested since May.
+- **New client support**: `radio_is_registered()`, `radio_registration()` and `play_station()` in
+  `hap_client.py`, plus `radio-status` and `play-station` CLI commands. `play-station` **refuses to
+  run on an unregistered player** rather than silently wiping playback, and `radio-status` prints
+  the pairing PIN when the player is unbound.
+- **Two response-shape corrections found while testing**: `playbackControlMode` is not validated at
+  all — the device echoes back any string, including nonsense, so a successful-looking reply proves
+  nothing. And `GET …/playinginfo` returns **500 when the play queue is merely empty**, not only
+  when the device is asleep; the Crestron module's "404/500 means powered off" reading would report
+  a live player as offline.
+- **17 new tests** (164 → **185**). Note for the next person: `HAP.call` unwraps the single-element
+  `result` list, so a fake `call` returning the *wrapped* shape will validate a client that reads
+  nothing on real hardware. That happened here — the tests passed and the CLI printed an empty PIN
+  against the live device. The recorder now documents the real contract and the parsing tolerates
+  both.
+
 ### Added (2026-08-21, the netService whitelist, and a service withdrawn under the device)
 
 - **`getContentList`'s `netService` shape is live-tested at last**, closing a gap the APK notes left

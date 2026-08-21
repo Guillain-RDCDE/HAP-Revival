@@ -153,14 +153,65 @@ It also **contradicts our APK-derived assumption**: the catalogue says radio is 
 `setPlayContent` + `{uri: "netService:…", playlistName}`. This author uses a different primitive
 altogether. Either both work, or the APK shape is stale.
 
-The important consequence: `getContentList` for `tunein` returns `[1, "Any"]` — **discovery is
-gone** — yet direct playback by station ID still works. Sony withdrew the *browse* service and left
-the *streaming* path intact. So internet radio is restorable on the HAP from the outside, with no
-firmware work: all a client needs is a station ID, which is the `s#####` in a tunein.com URL.
+> **⚠️ Corrected 2026-08-21, same day.** This section first concluded that "Sony withdrew the browse
+> service and left the streaming path intact, so radio is restorable from the outside". **That was
+> wrong**, and it was wrong because it was inferred from someone else's working device rather than
+> tested on ours. Testing it produced a much more ordinary explanation — see below. Do not build on
+> the original claim.
+
+**What actually happens on an unregistered unit** (live, 19404R, 2026-08-21): the call is *accepted*
+and returns `{"playbackControlMode": "station", "uri": "audio:playinglist?id=1"}`, which looks like
+success. But the play queue stays **empty**, nothing plays, and the previous playback session is
+cleared. `setPlayContent` with the APK's netService shape returns `[1, "Any"]`.
+
+The reason is not a withdrawn service. It is this:
+
+```json
+POST /sony/avContent
+{"method":"registerDevice","version":"1.0","id":1,
+ "params":[{"uri":"netService:audio?serviceName=tunein","method":"check"}]}
+
+→ {"result": [{"isRegistered": false}], "id": 1}
+```
+
+**The unit is not registered with TuneIn**, and TuneIn on the HAP requires per-device registration.
+The German author's device evidently is registered; ours never was. That single fact explains the
+empty queue *and* the `[1, "Any"]` from `getContentList` — no account, no content.
+
+And the registration flow is still alive: `method: "getPin"` returns a real code
+(`{"pinCode": "SW94LN"}`), which is the pairing code you enter on TuneIn's side.
+
+So the honest statement is: **radio may well be restorable, but registration is the gate, and we
+have not been through it.** Whether Sony's pairing back-end still honours a new PIN in 2026 is
+untested and is the next thing to find out. What is certain is that a client cannot simply fire
+station IDs at an unregistered player.
 
 This is also the likeliest explanation for the `streaming` content type that the Crestron module
 encounters and renders literally as `"UNDOCUMENTED STREAM"` — netService items in a directory
 listing.
+
+#### `registerDevice` — LIVE-CONFIRMED 2026-08-21
+
+Previously listed as APK-derived and untested. Both read-ish methods work on 19404R:
+
+| `method` | Response |
+|---|---|
+| `check` | `{"isRegistered": false}` on our unit |
+| `getPin` | `{"pinCode": "SW94LN"}` — a fresh 6-character pairing code |
+| `unregister` | Not tested (destructive on a registered unit) |
+
+`getPin` is safe to call and is the fastest way to tell whether the pairing machinery is alive.
+
+#### Two response-shape corrections found along the way
+
+- **`playbackControlMode` is not validated.** The device echoes back whatever string you send —
+  `"station"`, `"folder"`, even `"bogusmode"` — and still returns a playinglist URI. It is **not**
+  an oracle for probing valid values, and a call "succeeding" here says nothing about whether it
+  did anything.
+- **`GET /sony/contentplayer/v100/playinginfo` returns `500` when the play queue is empty**, not
+  only when the device is asleep. The Crestron module treats `404`/`500` as "server is likely
+  powered off" — that reading is incomplete and will mislead a client into reporting a live player
+  as offline. Cross-check `powerstate` (which stays `200`) before concluding anything.
 
 #### Open: what is `path`?
 

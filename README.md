@@ -14,7 +14,7 @@ The hardware still sings. This is the rest of the story.
 
 [![Release](https://img.shields.io/github/v/release/Guillain-RDCDE/HAP-Revival?color=2ea043&label=HAP%20Sync&style=flat-square)](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest)
 &nbsp;
-[![Tests](https://img.shields.io/badge/tests-164%20passing-2ea043?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-185%20passing-2ea043?style=flat-square)](tests)
 &nbsp;
 [![License](https://img.shields.io/badge/code-MIT-blue?style=flat-square)](LICENSE)
 
@@ -50,7 +50,8 @@ Each one runs against a built-in mock device, so you can try everything with no 
 - [**Web UI**](tools/webui.py) — now playing, transport, sound settings and cover art, in a browser.
   Updates the instant the music changes, because the player says so.
 - [**Control app**](docs/13-control-app.md) — the same UI on your phone's home screen. No App Store.
-- [**Python client**](tools/hap_client.py) — every mapped API method, from the shell or your code.
+- [**Python client**](tools/hap_client.py) — every mapped API method, from the shell or your code,
+  including internet radio.
 - [**Push notifications**](tools/hap_notify.py) — the player tells you the moment anything changes,
   instead of being asked every five seconds.
 - [**Discovery**](tools/discover.py) — finds the HAP on your network. No IP to hunt down.
@@ -154,8 +155,9 @@ The hardware deserves better. This is the open project to give it better.
 
 ## Where the research stands
 
-The tools exist because the machine was taken apart on paper first. Everything published so far is
-network-passive and read-only.
+The tools exist because the machine was taken apart on paper first. Nothing published so far has
+opened a case or touched firmware; the writes we do make are the ordinary ones a remote control
+makes — transport, sound settings, playback.
 
 - The network API is mapped — ScalarWebAPI on port 60200, around thirty methods validated live,
   with a [machine-readable spec](api-spec/). A second, REST API sits on the same port, and the
@@ -166,8 +168,13 @@ network-passive and read-only.
   the full schema is in hand.
 - The hardware is identified from the metal up, including both DSPs and the kernel driver's
   ioctl surface.
-- Next is the UART console — i.MX6 UART1 at 115200 baud — for a root shell and a NAND dump.
-  Firmware 19404R is delivered over the air only, so the OS must be pulled off the device.
+- Internet radio is understood: Sony's TuneIn integration needs a per-device registration, and the
+  pairing endpoint still answers in 2026. The client can read that state and refuse to act without
+  it.
+- Sony's update host is still alive and turns out to be a plain file server, so the firmware image
+  may be downloadable rather than needing a NAND dump — [`docs/07-firmware.md`](docs/07-firmware.md).
+  Next is capturing one update check to learn the path, then the UART console — i.MX6 UART1 at
+  115200 baud — for a root shell.
 
 The roadmap runs in five phases: reverse engineering, then a modern control app over the existing
 API, then a root shell, then a custom userland keeping Sony's kernel and audio driver, and finally
