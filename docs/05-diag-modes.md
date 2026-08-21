@@ -77,10 +77,14 @@ withdrawn** (see [`08-prior-art.md`](08-prior-art.md) §6 and the
 [teardown note](../research/notes/2026-08-20-crestron-module-teardown.md)). A downgrade would turn
 that inference into a live, testable API.
 
-**Treat as unconfirmed.** The reporter says himself he does not remember the menu wording, and our
-own documentation of this menu lists only *SMB Version* and *Restart*. Either the entry is there and
-we simply never enumerated it, or it belongs to the 4-key DIAG menu, or the recollection is off.
-**Photograph the menu before acting on it.**
+**The capability is confirmed; its location is not.** The reporter has actually performed a
+downgrade and a subsequent re-upgrade on his own S1 (see the backup-slot section below), so the
+option demonstrably exists on `19404R` — this is not a recollection of something read about. What
+remains unknown is **which** of the two boot menus holds it and how it is worded; he does not
+remember, and our own notes list only *SMB Version* and *Restart* in Special Mode. He also confirms
+there are two distinct boot menus, matching this page: HOME while powering up, and HOME + BACK.
+
+**Photograph both menus before acting.** That single photo is the missing piece.
 
 ##### Before anyone downgrades
 
@@ -103,8 +107,13 @@ Learned the hard way by the same contributor, 2026-08-21, and the single most us
 page for anyone planning a downgrade:
 
 > *"it let me downgrade and then upgrade again and overwrote the backup firmware with the current
-> firmware so now if I ask it to downgrade it asks me if I want to go from `0017310R` to
-> `0017310R`."*
+> firmware so now if I ask it to downgrade it asks me if I want to go from [version] to
+> [the same version]."*
+
+*(The contributor first quoted specific version numbers here and then corrected himself — he had
+repeated a version string out of our own correspondence rather than read it off the unit. **His
+device is on `19404R`**, like every other HAP we have access to. The mechanism below is unaffected;
+only the numbers on his screen were misreported. **No unit on an older firmware is known to exist.**)*
 
 So the device keeps **one** previous image, not a history. Every flash — including re-applying the
 version you are already on — overwrites that slot with what was running. Consequences:
