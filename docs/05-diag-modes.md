@@ -53,12 +53,44 @@ Introduced in firmware **18777R** (mid-2018) to let users on modern OSes (which 
 1. Device in **standby**.
 2. Hold **HOME**, then press **POWER**.
 
-A simpler menu appears with two documented options:
+**Full menu contents, photographed on firmware 19404R** (Amos, 2026-08-22). This page previously
+listed only two entries; there are **five**:
 
-- **SMB Version**: 1.0, 2.0, 2.1, 3.0, 3.0.2, **3.1.1** (default in latest firmware)
-- **Restart**
+| Entry | What it does |
+|---|---|
+| **SMB Version** | `1.0 – 3.1.1`. The one documented by Sony. |
+| **Clear Database** | Wipes the library index. Content is not deleted; the player re-indexes. |
+| **Reset to Default Settings** | Factory settings reset. |
+| **Restore Previous Version** | **The firmware downgrade.** See below. |
+| **Restart** | Applies and reboots. |
 
 Behavior: setting SMB Version then choosing Restart applies the change. **If you do nothing else with this menu, flip the SMB version up** — Windows 11 and modern macOS will start working with the HAP without disabling client-side security.
+
+### Restore Previous Version — the downgrade, in full
+
+Photographed 2026-08-22. The dialog reads:
+
+> **Restore Previous Version**
+> Restoring the previous version of the software does not remove any content, but may require
+> clearing of the database. Are you sure you want to restore the previous version?
+> **Current Version: 0019404R**
+> **Previous Version: 0018120R**
+
+Three things this settles:
+
+- **It names both versions before you commit.** That is the safety check — if the two numbers are
+  identical, the backup slot has already been spent and there is nothing to gain.
+- **`0018120R` is a firmware we did not know existed.** It is absent from the table in
+  [`07-firmware.md`](07-firmware.md) and sits between the known `18444R` and whatever preceded it.
+- **The rollback appears to be local, not a download.** The wording talks only about content and the
+  database — nothing about network, waiting, or fetching. That strongly suggests the previous image
+  is held on NAND rather than re-fetched from Sony. **If so, a downgrade produces no network traffic
+  to capture**, and the "downgrade to sniff an OTA" idea does not work. Capturing a *Network Update
+  check* is unaffected and remains the way in — see [`07-firmware.md`](07-firmware.md).
+
+The unit photographed is a **workplace machine**, not the contributor's own. Downgrading someone's
+work equipment to satisfy our curiosity is not a trade this project should ask for — note that the
+dialog itself warns the database may need clearing, which on a full library means a long re-index.
 
 ### Possible other entries
 

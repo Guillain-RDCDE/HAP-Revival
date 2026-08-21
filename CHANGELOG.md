@@ -8,6 +8,27 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-22, the Special Mode menu photographed, and a CORS trap)
+
+- **Special Mode has five entries, not two.** Photographed on 19404R by Amos, closing a question
+  this page had carried since it was written: alongside *SMB Version* and *Restart* there are
+  **Clear Database**, **Reset to Default Settings** and **Restore Previous Version**.
+- **The downgrade dialog names both versions before you commit**, which is the safety check we had
+  been guessing at. On the unit photographed: current `0019404R`, previous **`0018120R`** — a
+  firmware absent from our table and from every Sony page we have found. It sits between the dead
+  `contentdb` of 19404R and the live one of 17310R, so whether *it* serves that API is now a
+  concrete question.
+- **A downgrade is probably a local rollback, not a re-download.** The dialog speaks only of content
+  and the database, never of the network. If that holds, the "downgrade to sniff an OTA" plan is
+  dead; capturing a *Network Update check* is unaffected and remains the route.
+- **CORS characterised, and it explains a contributor's dead end.** The player answers preflights
+  `200`, echoes `Origin` back, advertises `GET, POST, OPTIONS` — and never sends
+  `Access-Control-Allow-Headers`. So a browser client that sets `Content-Type: application/json`
+  gets its preflight rejected and reports what looks like an unreachable device; one that sets no
+  `Content-Type` is a simple request and works. The device parses JSON without the header anyway.
+  That is exactly why v1 of the contributed TuneIn page works and v2, which added the header, does
+  not. Our `webui.py` proxies through a local server and is unaffected.
+
 ### Added (2026-08-21, internet radio — and why it does nothing here)
 
 A HAP owner on the Steve Hoffman forums wrote an HTML remote that plays TuneIn stations on a player

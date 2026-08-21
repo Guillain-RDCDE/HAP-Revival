@@ -129,6 +129,11 @@ Services exposed:
   - Note that in Windows PowerShell 5.1 `curl` is an **alias for `Invoke-WebRequest`**, not curl. Call `curl.exe` explicitly, or the `-X`/`-H`/`-d` flags will be misparsed.
 - **Introspection is neutered.** `getMethodTypes` returns `{"results": []}` at every version on every service, and `getSupportedApiInfo` returns `[12, "No Such Method"]`. The full method dictionary has been recovered via APK decompile (see [`research/notes/2026-05-25-apk-decompile-findings.md`](../research/notes/2026-05-25-apk-decompile-findings.md) and [`research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md`](../research/notes/2026-05-25-apk-deep-dive-downloadbydiff.md)) plus live fuzzing.
 - **Response bytes are UTF-8 JSON.** Some libraries return them as `byte[]` — decode with UTF-8 before parsing.
+- **CORS: permissive on origin, silent on headers — which blocks browser clients that set `Content-Type`.** Characterised 2026-08-22. The player answers `OPTIONS` with `200`, echoes your `Origin` straight back in `Access-Control-Allow-Origin`, and advertises `Access-Control-Allow-Methods: GET, POST, OPTIONS`. But it **never sends `Access-Control-Allow-Headers`**. So:
+  - A `fetch`/XHR that sets **no** `Content-Type` is a *simple* request, skips the preflight, and works — and because the origin is echoed, the page can even read the reply.
+  - Adding `Content-Type: application/json` makes it *non-simple*, forces a preflight, and the preflight fails for want of `Access-Control-Allow-Headers`. The browser reports a generic network error, which reads like the device being unreachable. It isn't.
+  - **The device does not need the header** — it parses a JSON body without it (verified). For a pure browser client, simply don't set it.
+  - This does not affect clients that go through a local server (our [`webui.py`](../tools/webui.py) proxies, so it is immune), nor `curl`, nor any non-browser client.
 
 ### Sample working call
 
