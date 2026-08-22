@@ -124,7 +124,7 @@ that.) It only subscribes while `power_state` is `on`.
 
 **The Crestron module's own path is wrong for this endpoint.** Its `Notification.Status` namespace
 sits outside the `Sony` sub-namespace, so `PathFactory` yields `/notification/status` — which
-returns a hard 404 here. The working path is `/sony/notification/status`. Also 404: 
+returns a hard 404 here. The working path is `/sony/notification/status`. Also 404:
 `/sony/contentplayer/v100/notification/status`, `/sony/contentplayer/v100/notification`.
 
 ### Receiving
@@ -209,7 +209,7 @@ Content-Type: application/json; charset=UTF-8
 {"method":"setsoundsetting","setting":{"name":"dsee","value":"auto"}}
 ```
 
-```
+```text
 200 {}
 ```
 

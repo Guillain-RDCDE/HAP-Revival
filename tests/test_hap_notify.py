@@ -17,7 +17,7 @@ import time
 import pytest
 
 import hap_notify
-from hap_notify import HapNotifier, NotifyEvent, SeqTracker, parse_notify
+from hap_notify import HapNotifier, SeqTracker, parse_notify
 
 
 # Captured verbatim from 192.168.1.28 on 2026-08-20, firmware 19404R.

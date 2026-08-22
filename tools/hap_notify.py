@@ -60,7 +60,7 @@ import socket
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Iterator
+from typing import Iterator
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 

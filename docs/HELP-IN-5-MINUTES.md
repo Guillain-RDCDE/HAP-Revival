@@ -33,7 +33,7 @@ Throughout, replace `192.168.1.28` with your player's address.
 
 ## 1. Tell us what your player is
 
-```
+```text
 curl.exe http://192.168.1.28:60100/hap.xml
 ```
 
@@ -48,7 +48,7 @@ anywhere public — including on Sony's own site.
 
 ## 2. Four readings that take one paste
 
-```
+```text
 curl.exe http://192.168.1.28:60200/sony/contentplayer/v100/powerstate
 curl.exe http://192.168.1.28:60200/sony/contentplayer/v100/playinginfo
 curl.exe http://192.168.1.28:60200/sony/contentplayer/v100/externalinput
@@ -87,7 +87,7 @@ menu, and a photo is the whole fix.
 
 We do not own an S1. Everything in our documentation about it is inferred or reported.
 
-```
+```text
 curl.exe http://192.168.1.28:60200/sony/contentplayer/v100/volumelevel
 curl.exe http://192.168.1.28:60200/sony/contentplayer/v100/settings/sound/tonecontrolbass
 curl.exe http://192.168.1.28:60200/sony/contentplayer/v100/settings/sound/tonecontroltreble
@@ -117,7 +117,7 @@ curl.exe --% -X POST http://192.168.1.28:60200/sony/avContent -H "Content-Type: 
 
 **Windows Command Prompt** (`cmd.exe`) — the same without `--%`:
 
-```
+```text
 curl.exe -X POST http://192.168.1.28:60200/sony/avContent -H "Content-Type: application/json" -d "{\"method\":\"registerDevice\",\"id\":1,\"version\":\"1.0\",\"params\":[{\"uri\":\"netService:audio?serviceName=tunein\",\"method\":\"check\"}]}"
 ```
 
