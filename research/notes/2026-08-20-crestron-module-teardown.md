@@ -163,8 +163,11 @@ Observed live: `playingtrackChanged`. The Crestron module handles five, matched 
 | `powerstateChanged` | GET `/sony/contentplayer/v100/powerstate` |
 | `volumeChanged` | GET `/sony/contentplayer/v100/volumelevel` |
 
-Only `playingtrackChanged` is confirmed on 19404R so far; the other four are read from the module
-and not yet observed. `volumeChanged` is unlikely to fire on a Z1ES given `volumelevel` returns 500.
+**Three of the five are now observed live** (2026-08-22): `playqueueChanged`, `playingtrackChanged`
+and `playinginfoChanged`. `volumeChanged` is expected never to fire on a Z1ES given `volumelevel`
+returns 500, and `powerstateChanged` needs a standby cycle we have not run. The full trigger table,
+including the ~7 s gap between `playqueueChanged` and `playingtrackChanged` and the fact that sound
+settings emit nothing at all, is in [`docs/03-network-api.md`](../../docs/03-network-api.md).
 
 ### Windows note
 

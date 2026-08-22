@@ -323,18 +323,32 @@ class HapNotifier:
         """Yield deduplicated events, re-arming the subscription as needed.
 
         Runs until `duration` seconds have elapsed, or forever if None.
+
+        Ends cleanly if `close()` is called from another thread while this is
+        iterating — the common shape for a listener thread being shut down by
+        its owner. It stops rather than raising.
         """
         if self._sock is None:
             raise RuntimeError("call open() first, or use as a context manager")
 
         end = None if duration is None else time.monotonic() + duration
         while end is None or time.monotonic() < end:
+            sock = self._sock
+            if sock is None:
+                return                      # closed while we were iterating
             if time.monotonic() >= self._next_rearm:
-                self.subscribe()
+                try:
+                    self.subscribe()
+                except NotifyError:
+                    # A lapsed re-arm is not worth killing the loop over: the
+                    # player may be briefly wedged. Keep listening and retry.
+                    self._next_rearm = time.monotonic() + 10
             try:
-                data, address = self._sock.recvfrom(65535)
+                data, address = sock.recvfrom(65535)
             except socket.timeout:
                 continue
+            except OSError:
+                return                      # socket closed under us
             event = self.handle_datagram(data, address[0])
             if event is not None:
                 yield event

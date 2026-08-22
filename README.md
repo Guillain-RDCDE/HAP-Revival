@@ -14,7 +14,7 @@ The hardware still sings. This is the rest of the story.
 
 [![Release](https://img.shields.io/github/v/release/Guillain-RDCDE/HAP-Revival?color=2ea043&label=HAP%20Sync&style=flat-square)](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest)
 &nbsp;
-[![Tests](https://img.shields.io/badge/tests-185%20passing-2ea043?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-187%20passing-2ea043?style=flat-square)](tests)
 &nbsp;
 [![License](https://img.shields.io/badge/code-MIT-blue?style=flat-square)](LICENSE)
 
@@ -202,7 +202,8 @@ protocols — work on one transfers to the other.
 ## Documentation
 
 Start with [Start Here](docs/START-HERE.md) if you're new, or the [Overview](docs/00-overview.md)
-for the project in one page.
+for the project in one page. **Own a HAP?** [Help in five minutes](docs/HELP-IN-5-MINUTES.md) —
+read-only, copy-paste, no Python needed.
 
 <details>
 <summary>Full index — hardware, API, disk, firmware, UART, audio path</summary>

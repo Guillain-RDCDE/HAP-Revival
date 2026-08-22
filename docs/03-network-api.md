@@ -77,8 +77,20 @@ exclusively. It splits in two, and the two halves have opposite fates on 19404R:
   external input, and a single `POST …/operation` endpoint for every write. Verified live
   2026-08-20. Fully mapped in
   [`research/notes/2026-08-20-crestron-module-teardown.md`](../research/notes/2026-08-20-crestron-module-teardown.md).
-- **`/sony/contentdb/v100/...` — dead.** The library half (`audio/{albums,artists,genres,tracks,playlists}`,
-  `services/{sensme,favorite,directory}`). A GET **hangs and times out (0 bytes)**.
+- **`/sony/contentdb/v100/...` — mostly dead, but not entirely.** The library half
+  (`audio/{albums,artists,genres,tracks,playlists}`, `services/{sensme,favorite,directory}`) **hangs
+  and times out (0 bytes)** on every listing and metadata path.
+
+  **Cover art is the exception and it works** (verified 2026-08-22):
+  `GET /sony/contentdb/v100/audio/albums/images/cover_art/<ID>` returns **200, `image/jpeg`, in
+  ~0.2 s**, while `GET /sony/contentdb/v100/audio/albums/<albumid>` on the *same album* hangs. So
+  the daemon still serves part of this tree; only the database-backed endpoints are unresponsive,
+  which is what you would expect if the backing service was removed rather than the routes.
+
+  The player itself still emits `contentdb` URLs. A `playinginfo` response for HDD content embeds
+  `album.url`, `album.image.url`, `album.tracks_url` and `track.url`, all pointing into this API —
+  of those, only the image one answers. Firmware that hands out links to its own dead endpoints is
+  further evidence of withdrawal rather than of something never implemented.
 
 The hang is not the generic unknown-path behaviour: an unknown path under `/sony` 404s in
 milliseconds, and so does `/sony/contentdb/v100` itself. Only its leaves hang. The route is
@@ -236,17 +248,25 @@ The event says *what changed and where to read it*; it does not carry the new st
 **Every event is transmitted three times with the same `SEQ`**, so deduplicate on `SEQ`.
 `X-ContentServiceHostUUID` follows the SSDP UUID format, so one listener can serve several HAPs.
 
-| Event | Read back from |
-|---|---|
-| `playingtrackChanged` ✅ observed | `/sony/contentplayer/v100/playinginfo` |
-| `playinginfoChanged` | `/sony/contentplayer/v100/playinginfo` |
-| `playqueueChanged` | `/sony/contentplayer/v100/playqueue` |
-| `powerstateChanged` | `/sony/contentplayer/v100/powerstate` |
-| `volumeChanged` | `/sony/contentplayer/v100/volumelevel` |
+| Event | Read back from | Status on 19404R | Fires when |
+|---|---|---|---|
+| `playqueueChanged` | `…/v100/playqueue` | ✅ **observed** | The play queue is replaced — immediately, <0.5 s |
+| `playingtrackChanged` | `…/v100/playinginfo` | ✅ **observed** | The new track actually loads — ~7 s after the queue change |
+| `playinginfoChanged` | `…/v100/playinginfo` | ✅ **observed** | Pause, and resume |
+| `volumeChanged` | `…/v100/volumelevel` | ⬜ not observed | Expected never on a Z1ES, which has no volume stage. Should fire on an S1. |
+| `powerstateChanged` | `…/v100/powerstate` | ⬜ not observed | Would need a standby cycle; not run on a machine whose owner is away |
 
-Only `playingtrackChanged` is confirmed on 19404R; the other four are read from the Crestron module
-and not yet observed. On Windows, send one datagram outbound from the listening socket to the HAP
-before subscribing — otherwise Windows Firewall drops the unsolicited inbound UDP.
+Measured 2026-08-22 by subscribing and then driving the player through queue changes, pause and
+resume. Note the two-stage pattern: a queue change emits `playqueueChanged` at once and
+`playingtrackChanged` several seconds later when the track is really playing. A client that only
+watches one of them will either act on a track that has not started, or lag the change.
+
+**Sound settings emit nothing.** Writing a sound setting (`setsoundsetting`) produced no event at
+all. There is no `soundSettingChanged`. Anything that changes DSEE, DSD remastering, gapless,
+oversampling or tone control must be discovered by re-reading — push will not tell you.
+
+On Windows, send one datagram outbound from the listening socket to the HAP before subscribing —
+otherwise Windows Firewall drops the unsolicited inbound UDP.
 
 [`tools/hap_notify.py`](../tools/hap_notify.py) implements all of this:
 

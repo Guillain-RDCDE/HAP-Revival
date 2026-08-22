@@ -2,12 +2,16 @@
 
 Thanks for being here. The HAP-Z1ES / HAP-S1 community is small — every careful contribution materially advances the project.
 
+> **Just own a HAP and want to help in five minutes?** Go to
+> [`docs/HELP-IN-5-MINUTES.md`](../docs/HELP-IN-5-MINUTES.md) instead — read-only commands to
+> copy and paste, and two menus to photograph. No Python, no account, no case-opening.
+
 ## What we need most, in priority order
 
 1. **API method discoveries.** Anyone with a HAP on their LAN can fuzz the JSON-RPC surface on port 60200 and report a new working method (or a new working version of a known method). See [`research/api-method-catalog.md`](../research/api-method-catalog.md) for what's already mapped. Use the [API method issue template](ISSUE_TEMPLATE/api-method-discovered.yml).
 2. **Hardware photos and findings.** Inside-the-case photos of the main board, FPGA, DSP, and the location of UART/JTAG headers are the single highest-leverage hardware contribution. We currently rely on Sony's service manual; verified high-res photos are better.
 3. **Wireshark captures of the official iOS / Android apps in normal use.** Use a real device, run "HDD Audio Remote" or "Music Center," and capture the LAN traffic (mitmproxy + a self-signed cert if the app uses HTTPS, or plain tcpdump if HTTP). Anonymize and submit to `research/captures/`.
-4. **UART console + NAND dump.** The firmware is OTA-only and unobtainable (so there is no blob to `binwalk`); the OS must be read off the device. Trace the `CSI0_DAT10/11` console pins to their board test points, attach a **3.3 V** USB-serial adapter (115200 8N1), capture the U-Boot/Linux boot log, and `dd` the rootfs (`/dev/mtdblock2`, JFFS2). Full guide: [`docs/10-uart-console.md`](../docs/10-uart-console.md). This is currently the single highest-leverage hardware contribution.
+4. **UART console + NAND dump.** No public copy of the firmware exists, though Sony's update host turns out to be a plain file server and the image may yet be downloadable ([`docs/07-firmware.md`](../docs/07-firmware.md)) — the *running* system and the proprietary userland still have to be read off the device. Trace the `CSI0_DAT10/11` console pins to their board test points, attach a **3.3 V** USB-serial adapter (115200 8N1), capture the U-Boot/Linux boot log, and `dd` the rootfs (`/dev/mtdblock2`, JFFS2). Full guide: [`docs/10-uart-console.md`](../docs/10-uart-console.md). This is currently the single highest-leverage hardware contribution.
 5. **Working code** — in flight. The Python client (`tools/hap_client.py`) and the browser-based control surface (`tools/webui.py`) shipped in the first session. A native iOS / iPad app is the next pipeline target, blocked only by getting a Mac into the build path.
 
 ## What we explicitly do not want

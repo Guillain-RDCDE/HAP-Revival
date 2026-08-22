@@ -234,6 +234,47 @@ def test_events_requires_open():
         list(HapNotifier("127.0.0.1").events(duration=0.1))
 
 
+def test_close_while_iterating_ends_cleanly(notifier):
+    """A listener thread shut down by its owner must stop, not raise.
+
+    Found by running a real capture against a Z1ES: the probe closed the
+    notifier while its listener thread was still inside recvfrom, and the
+    thread died with an exception instead of finishing.
+    """
+    collected = []
+    errors = []
+
+    def listen():
+        try:
+            collected.extend(notifier.events(duration=30))
+        except Exception as exc:            # noqa: BLE001 — that's the point
+            errors.append(exc)
+
+    thread = threading.Thread(target=listen, daemon=True)
+    thread.start()
+    time.sleep(0.3)
+    notifier.close()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive(), "events() did not return after close()"
+    assert errors == [], f"close() raised instead of stopping: {errors}"
+
+
+def test_rearm_failure_does_not_kill_the_loop(notifier, monkeypatch):
+    """A wedged daemon costs us a re-arm, not the whole listener."""
+    calls = []
+
+    def failing_subscribe():
+        calls.append(1)
+        raise hap_notify.NotifyError("daemon wedged")
+
+    monkeypatch.setattr(notifier, "subscribe", failing_subscribe)
+    notifier._next_rearm = time.monotonic() - 1      # due immediately
+
+    assert list(notifier.events(duration=1.5)) == []
+    assert calls, "subscribe() was never retried"
+
+
 def test_fetch_returns_none_for_an_unreachable_url(notifier):
     """A dead readback must not propagate an exception into the event loop."""
     event = parse_notify(

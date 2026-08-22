@@ -8,6 +8,40 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-22, three of five push events measured, and a page for people who own one)
+
+- **Which UDP events actually fire, measured.** Subscribed, then drove the player through queue
+  changes, pause and resume. `playqueueChanged`, `playingtrackChanged` and `playinginfoChanged` are
+  now **observed live**; the table in `03-network-api.md` says what triggers each. Two details worth
+  building around: a queue change emits `playqueueChanged` immediately and `playingtrackChanged`
+  about **seven seconds later** when the track really starts, so a client watching only one of them
+  either acts early or lags. And **sound settings emit nothing at all** — there is no
+  `soundSettingChanged`, so DSEE, DSD remastering, gapless, oversampling and tone control have to be
+  re-read.
+- **`contentdb` is not entirely dead.** `…/audio/albums/images/cover_art/<ID>` returns **200,
+  `image/jpeg`, in 0.2 s**, while the listing for the *same album* hangs. Only the database-backed
+  endpoints are unresponsive. The player also still emits `contentdb` URLs in its own `playinginfo`
+  payload — firmware handing out links to its own dead endpoints, which is what withdrawal looks
+  like rather than something never built.
+- **New page: [`docs/HELP-IN-5-MINUTES.md`](docs/HELP-IN-5-MINUTES.md)** — read-only, copy-paste,
+  no Python. Five asks, each with the reason it matters, plus the three traps that cost us evenings
+  (PowerShell's `curl` alias, the serialising daemon, the hanging `contentdb`). Linked from the
+  README and CONTRIBUTING. It exists because the biggest gains of the past week came from small
+  precise asks to someone who owns the hardware, not from more analysis.
+  - Every command in it was run in the shell it is written for. The registration check is given in
+    three forms because the first one we wrote **failed in PowerShell** — quotes get mangled and the
+    player answers `illegal Request`. PowerShell needs the `--%` stop-parsing token; `cmd.exe` does
+    not.
+- **`hap_notify` shuts down cleanly.** Closing the notifier while a listener thread was inside
+  `events()` raised instead of stopping — found by running a real capture, not by reading the code.
+  It now returns quietly, and a failed re-arm no longer kills the loop. Two tests cover both.
+- **TuneIn pairing looks retired on TuneIn's side.** The player still issues PINs and they rotate
+  daily, but `tunein.com/sony` and `tunein.com/activate` both 404. Players paired years ago keep
+  working; players that never were — like ours — probably cannot be. Suggestive, not proven: we only
+  tried the two obvious URLs.
+- **Corrected a stale claim in CONTRIBUTING** that the firmware is "unobtainable, so there is no
+  blob to `binwalk`".
+
 ### Added (2026-08-22, the Special Mode menu photographed, and a CORS trap)
 
 - **Special Mode has five entries, not two.** Photographed on 19404R by Amos, closing a question
