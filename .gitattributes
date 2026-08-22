@@ -1,0 +1,13 @@
+# Text files are stored and checked out with LF, whatever the contributor's OS.
+# Added 2026-08-22 after a Windows tool silently rewrote four markdown files
+# from LF to CRLF, turning a 16-line edit into a 1050-line diff twice running.
+* text=auto eol=lf
+
+# Captured device responses are kept byte-exact as they came off the wire.
+# They are evidence, not source: never renormalise them.
+research/captures/** -text
+
+# Binary assets, so git never guesses.
+*.png binary
+*.ico binary
+*.pdf binary
