@@ -146,6 +146,7 @@ Services exposed:
   - Adding `Content-Type: application/json` makes it *non-simple*, forces a preflight, and the preflight fails for want of `Access-Control-Allow-Headers`. The browser reports a generic network error, which reads like the device being unreachable. It isn't.
   - **The device does not need the header** — it parses a JSON body without it (verified). For a pure browser client, simply don't set it.
   - This does not affect clients that go through a local server (our [`webui.py`](../tools/webui.py) proxies, so it is immune), nor `curl`, nor any non-browser client.
+  - **Independently confirmed 2026-08-22.** A contributed browser remote worked, then stopped working after its author let an AI refactor the JavaScript — the refactor added `Content-Type: application/json`. He reverted to his original code, without the header, and it worked again. He reached that fix without knowing our diagnosis, which is about as clean a confirmation as this kind of finding gets. It is also a nice illustration of the trap: adding a correct-looking header is exactly what a tidy-up would do.
 
 ### Sample working call
 

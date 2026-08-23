@@ -8,6 +8,21 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Changed (2026-08-22, the CORS diagnosis confirmed from the other side)
+
+- **The author of the contributed TuneIn page reached the same fix independently.** His page worked,
+  then stopped after he let an AI refactor the JavaScript; the refactor had added
+  `Content-Type: application/json`. He reverted to his original code, without the header, and it
+  worked again — without knowing what we had found. Two people arriving at the same one-line cause
+  from opposite directions is about as good as confirmation gets for this kind of thing. Recorded in
+  `03-network-api.md`.
+- **The `path` hypothesis is weakened, not confirmed.** We had guessed `path` must be unique per
+  station, and that his "not every station loads" complaint was self-inflicted by a duplicate. His
+  corrected page ships **three** stations sharing `1/1/3`, deliberately, written by the same person
+  who told us to increment it. Either uniqueness does not matter or he still has the bug, and we
+  cannot tell which from here: on an unregistered player, station playback does nothing, so there is
+  no signal. Marked blocked on registration rather than left as a live guess.
+
 ### Added (2026-08-22, three of five push events measured, and a page for people who own one)
 
 - **Which UDP events actually fire, measured.** Subscribed, then drove the player through queue

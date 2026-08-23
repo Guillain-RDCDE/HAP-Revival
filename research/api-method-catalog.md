@@ -218,10 +218,15 @@ Previously listed as APK-derived and untested. Both read-ish methods work on 194
 `path=1/1/1`, `1/1/2`, `1/1/3` … The author's instruction is *"do not forget to increase the data
 number"*, so it must be distinct per station, and he notes *"not every station is properly loaded"*.
 
-**Hypothesis, untested:** his own station list reuses `1/1/5` for two entries (Radio Paradise Global
-Mix and Main Mix), which would make his loading complaint self-inflicted and `path` a positional
-slot rather than a real browse path. Worth testing — resolving it is what makes a radio feature
-reliable rather than flaky.
+**Hypothesis, weakened 2026-08-22.** We guessed that `path` must be unique and that his loading
+complaint was self-inflicted, because his first list reused `1/1/5` for two entries. His corrected
+page reuses **`1/1/3` for three entries** — deliberately shipped that way, by the person who wrote
+the instruction to increment it. So either uniqueness does not matter and the guess was wrong, or he
+is still carrying the bug he described. We cannot separate the two from here: on an unregistered
+player station playback does nothing at all, so there is no signal to read.
+
+**Blocked on registration**, not on effort. Anyone with a *paired* player can settle it in three
+calls: the same station under two different paths, and two different stations under one shared path.
 
 **Attribution / licence**: the script was shared privately. The protocol facts above are documented
 because facts are not copyrightable, but the file itself is not vendored here and must not be
