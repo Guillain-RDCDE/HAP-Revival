@@ -14,6 +14,10 @@ Thanks for being here. The HAP-Z1ES / HAP-S1 community is small — every carefu
 4. **UART console + NAND dump.** No public copy of the firmware exists, though Sony's update host turns out to be a plain file server and the image may yet be downloadable ([`docs/07-firmware.md`](../docs/07-firmware.md)) — the *running* system and the proprietary userland still have to be read off the device. Trace the `CSI0_DAT10/11` console pins to their board test points, attach a **3.3 V** USB-serial adapter (115200 8N1), capture the U-Boot/Linux boot log, and `dd` the rootfs (`/dev/mtdblock2`, JFFS2). Full guide: [`docs/10-uart-console.md`](../docs/10-uart-console.md). This is currently the single highest-leverage hardware contribution.
 5. **Working code** — in flight. The Python client (`tools/hap_client.py`) and the browser-based control surface (`tools/webui.py`) shipped in the first session. A native iOS / iPad app is the next pipeline target, blocked only by getting a Mac into the build path.
 
+> **Changing client code?** Read [`docs/16-gotchas.md`](../docs/16-gotchas.md) first. Several
+> things that are correct everywhere else are broken on this player, and a green test suite has
+> already hidden one such bug in this repository.
+
 ## What we explicitly do not want
 
 - Sony-copyrighted binaries (firmware blobs, decompiled APK source) committed to the repo. **The recipe to obtain them is fine; the artefacts themselves are not.**

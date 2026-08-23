@@ -8,6 +8,36 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-22, a gotchas page, and a live check with teeth)
+
+Prompted by the contributed script being broken by an AI refactor that added a correct-in-general,
+wrong-here HTTP header. This project is built with AI assistance too, so the same failure mode is
+ours.
+
+- **New page: [`docs/16-gotchas.md`](docs/16-gotchas.md)** — the five places where doing the correct
+  thing breaks this player, in one place instead of scattered across three pages: `Content-Type` on
+  browser requests, `Expect: 100-continue`, concurrent requests, non-uniform API versions, and
+  success-shaped replies that mean nothing. Linked from CONTRIBUTING, the README index and the
+  five-minute page.
+- **New tool: [`tools/smoke_live.py`](tools/smoke_live.py)** — exercises the client against a real
+  player and asserts values come back **populated**, not merely that nothing raised. Read-only by
+  default; `--include-writes` adds writes that are idempotent by construction. Never in CI.
+  - **Verified it has teeth**: re-introducing the exact `_first_field` unwrapping bug that green
+    unit tests hid last week makes two of its checks fail. A smoke test that cannot fail is
+    decoration.
+  - It also asserts two gotchas are *still true* — the 417 on `Expect` and the missing
+    `Access-Control-Allow-Headers` — so the documentation fails loudly if a firmware ever changes
+    them.
+  - 12 checks against the reference Z1ES: 11 pass, 1 skips (`volumelevel`, which 500s by design on
+    a Z1ES).
+- **Evidence tiers are now written down** in the catalogue, weakest to strongest: read from a binary
+  → reported by a contributor → live-confirmed → **independently corroborated**. Only the CORS trap
+  has reached the top tier.
+- **Stopped overselling radio in the README.** The client "including internet radio" was true of the
+  code and misleading about the outcome, since it refuses to run on unregistered players — which is
+  most of them. Also corrected "each one runs against a built-in mock device": the live smoke test
+  is precisely the one that cannot.
+
 ### Changed (2026-08-22, the CORS diagnosis confirmed from the other side)
 
 - **The author of the contributed TuneIn page reached the same fix independently.** His page worked,

@@ -27,6 +27,8 @@ wait ten seconds — nothing is broken.
 **Anything under `/sony/contentdb/v100/…` hangs forever.** That is a known dead API, not you. Don't
 worry when it never returns.
 
+The full list, with the reasons, is in [`16-gotchas.md`](16-gotchas.md).
+
 Throughout, replace `192.168.1.28` with your player's address.
 
 ---

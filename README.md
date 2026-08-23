@@ -32,8 +32,9 @@ The hardware still sings. This is the rest of the story.
 
 ## What you can use today
 
-Eleven finished tools. Stdlib-only Python, no accounts, no telemetry.
-Each one runs against a built-in mock device, so you can try everything with no HAP at all.
+Twelve finished tools. Stdlib-only Python, no accounts, no telemetry.
+All but one run against a built-in mock device, so you can try them with no HAP at all — the
+live smoke test is the exception, since checking a real player is the entire point of it.
 
 <br>
 
@@ -50,8 +51,9 @@ Each one runs against a built-in mock device, so you can try everything with no 
 - [**Web UI**](tools/webui.py) — now playing, transport, sound settings and cover art, in a browser.
   Updates the instant the music changes, because the player says so.
 - [**Control app**](docs/13-control-app.md) — the same UI on your phone's home screen. No App Store.
-- [**Python client**](tools/hap_client.py) — every mapped API method, from the shell or your code,
-  including internet radio.
+- [**Python client**](tools/hap_client.py) — every mapped API method, from the shell or your code.
+  Internet radio too, on the players Sony's pairing still covers — it checks first and refuses
+  rather than silently doing nothing.
 - [**Push notifications**](tools/hap_notify.py) — the player tells you the moment anything changes,
   instead of being asked every five seconds.
 - [**Discovery**](tools/discover.py) — finds the HAP on your network. No IP to hunt down.
@@ -63,6 +65,8 @@ Each one runs against a built-in mock device, so you can try everything with no 
 - [**Library browser**](tools/library_browser.py) — reads the player's catalogue offline.
 - [**Library audit**](tools/library_audit.py) — formats, hi-res share, duplicates, missing artwork.
 - [**Mock device**](tools/mock_hap.py) — a fake HAP that answers the real protocol.
+- [**Live smoke test**](tools/smoke_live.py) — checks the client against your own player and
+  asserts it reads real values, which the offline suite cannot.
 
 <br>
 
@@ -215,7 +219,7 @@ read-only, copy-paste, no Python needed.
 | [Hardware](docs/01-hardware.md) | [Software stack](docs/02-software-stack.md) | [Network API](docs/03-network-api.md) | [SMB share](docs/04-smb.md) |
 | [Diag modes](docs/05-diag-modes.md) | [HDD swap](docs/06-hdd-swap.md) | [Firmware](docs/07-firmware.md) | [Prior art](docs/08-prior-art.md) |
 | [Disk layout](docs/09-disk-layout.md) | [UART console](docs/10-uart-console.md) | [Audio path](docs/11-audio-path.md) | [Music sync](docs/12-music-sync.md) |
-| [Control app](docs/13-control-app.md) | [NAND extraction](docs/14-nand-extract.md) | [Forza ioctl](docs/15-forza-ioctl.md) | |
+| [Control app](docs/13-control-app.md) | [NAND extraction](docs/14-nand-extract.md) | [Forza ioctl](docs/15-forza-ioctl.md) | [**Gotchas**](docs/16-gotchas.md) |
 
 Reconnaissance notes live in [`research/`](research/), the tools in [`tools/`](tools/), the API
 specification in [`api-spec/`](api-spec/).

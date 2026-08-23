@@ -6,6 +6,7 @@ The current state of mapping for the Sony HAP-Z1ES / HAP-S1 ScalarWebAPI on port
 **Firmware tested against**: 19404R
 **Device tested**: HAP-Z1ES (the canonical reference unit)
 **Methods confirmed by live test**: see ✅ rows below
+**Evidence tiers used in this document**, weakest to strongest: *read from a binary / APK* → *reported by a contributor* → *live-confirmed* (we ran it against the reference unit) → **independently corroborated** (two parties reached it without seeing each other's work — so far only the CORS `Content-Type` trap, see [`../docs/16-gotchas.md`](../docs/16-gotchas.md)). Anything unlabelled is a live-confirmed observation on 19404R.
 **Methods extracted from APK (Sony Android HDDAudioRemote 4.3.1)**: see [APK findings note](notes/2026-05-25-apk-decompile-findings.md)
 **Endpoint base URL**: `http://<ip>:60200/sony/<service>` — **the `/sony/` prefix IS required on firmware 19404R**. The APK decompile report initially suggested otherwise; that interpretation was wrong (confirmed by live test on 2026-05-25). `POST /avContent` (no prefix) returns 404.
 **Headers**: `Content-Type: application/json` is required. `x-hap-device-id: <uuid>` is sent by Sony's Android client on every call but appears to be **optional** — successful calls observed without it.
