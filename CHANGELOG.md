@@ -29,9 +29,9 @@ once we ship a versioned release.
 
 ### Added (2026-08-22, a gotchas page, and a live check with teeth)
 
-Prompted by the contributed script being broken by an AI refactor that added a correct-in-general,
-wrong-here HTTP header. This project is built with AI assistance too, so the same failure mode is
-ours.
+Prompted by the contributed script being broken by a refactor that added a correct-in-general,
+wrong-here HTTP header. Any tidy-up tends to move code toward what is correct in general, which is
+exactly what this player punishes — so the same failure mode is ours as much as his.
 
 - **New page: [`docs/16-gotchas.md`](docs/16-gotchas.md)** — the five places where doing the correct
   thing breaks this player, in one place instead of scattered across three pages: `Content-Type` on

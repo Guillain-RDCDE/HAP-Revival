@@ -9,9 +9,10 @@ then stopped after he let an AI refactor the JavaScript. The refactor had added
 `Content-Type: application/json` to a JSON POST — an unambiguously correct thing to add, and the one
 thing this device cannot tolerate from a browser. He reverted and it worked again.
 
-We build this project with AI assistance too. The same failure mode applies to us, and it is not
-hypothetical: it has already happened once in this repository (see [the green-tests
-problem](#the-green-tests-problem) below).
+The lesson generalises beyond his case: any tidy-up — by hand, by a linter, by a tool — will tend
+to move code toward what is correct in general, and this player punishes several of those moves.
+It is not hypothetical either. The same class of mistake has already cost this repository once
+(see [the green-tests problem](#the-green-tests-problem) below).
 
 **If you are tidying, refactoring or "fixing" client code, read this first.**
 
