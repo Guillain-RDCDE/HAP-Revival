@@ -109,7 +109,7 @@ The technical docs throw these around. Here's all you need to know:
 ## Where to go next
 
 - Just want to **use** it? → grab [HAP Sync](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe) and read the [music guide](12-music-sync.md). You're done.
-- Curious **why** the project exists? → the [README](../README.md#why-were-doing-this).
+- Curious **why** the project exists? → the [README](../README.md#why-the-project-exists).
 - Ready for **Level 3**? → the full [documentation index](../README.md#documentation). Take your time; it'll still be here.
 
 *Welcome aboard. It's a music project pretending to be a software project — and you're here for the music.* 🎶

@@ -18,6 +18,34 @@ Thanks for being here. The HAP-Z1ES / HAP-S1 community is small — every carefu
 > things that are correct everywhere else are broken on this player, and a green test suite has
 > already hidden one such bug in this repository.
 
+## Which machine can answer which question
+
+Findings here are only as good as the hardware behind them, and no single player can produce them
+all. As of 2026-08-24 the project reaches four, each able to answer things the others cannot. Worth
+reading before asking someone a question their device physically cannot settle.
+
+| Player | State | Can settle | Cannot |
+|---|---|---|---|
+| **Reference Z1ES** (maintainer's) | `19404R`, TuneIn **unregistered**, HDD library, Spotify Connect in use | Everything on the JSON-RPC and `contentplayer` REST surfaces, push notifications, the gotchas | Radio playback, volume, tone control, anything S1, anything on an older firmware |
+| **S1 at Amos's workplace** | `19404R`, backup slot holds **`0018120R`** | Volume (`0`–`74`), tone control reads, an S1 tone-control write | Not ours to risk. The one machine that *could* reach an older firmware, and the one we will not ask to |
+| **S1 at Amos's home** | `19404R`, backup slot **spent** (both slots identical) | Second S1 data point | Cannot downgrade — the slot was burned by a re-flash |
+| **The German author's player** | Believed **registered with TuneIn** | Station playback, and the meaning of `path` — the only machine we know of that can | Model and firmware unknown to us |
+
+Two caveats on that table. The German player's registration is **inferred** from his script working,
+not measured — nobody has run the check on it. And the registration status of either S1 is simply
+unknown; that is one `registerDevice` call away, and it is
+[§5 of the five-minute page](../docs/HELP-IN-5-MINUTES.md#5-is-your-player-still-paired-with-tunein).
+
+**What nobody can currently answer**, and what a new contributor would unlock:
+
+- **A player running any firmware older than `19404R`.** It would settle whether Sony withdrew the
+  `/sony/contentdb/v100` library API or never finished it — currently our most consequential
+  inference. `0018120R` and `0017310R` are both known to exist and neither is running anywhere we
+  can reach.
+- **A registered player whose owner will run three calls**, to pin down `path` semantics and make
+  internet radio reliable rather than folklore.
+- **An opened case.** No UART, no NAND dump, no board photographs of our own.
+
 ## What we explicitly do not want
 
 - Sony-copyrighted binaries (firmware blobs, decompiled APK source) committed to the repo. **The recipe to obtain them is fine; the artefacts themselves are not.**

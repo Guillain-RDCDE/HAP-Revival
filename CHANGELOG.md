@@ -8,6 +8,25 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-24, which machine can answer which question)
+
+- **The test fleet is documented** in [`CONTRIBUTING.md`](.github/CONTRIBUTING.md). Four players,
+  each able to settle things the others cannot: the reference Z1ES (everything except radio, volume,
+  tone control and old firmware), Amos's workplace S1 (the only route to `0018120R`, and the one we
+  will not ask him to risk), his home S1 (backup slot spent), and the German author's player
+  (believed registered — the only machine we know of that can settle `path` and station playback).
+  Written because we have twice been close to asking someone a question their hardware cannot
+  answer.
+- **What nobody can currently answer** is listed alongside it, as the honest recruitment pitch: a
+  player on any firmware older than `19404R`, a registered player whose owner will run three calls,
+  and an opened case.
+- **Two broken anchors fixed** — `README.md#roadmap` and `README.md#why-were-doing-this`, both
+  pointing at headings that vanished in the 2026-08-15 README rebuild and both silently dead since.
+  Found by writing an anchor checker; the repo's link check does not cover fragments.
+- **Three stale rows in the overview aligned** with what we now know: the firmware is no longer
+  described as needing a NAND dump, OS acquisition leads with the CDN capture, and Special Mode is
+  recorded as having five entries rather than being "the SMB version selector".
+
 ### Added (2026-08-22, a gotchas page, and a live check with teeth)
 
 Prompted by the contributed script being broken by an AI refactor that added a correct-in-general,
