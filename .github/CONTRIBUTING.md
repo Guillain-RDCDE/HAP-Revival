@@ -29,12 +29,13 @@ reading before asking someone a question their device physically cannot settle.
 | **Reference Z1ES** (maintainer's) | `19404R`, TuneIn **unregistered**, HDD library, Spotify Connect in use | Everything on the JSON-RPC and `contentplayer` REST surfaces, push notifications, the gotchas | Radio playback, volume, tone control, anything S1, anything on an older firmware |
 | **S1 at Amos's workplace** | `19404R`, backup slot holds **`0018120R`** | Volume (`0`–`74`), tone control reads, an S1 tone-control write | Not ours to risk. The one machine that *could* reach an older firmware, and the one we will not ask to |
 | **S1 at Amos's home** | `19404R`, backup slot **spent** (both slots identical) | Second S1 data point | Cannot downgrade — the slot was burned by a re-flash |
-| **The German author's player** | Believed **registered with TuneIn** | Station playback, and the meaning of `path` — the only machine we know of that can | Model and firmware unknown to us |
+| **Saschko's player** | Radio **still plays** on it; he wrote the browser remote that drives it | Station playback, the meaning of `path`, and whether a *never-played* station still resolves — the only machine we know of that can | Model and firmware unknown to us |
 
-Two caveats on that table. The German player's registration is **inferred** from his script working,
-not measured — nobody has run the check on it. And the registration status of either S1 is simply
-unknown; that is one `registerDevice` call away, and it is
-[§5 of the five-minute page](../docs/HELP-IN-5-MINUTES.md#5-is-your-player-still-paired-with-tunein).
+One caveat on that table. We do not know *why* radio still plays on Saschko's player. It is **not**
+account registration — an owner who used the service confirms stations played with no account, and
+the client no longer gates on it. The leading theory is that his player cached its stations while
+Sony's integration worked; see
+[`research/notes/2026-08-25-tunein-is-alive.md`](../research/notes/2026-08-25-tunein-is-alive.md).
 
 **What nobody can currently answer**, and what a new contributor would unlock:
 
@@ -45,6 +46,10 @@ unknown; that is one `registerDevice` call away, and it is
 - **A registered player whose owner will run three calls**, to pin down `path` semantics and make
   internet radio reliable rather than folklore.
 - **An opened case.** No UART, no NAND dump, no board photographs of our own.
+- **One packet capture, from anyone at all.** Which host the player calls when you press play on a
+  station, and what it sends. TuneIn's device API is alive and answering; we simply do not know what
+  the HAP asks it. The same capture also reveals the firmware download URL. It is the single
+  highest-value thing anyone with a HAP and ten minutes could do.
 
 ## What we explicitly do not want
 

@@ -8,6 +8,19 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Changed (2026-08-25, aligning the rest of the docs with the TuneIn finding)
+
+- **The fleet table no longer describes Saschko's player by its account state.** Registration turned
+  out to be irrelevant, so the row now says what actually matters: radio still plays on it, and it
+  is the only machine that can test whether a *never-played* station resolves.
+- **Added the packet capture to the list of things nobody can answer.** It is now the single
+  highest-value contribution available to anyone with a HAP and ten minutes — it names the host the
+  player calls for radio *and* reveals the firmware download URL.
+- **The five-minute page leads with the useful question.** "Is your player registered" was the wrong
+  thing to foreground; "does radio still work, and did you use TuneIn while Sony supported it" is
+  the one that separates the players that work from the ones that don't. Added the decisive test for
+  owners whose radio works: play a station you have never played before.
+
 ### Added (2026-08-25, TuneIn is alive — we were asking the wrong question)
 
 - **TuneIn's device API still answers in 2026.** `opml.radiotime.com` returns `200` for `Browse.ashx`

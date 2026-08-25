@@ -132,13 +132,17 @@ curl -X POST http://192.168.1.28:60200/sony/avContent -H 'Content-Type: applicat
 
 You will get `{"result": [{"isRegistered": true}], "id": 1}` — or `false`.
 
-**Why we want it.** Sony withdrew internet radio from the front panel and both mobile apps during
-2026. Note that `false` is **not** a problem in itself: an owner tells us stations played fine with
-no account, and logging in only ever synced favourites to the cloud. We are collecting the answer
-because radio works on some players and not others, and we do not yet know what separates them.
+**Why we want it.** `false` is **not** a problem in itself — an owner tells us stations played fine
+with no account, and logging in only ever synced favourites to the cloud. We collect the answer
+because radio works on some players and not others.
 
-**If radio does still work on your player, that is the more interesting answer** — say so, and tell
-us whether you ever used TuneIn back when Sony supported it.
+**If radio still works on your player, that is the far more interesting answer.** Tell us, and tell
+us whether you used TuneIn back when Sony supported it — we think that is what separates the players
+that work from the ones that don't. TuneIn's own servers are still up and answering in 2026; see
+[`../research/notes/2026-08-25-tunein-is-alive.md`](../research/notes/2026-08-25-tunein-is-alive.md).
+
+And if radio works for you, one test would settle a question nobody can answer otherwise: play a
+station you have **never played before**, with a station id fresh off tunein.com. Does it start?
 
 If you have Python, `python tools/hap_client.py <ip> radio-status` does the same thing and is easier
 to read.
