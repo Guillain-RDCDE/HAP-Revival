@@ -14,7 +14,7 @@ The hardware still sings. This is the rest of the story.
 
 [![Release](https://img.shields.io/github/v/release/Guillain-RDCDE/HAP-Revival?color=2ea043&label=HAP%20Sync&style=flat-square)](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest)
 &nbsp;
-[![Tests](https://img.shields.io/badge/tests-187%20passing-2ea043?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-198%20passing-2ea043?style=flat-square)](tests)
 &nbsp;
 [![License](https://img.shields.io/badge/code-MIT-blue?style=flat-square)](LICENSE)
 
@@ -52,8 +52,8 @@ live smoke test is the exception, since checking a real player is the entire poi
   Updates the instant the music changes, because the player says so.
 - [**Control app**](docs/13-control-app.md) — the same UI on your phone's home screen. No App Store.
 - [**Python client**](tools/hap_client.py) — every mapped API method, from the shell or your code.
-  Internet radio too, on the players Sony's pairing still covers — it checks first and refuses
-  rather than silently doing nothing.
+  Internet radio too, on the players where it still works — it reads the state back and tells you
+  whether anything actually started, which the player itself will not.
 - [**Push notifications**](tools/hap_notify.py) — the player tells you the moment anything changes,
   instead of being asked every five seconds.
 - [**Discovery**](tools/discover.py) — finds the HAP on your network. No IP to hunt down.
@@ -250,6 +250,8 @@ is provided as-is, without warranty. You are responsible for your own hardware.
 
 **Amos**, for tracking down the Crestron module and handing over the protocol —
 [two of our conclusions were wrong](research/notes/2026-08-20-crestron-module-teardown.md) until he did ·
+**Saschko**, for the browser remote that still plays TuneIn stations, and for finding the header
+that breaks it before we could tell him ·
 [danielrweber/HAPxFer](https://github.com/danielrweber/HAPxFer) for the SMB reference ·
 [frazei's gist](https://gist.github.com/frazei/09d69242a8beed0cf0a1c193a45a650a) for the first
 public API notes · [rytilahti/python-songpal](https://github.com/rytilahti/python-songpal) for the

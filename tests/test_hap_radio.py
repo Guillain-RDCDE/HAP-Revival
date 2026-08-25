@@ -165,3 +165,72 @@ def test_station_ids_are_not_coerced_to_int(hap, monkeypatch):
     monkeypatch.setattr(hap, "call", rec)
     hap.play_station("s13606")
     assert "id=s13606" in rec.last["params"][0]["uri"]
+
+# ---------- verification, not gating ----------
+#
+# An earlier version refused to play on an "unregistered" player. That was
+# wrong: an owner who used TuneIn while Sony supported it reports stations play
+# with no account, and registration only ever synced favourites to the cloud.
+# The client now attempts and reports what actually happened instead.
+
+
+def test_play_station_does_not_consult_registration(hap, monkeypatch):
+    """Regression guard: playback must not be gated on account state."""
+    rec = Recorder()
+    monkeypatch.setattr(hap, "call", rec)
+    hap.play_station("s13606")
+    methods = [c["method"] for c in rec.calls]
+    assert "registerDevice" not in methods
+    assert methods == ["createPlayingListAndQuickPlay"]
+
+
+def test_verify_false_returns_the_raw_reply(hap, monkeypatch):
+    monkeypatch.setattr(hap, "call", Recorder({"uri": "audio:playinglist?id=1"}))
+    result = hap.play_station("s13606")
+    assert "started" not in result
+
+
+def test_verify_reports_started_when_something_plays(hap, monkeypatch):
+    monkeypatch.setattr(hap, "call", Recorder({"uri": "audio:playinglist?id=1"}))
+    monkeypatch.setattr(hap, "_playback_started", lambda settle_sec=8.0: True)
+    assert hap.play_station("s13606", verify=True)["started"] is True
+
+
+def test_verify_reports_not_started_on_the_silent_failure(hap, monkeypatch):
+    """The device says success while doing nothing. That is the case to catch."""
+    monkeypatch.setattr(hap, "call", Recorder({"uri": "audio:playinglist?id=1"}))
+    monkeypatch.setattr(hap, "_playback_started", lambda settle_sec=8.0: False)
+    result = hap.play_station("s13606", verify=True)
+    assert result["started"] is False
+    assert result["uri"] == "audio:playinglist?id=1"      # raw reply preserved
+
+
+@pytest.mark.parametrize(
+    "state,title,uri,expected",
+    [
+        ("PLAYING", "Radio Paradise", "", True),
+        ("PLAYING", "", "netService:audio?x", True),
+        ("PLAYING", "", "", False),        # playing nothing at all
+        ("PAUSED", "Something", "", False),
+        ("STOPPED", "", "", False),
+        ("", "", "", False),
+    ],
+)
+def test_playback_started_reads_real_state(hap, monkeypatch, state, title, uri, expected):
+    class FakeNP:
+        pass
+
+    np = FakeNP()
+    np.state, np.title, np.uri = state, title, uri
+    monkeypatch.setattr(hap, "now_playing", lambda: np)
+    assert hap._playback_started(settle_sec=0) is expected
+
+
+def test_playback_started_is_false_when_the_device_errors(hap, monkeypatch):
+    from hap_client import HAPError
+
+    def boom():
+        raise HAPError("unreachable")
+
+    monkeypatch.setattr(hap, "now_playing", boom)
+    assert hap._playback_started(settle_sec=0) is False

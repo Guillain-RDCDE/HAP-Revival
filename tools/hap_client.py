@@ -493,34 +493,51 @@ class HAP:
         )
 
     def radio_is_registered(self) -> bool:
-        """True if this player is bound to a TuneIn account.
+        """True if this player is linked to a TuneIn *account*.
 
-        **Radio does nothing without this.** On an unregistered player,
-        `play_station` is accepted and returns a playlist URI, the queue stays
-        empty, nothing plays, and whatever was playing is cleared. There is no
-        error to catch — check here first.
+        This is about **cloud sync of favourites**, not about whether radio
+        works. An owner who used TuneIn while Sony supported it reports that
+        stations play with no account at all, and that logging in only ever
+        synced favourites to and from the cloud — which stopped working when
+        Sony withdrew support.
+
+        So do **not** gate playback on this. An earlier version of this client
+        did, on the mistaken theory that registration was the reason stations
+        would not play on our reference unit, and it refused for people who
+        might well have succeeded.
         """
         return bool(_first_field(self.radio_registration("check"), "isRegistered"))
 
-    def play_station(self, station_id: str, path: str = "1/1/1") -> dict:
+    def play_station(
+        self,
+        station_id: str,
+        path: str = "1/1/1",
+        *,
+        verify: bool = False,
+        settle_sec: float = 8.0,
+    ) -> dict:
         """Play a TuneIn station by its station id.
 
         `station_id` is the ``s#####`` in a tunein.com URL — open the station in
         a browser and read it out of the address bar.
 
-        `path` must differ between stations; its exact meaning is unresolved
-        (see the catalogue). Reusing one value across two stations is believed
-        to be why some stations fail to load.
+        `path` is an opaque slot whose meaning is unresolved. The script's
+        author advises a distinct value per station; on our reference unit it
+        makes no observable difference, because station playback does not work
+        there at all for a reason upstream of `path`.
 
-        **Requires a registered player** — see `radio_is_registered`. This call
-        reports success either way, so it cannot tell you on its own.
+        **This call always reports success**, even when it does nothing: it
+        returns a playlist URI while leaving the queue empty. Pass
+        ``verify=True`` to find out what actually happened. Note also that the
+        device does not validate `playbackControlMode` — it echoes back
+        whatever it is given.
 
-        Note the device does not validate `playbackControlMode`; it echoes back
-        whatever it is given. A plausible-looking reply proves nothing.
+        Returns the raw reply. With ``verify=True``, returns a dict with an
+        added ``"started"`` key.
         """
         if not str(station_id).strip():
             raise ValueError("station_id is required")
-        return self.call(
+        reply = self.call(
             "avContent",
             "createPlayingListAndQuickPlay",
             "1.0",
@@ -536,6 +553,24 @@ class HAP:
                 }
             ],
         )
+        if not verify:
+            return reply
+        return {**reply, "started": self._playback_started(settle_sec)}
+
+    def _playback_started(self, settle_sec: float = 8.0) -> bool:
+        """Did anything actually start playing? Reads the state back.
+
+        The player needs a few seconds to resolve a stream, so this waits
+        before believing a negative.
+        """
+        import time as _time
+
+        _time.sleep(settle_sec)
+        try:
+            np = self.now_playing()
+        except HAPError:
+            return False
+        return bool(np.state and np.state.upper() == "PLAYING" and (np.title or np.uri))
 
     def next_track(self) -> None:
         """Skip to next track in the current play queue."""
@@ -782,14 +817,20 @@ def _cli_radio_status(hap: HAP, _args) -> None:
 
 
 def _cli_play_station(hap: HAP, args) -> None:
-    if not hap.radio_is_registered():
-        print("Refusing: this player is not registered with TuneIn, so the")
-        print("station would not play and current playback would be cleared.")
-        print("Run `radio-status` first.")
-        return
-    hap.play_station(args.station_id, args.path)
     _row("Station", args.station_id)
     _row("Path", args.path)
+    result = hap.play_station(args.station_id, args.path, verify=True)
+    if result.get("started"):
+        _row("Result", "playing")
+        return
+    _row("Result", "nothing started")
+    print()
+    print("The player accepted the request and reported success, as it always")
+    print("does, but nothing is playing and any previous playback was cleared.")
+    print("On our reference unit every station behaves this way, and neither")
+    print("the account state nor the path value changes it — the cause is")
+    print("upstream of both and is not yet understood. Known-working players")
+    print("are ones that used TuneIn while Sony still supported it.")
 
 
 def _cli_sleep_timer(hap: HAP, _args) -> None:

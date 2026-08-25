@@ -175,17 +175,34 @@ POST /sony/avContent
 → {"result": [{"isRegistered": false}], "id": 1}
 ```
 
-**The unit is not registered with TuneIn**, and TuneIn on the HAP requires per-device registration.
-The German author's device evidently is registered; ours never was. That single fact explains the
-empty queue *and* the `[1, "Any"]` from `getContentList` — no account, no content.
+The unit is not registered with TuneIn — but **registration is not the reason, and this was our
+second wrong explanation in two days.**
 
-And the registration flow is still alive: `method: "getPin"` returns a real code
-(`{"pinCode": "SW94LN"}`), which is the pairing code you enter on TuneIn's side.
+> **Corrected 2026-08-25.** We concluded that per-device registration gated playback. An owner who
+> used TuneIn while Sony supported it says otherwise: *"You can use TuneIn on the HAP units without
+> being registered or having an account. When the service was officially supported you could login
+> to save your favorites to/from the cloud but when Sony discontinued official support that quit
+> working."* So `registerDevice` concerns **cloud sync of favourites**, not access. The client no
+> longer gates on it — see the note below.
 
-So the honest statement is: **radio may well be restorable, but registration is the gate, and we
-have not been through it.** Whether Sony's pairing back-end still honours a new PIN in 2026 is
-untested and is the next thing to find out. What is certain is that a client cannot simply fire
-station IDs at an unregistered player.
+`getPin` does still return a real code (`{"pinCode": "SW94LN"}`), so that machinery is alive; it
+just is not the thing standing between us and a playing station.
+
+**What we actually know**, tested on the reference Z1ES 2026-08-25: every station id and every
+`path` value — including a nonexistent path and an empty one — produces the identical outcome. The
+call is accepted, returns `audio:playinglist?id=1`, the queue stays empty, `playinginfo` goes to
+`500`, and any previous playback is cleared. Neither account state nor `path` changes it, so the
+cause is **upstream of both and is not yet understood**.
+
+**Leading hypothesis, untested:** station resolution goes through a Sony back-end that is gone, and
+the players where this still works are ones that used TuneIn while it was supported — leaving
+stations resolvable from the device's own local TuneIn database (`tunein_browse.db`, see
+[`../docs/09-disk-layout.md`](../docs/09-disk-layout.md)). That would make `path` an index into that
+local list, which fits the author's instruction to give each station a distinct value.
+
+**The test that would settle it** is one only a working player can run: pick a station id that
+player has *never* used, give it a fresh `path`, and see whether it plays. If it does, the cache
+theory is dead.
 
 This is also the likeliest explanation for the `streaming` content type that the Crestron module
 encounters and renders literally as `"UNDOCUMENTED STREAM"` — netService items in a directory
@@ -219,15 +236,18 @@ Previously listed as APK-derived and untested. Both read-ish methods work on 194
 `path=1/1/1`, `1/1/2`, `1/1/3` … The author's instruction is *"do not forget to increase the data
 number"*, so it must be distinct per station, and he notes *"not every station is properly loaded"*.
 
-**Hypothesis, weakened 2026-08-22.** We guessed that `path` must be unique and that his loading
-complaint was self-inflicted, because his first list reused `1/1/5` for two entries. His corrected
-page reuses **`1/1/3` for three entries** — deliberately shipped that way, by the person who wrote
-the instruction to increment it. So either uniqueness does not matter and the guess was wrong, or he
-is still carrying the bug he described. We cannot separate the two from here: on an unregistered
-player station playback does nothing at all, so there is no signal to read.
+**Where this stands, 2026-08-25.** The duplicate `1/1/3` values in the published page are a known
+oversight rather than evidence: the author and Amos had already discussed the numbering, and Amos
+corrects the values before using the script — *"I don't know if it actually matters or not but I
+fixed it before using it."* So nobody yet knows whether uniqueness matters, including the two people
+using it successfully.
 
-**Blocked on registration**, not on effort. Anyone with a *paired* player can settle it in three
-calls: the same station under two different paths, and two different stations under one shared path.
+On our reference unit `path` demonstrably makes **no** difference — `1/1/1`, `1/1/2`, `2/1/1`,
+`0/0/0` and an empty value all fail identically — but that tells us nothing about a working player,
+since nothing plays here under any conditions.
+
+**Only a working player can settle it**, in three calls: one station under two different paths, two
+stations under one shared path, and one station with `path` omitted.
 
 **Attribution / licence**: the script was shared privately. The protocol facts above are documented
 because facts are not copyrightable, but the file itself is not vendored here and must not be

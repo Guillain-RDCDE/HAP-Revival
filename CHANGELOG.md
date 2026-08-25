@@ -8,6 +8,38 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Changed (2026-08-25, registration was never the gate)
+
+Our second wrong explanation in two days, and the second corrected by an owner rather than by more
+testing.
+
+- **`registerDevice` is about cloud sync of favourites, not access.** We had concluded that
+  per-device registration gated radio playback. Amos, who used TuneIn while Sony supported it:
+  *"You can use TuneIn on the HAP units without being registered or having an account. When the
+  service was officially supported you could login to save your favorites to/from the cloud but when
+  Sony discontinued official support that quit working."*
+- **The client no longer refuses on that basis**, which was a real functional bug: `play-station`
+  would have blocked people whose players might well work. It now attempts, then **reads the state
+  back** and reports whether anything actually started — the discipline gotcha 5 asks for, applied to
+  the one call that most needs it. `play_station(..., verify=True)` returns a `"started"` flag.
+- **`path` is not the gate either.** Tested on the reference Z1ES: `1/1/1`, `1/1/2`, `2/1/1`,
+  `0/0/0` and an empty value all behave identically — accepted, playlist URI returned, queue empty,
+  `playinginfo` `500`, previous playback cleared. The cause is upstream of both account state and
+  path, and is **not yet understood**.
+- **Leading hypothesis recorded, marked untested**: station resolution goes through a Sony back-end
+  that is gone, and the players where radio still works resolve from their own local
+  `tunein_browse.db`, populated while the service lived. That would also make `path` an index into
+  that local list. **Only a working player can test it** — a station id that player has never used,
+  under a fresh path.
+- **The `path` uniqueness question is reopened**, not settled. The duplicate values in the published
+  page are a known oversight: the author and Amos had discussed the numbering, and Amos corrects it
+  before use — *"I don't know if it actually matters or not but I fixed it."* So nobody knows,
+  including the two people it works for.
+- **Saschko is credited** in the acknowledgements, at his request — a nickname, not his real name.
+  With his message passed on: many thanks for the effort to keep the HAP-S1 and Z1 usable.
+- **11 new tests** (187 → **198**), including a regression guard that playback never consults
+  registration again.
+
 ### Added (2026-08-24, which machine can answer which question)
 
 - **The test fleet is documented** in [`CONTRIBUTING.md`](.github/CONTRIBUTING.md). Four players,
