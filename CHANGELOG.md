@@ -8,6 +8,32 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-25, TuneIn is alive — we were asking the wrong question)
+
+- **TuneIn's device API still answers in 2026.** `opml.radiotime.com` returns `200` for `Browse.ashx`
+  and `Describe.ashx`. Its stream-resolution call `Tune.ashx` returns **`400` without a `formats=`
+  parameter** and **real stream URLs with one**. Tested live; the table is in
+  [`research/notes/2026-08-25-tunein-is-alive.md`](research/notes/2026-08-25-tunein-is-alive.md).
+- **TuneIn even has a message for devices like ours.** A resolution request that omits `formats`
+  comes back well-formed, with the audio element pointing at a file called
+  `notcompatible.enUS.mp3` — a spoken announcement. Somebody built that deliberately for legacy
+  clients.
+- **This reframes radio from lost to interposable.** Our documentation said Sony withdrew the
+  service. The far end is up; what is broken sits between the HAP and a working `Tune.ashx` call.
+- **It also gives the cache hypothesis a mechanism**: a player holding stream URLs from when the
+  service worked never needs to call the endpoint that now fails, which is exactly why radio works
+  on some machines and not others.
+- **Prior art found, under a different name.** The vTuner directory behind a decade of Denon,
+  Marantz, Yamaha, Onkyo and Pioneer receivers *was* discontinued, and the community answered with
+  DNS interception and emulation — [YCast](https://github.com/milaq/YCast),
+  [YTuner](https://github.com/coffeegreg/YTuner), [victorantos/denon](https://github.com/victorantos/denon),
+  the last of which proxies HTTPS streams down to plain HTTP for receivers that cannot do TLS. That
+  is the same shape the HAP needs, and searching for "HAP TuneIn fix" finds nothing precisely
+  because the problem was solved for the neighbours under another service's name.
+- **Still blocked on one capture**: we do not know which host the HAP contacts. It is not in the
+  APK — the device does this, not the app. The same packet capture already queued for the firmware
+  URL answers it.
+
 ### Added (2026-08-25, dead anchors can no longer hide)
 
 - **New tool: [`tools/check_links.py`](tools/check_links.py)**, wired into the docs CI. markdownlint

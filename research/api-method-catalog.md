@@ -204,6 +204,12 @@ local list, which fits the author's instruction to give each station a distinct 
 player has *never* used, give it a fresh `path`, and see whether it plays. If it does, the cache
 theory is dead.
 
+**And the hypothesis now has a mechanism** (2026-08-25): TuneIn's device API is alive, but its
+stream-resolution call `Tune.ashx` returns `400` unless the client declares `formats=`. A player
+holding stream URLs cached from when the service worked would never need to make that call. See
+[`notes/2026-08-25-tunein-is-alive.md`](notes/2026-08-25-tunein-is-alive.md) — radio looks
+interposable rather than lost.
+
 This is also the likeliest explanation for the `streaming` content type that the Crestron module
 encounters and renders literally as `"UNDOCUMENTED STREAM"` — netService items in a directory
 listing.

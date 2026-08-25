@@ -174,9 +174,11 @@ makes — transport, sound settings, playback.
   the full schema is in hand.
 - The hardware is identified from the metal up, including both DSPs and the kernel driver's
   ioctl surface.
-- Internet radio is understood: Sony's TuneIn integration needs a per-device registration, and the
-  pairing endpoint still answers in 2026. The client can read that state and refuse to act without
-  it.
+- Internet radio looks recoverable. TuneIn's device API is **alive in 2026** — it just refuses to
+  resolve a station unless the client declares which audio formats it accepts, and then hands back
+  HTTPS streams a 2014 machine may not be able to open. The neighbours solved this exact problem
+  years ago for vTuner receivers, by intercepting DNS and proxying; the same shape fits here.
+  [How it stands](research/notes/2026-08-25-tunein-is-alive.md).
 - Sony's update host is still alive and turns out to be a plain file server, so the firmware image
   may be downloadable rather than needing a NAND dump — [`docs/07-firmware.md`](docs/07-firmware.md).
   Next is capturing one update check to learn the path, then the UART console — i.MX6 UART1 at
