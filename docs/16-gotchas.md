@@ -100,6 +100,25 @@ unregistered player precisely because the API would have said yes.
 
 ---
 
+## 6. Never send `x-hap-device-id` on a `netService` browse
+
+**Correct in general.** Sony's own Android client sends this header on every call, and some
+`database` methods require it. Copying that looks like the safe choice.
+
+**Wrong here.** With the header, `getContentList` on a `netService:` URI returns `[1, "Any"]`.
+Without it, the same call returns the full TuneIn directory. Nothing in the error hints at a header.
+
+**Do instead.** Omit it for netService browsing — `hap_client.call(..., send_client_id=False)`.
+
+This one cost days. Combined with `scope: "directory"` (also invalid for TuneIn, also `[1, "Any"]`),
+it produced three separate published theories about why internet radio was "gone", all wrong. The
+service had been working the whole time.
+
+**Corollary worth internalising: `[1, "Any"]` is not a diagnosis.** It is this device's generic
+refusal, observed for at least three unrelated causes. Never build a theory on it.
+
+---
+
 ## The green-tests problem
 
 The above makes ordinary unit tests weaker than they look here, and we proved it.

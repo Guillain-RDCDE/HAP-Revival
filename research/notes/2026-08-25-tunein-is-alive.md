@@ -1,8 +1,17 @@
 # TuneIn is not dead — the HAP is just not asking it correctly
 
 **Date**: 2026-08-25
-**Status**: the TuneIn findings below are **tested live against TuneIn's servers**. What the HAP
-itself sends is **not** known and is the one missing piece.
+**Status**: ⚠️ **Partly retracted the same day.** The measurements below are accurate — TuneIn's API
+does behave this way. The *conclusion* was wrong: none of it was what stood between our player and a
+station. Internet radio worked on the HAP the whole time, and we were breaking our own calls. See
+[`../api-method-catalog.md`](../api-method-catalog.md) and
+[`../../docs/16-gotchas.md`](../../docs/16-gotchas.md) §6.
+
+Kept rather than deleted, for two reasons. The `Tune.ashx` findings stand on their own and matter for
+the open bitrate question — a proxy that hands the player a FLAC stream would use exactly this. And
+the note is a fair record of how a well-evidenced, internally consistent theory can still be built on
+the wrong premise: every measurement here was real, and the reasoning around them was sound, and the
+answer was still no.
 
 We had concluded that internet radio was gone because Sony withdrew it. That is half the story at
 most. TuneIn's device API is alive and serving in 2026 — the problem is what it now demands of a

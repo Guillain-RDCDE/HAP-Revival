@@ -8,6 +8,35 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Fixed (2026-08-25, internet radio works — and always did)
+
+Five days, three published theories, all wrong. Sony withdrew TuneIn from the mobile app and the
+device's own menu — **not from the machine**. It has been reachable over the network the whole time.
+A contributor pointed at the player's built-in web interface, `http://<ip>:60100/HAP_app.html`,
+which still browses and plays TuneIn perfectly.
+
+- **Radio browses and plays on the reference Z1ES**, verified end to end: the tree comes back
+  localised, stations play, `getPlayingContentInfo` confirms a live MP3 stream.
+- **Three self-inflicted causes, each producing `[1, "Any"]`:**
+  - **`x-hap-device-id` breaks `getContentList` on a `netService:` URI.** With it, `[1, "Any"]`.
+    Without it, the full directory. The catalogue used to call this header "optional". Now
+    [gotcha 6](docs/16-gotchas.md).
+  - **`scope: "directory"` is invalid for TuneIn** — omit it, or use `favorite`.
+  - **`path` is a position in *this player's* tree and must match the station id.** Locale-specific:
+    a French tree and a German one differ. Pairing an arbitrary path with an arbitrary id does
+    nothing, silently.
+- **`[1, "Any"]` is not a diagnosis** — the device's generic refusal, seen for at least three
+  unrelated causes. Recorded as a corollary in the gotchas page, because every wrong theory this week
+  rested on reading meaning into it.
+- **New client support**: `radio_browse()` and `play_station_uri()`, plus `radio-browse` on the CLI.
+  Browsing hands you a matched path and id, so it cannot be got wrong the way `play_station` can.
+- **A shell trap, guarded**: Git Bash rewrites a bare `/` argument into the Git install root, so
+  `radio-browse /` arrived at the player as `C:/Program Files/Git/`. An hour was spent blaming the
+  device. The CLI now detects and repairs it, and accepts `root` as a synonym.
+- **Retracted**: the note claiming TuneIn's servers were the problem. `Tune.ashx` behaviour was real
+  and correctly measured, but it was never what stood between this player and a station.
+- **18 new tests** (198 → **216**), including regression guards on the header and on the mangled path.
+
 ### Changed (2026-08-25, aligning the rest of the docs with the TuneIn finding)
 
 - **The fleet table no longer describes Saschko's player by its account state.** Registration turned

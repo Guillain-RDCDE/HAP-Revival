@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import socket
 import sys
 from dataclasses import dataclass, field
@@ -226,12 +227,19 @@ class HAP:
         method: str,
         version: str,
         params: list | None = None,
+        *,
+        send_client_id: bool = True,
     ) -> Any:
         """Make a raw JSON-RPC call. Returns the `result` field unwrapped from
         its outer list (since the HAP always wraps result in a 1-element list).
 
         Raises HAPMethodError on a `error` field, HAPTransportError on HTTP /
         network failure.
+
+        `send_client_id=False` omits the `x-hap-device-id` header. That header
+        is harmless on most calls and required by some database methods, but it
+        makes `getContentList` on a `netService:` URI fail with `[1, "Any"]` —
+        see docs/16-gotchas.md.
         """
         params = params if params is not None else []
         url = f"{self._base}/{service}"
@@ -245,7 +253,7 @@ class HAP:
             headers={
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "x-hap-device-id": self.client_id,
+                **({"x-hap-device-id": self.client_id} if send_client_id else {}),
             },
         )
         try:
@@ -492,6 +500,55 @@ class HAP:
             [{"uri": "netService:audio?serviceName=tunein", "method": method}],
         )
 
+    def radio_browse(self, path: str = "/", scope: str | None = None) -> list[dict]:
+        """Browse the player's TuneIn tree. This is how you find a station.
+
+        `path` is a position in TuneIn's own directory as the *player* sees it:
+        `"/"` for the root, then `"/1"`, `"/1/1"`, `"/1/1/3"` and so on. The
+        tree is **locale-dependent** — a French player and a German one do not
+        have the same station at the same path — so a path is only meaningful
+        together with the device that produced it.
+
+        Each returned item carries a ready-made `uri`; hand that straight to
+        `play_station_uri`. Items with `isPlayable` are stations, items with
+        `isBrowsable` are folders to descend into.
+
+        Pass `scope="favorite"` for the player's saved favourites.
+
+        LIVE-CONFIRMED 2026-08-25 on a Z1ES: the root returns the full tree and
+        stations under it play.
+        """
+        params: dict[str, Any] = {
+            "finish": False,
+            "uri": f"netService:audio?serviceName=tunein&path={path}",
+        }
+        if scope:
+            params["scope"] = scope
+        # The x-hap-device-id header makes this exact call fail with [1, "Any"].
+        result = self.call(
+            "avContent", "getContentList", "1.3", [params], send_client_id=False
+        )
+        if isinstance(result, list) and result and isinstance(result[0], list):
+            return result[0]
+        return result if isinstance(result, list) else []
+
+    def play_station_uri(self, uri: str) -> dict:
+        """Play a station from a `uri` returned by `radio_browse`.
+
+        This is the reliable way in. `play_station` builds the same URI from a
+        station id and a path, which only works if the two genuinely belong
+        together on *this* player.
+        """
+        if not uri.startswith("netService:"):
+            raise ValueError(f"expected a netService URI, got {uri!r}")
+        return self.call(
+            "avContent",
+            "createPlayingListAndQuickPlay",
+            "1.0",
+            [{"uri": uri, "listIndex": 0, "listCount": 0,
+              "playbackControlMode": "station"}],
+        )
+
     def radio_is_registered(self) -> bool:
         """True if this player is linked to a TuneIn *account*.
 
@@ -521,10 +578,14 @@ class HAP:
         `station_id` is the ``s#####`` in a tunein.com URL — open the station in
         a browser and read it out of the address bar.
 
-        `path` is an opaque slot whose meaning is unresolved. The script's
-        author advises a distinct value per station; on our reference unit it
-        makes no observable difference, because station playback does not work
-        there at all for a reason upstream of `path`.
+        `path` is **a position in the player's own TuneIn browse tree**, not an
+        arbitrary counter: `/1/1/3` is the third station under the first two
+        folders. It must match `station_id` — pairing a path with an unrelated
+        station id silently does nothing, which is what misled us for days.
+
+        Prefer `radio_browse` followed by `play_station_uri`: browsing hands
+        you a matched pair and cannot be got wrong. Use this only when you
+        already know both values are consistent for this device.
 
         **This call always reports success**, even when it does nothing: it
         returns a playlist URI while leaving the queue empty. Pass
@@ -816,7 +877,53 @@ def _cli_radio_status(hap: HAP, _args) -> None:
         print("above, then re-run this command to confirm.")
 
 
+def _sane_tree_path(path: str) -> str:
+    """Undo the mangling shells do to a bare "/" argument.
+
+    Git Bash / MSYS rewrites `/` into the Git installation root before the
+    program ever sees it, so `radio-browse /` arrives as `C:/Program Files/Git/`
+    and the player answers `[1, "Any"]`. That cost an hour of blaming the
+    device. Accept `root` as a synonym too.
+    """
+    if path in ("", "root"):
+        return "/"
+    if re.match(r"^[A-Za-z]:[\/]", path) or "Program Files" in path:
+        print("note: your shell rewrote the path argument; using / instead.")
+        print("      Use 'root', or quote it as '//', to avoid this.")
+        return "/"
+    return path if path.startswith("/") else "/" + path
+
+
+def _cli_radio_browse(hap: HAP, args) -> None:
+    path = _sane_tree_path(args.path)
+    items = hap.radio_browse(path)
+    if not items:
+        print("nothing at that path")
+        return
+    for it in items:
+        kind = "station" if it.get("isPlayable") else ("folder " if it.get("isBrowsable") else "       ")
+        print(f"  [{kind}] {it.get('path','?'):12} {it.get('title','')}")
+    print()
+    print(f"{len(items)} item(s). Descend with `radio-browse <path>`, play with")
+    print("`play-station --uri <uri>` using the uri printed by --uris.")
+    if args.uris:
+        print()
+        for it in items:
+            if it.get("isPlayable"):
+                print(f"  {it.get('title', '')}")
+                print(f"    {it.get('uri')}")
+
+
 def _cli_play_station(hap: HAP, args) -> None:
+    if args.uri:
+        _row("URI", args.uri)
+        hap.play_station_uri(args.uri)
+        started = hap._playback_started()
+        _row("Result", "playing" if started else "nothing started")
+        if started:
+            np = hap.now_playing()
+            _row("Now", f"{np.title} [{np.codec}]")
+        return
     _row("Station", args.station_id)
     _row("Path", args.path)
     result = hap.play_station(args.station_id, args.path, verify=True)
@@ -826,11 +933,12 @@ def _cli_play_station(hap: HAP, args) -> None:
     _row("Result", "nothing started")
     print()
     print("The player accepted the request and reported success, as it always")
-    print("does, but nothing is playing and any previous playback was cleared.")
-    print("On our reference unit every station behaves this way, and neither")
-    print("the account state nor the path value changes it — the cause is")
-    print("upstream of both and is not yet understood. Known-working players")
-    print("are ones that used TuneIn while Sony still supported it.")
+    print("does, but nothing started.")
+    print()
+    print("Almost always this means the station id and the path do not belong")
+    print("together on this player. A path is a position in *this* device's")
+    print("TuneIn tree and is locale-specific. Run `radio-browse /` and work")
+    print("down to the station, then play the uri it gives you.")
 
 
 def _cli_sleep_timer(hap: HAP, _args) -> None:
@@ -877,8 +985,14 @@ def main() -> int:
         "radio-status", help="TuneIn registration state (and a pairing PIN if unbound)"
     ).set_defaults(func=_cli_radio_status)
 
-    p = sub.add_parser("play-station", help="Play a TuneIn station by its s##### id")
-    p.add_argument("station_id", help="TuneIn station id, e.g. s13606")
+    p = sub.add_parser("radio-browse", help="Browse the player's TuneIn tree")
+    p.add_argument("path", nargs="?", default="/", help="tree path, e.g. / or /1/1")
+    p.add_argument("--uris", action="store_true", help="also print playable uris")
+    p.set_defaults(func=_cli_radio_browse)
+
+    p = sub.add_parser("play-station", help="Play a TuneIn station")
+    p.add_argument("station_id", nargs="?", default="", help="TuneIn station id, e.g. s13606")
+    p.add_argument("--uri", help="a netService uri from radio-browse (the reliable way)")
     p.add_argument(
         "--path", default="1/1/1", help="Slot path; must differ per station (default 1/1/1)"
     )

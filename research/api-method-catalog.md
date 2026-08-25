@@ -124,95 +124,72 @@ still has the code; the far end is gone.
 That is worth naming plainly: this project is documenting a machine that is *still losing*
 functionality, by remote action, a decade after release and five years after its last firmware.
 
-### Browse is dead, but playback still works — internet radio can be restored
+### Internet radio works — everything we wrote before this was wrong
 
-Contributed 2026-08-21 via Amos: an independent HTML remote by a German HAP owner (met on the Steve
-Hoffman forums) that still plays TuneIn stations on a device where Sony removed radio from the
-front panel and from both mobile apps. Its entire protocol content is one call:
+> **Corrected 2026-08-25, comprehensively.** Over five days this section claimed, in order, that
+> Sony had withdrawn TuneIn; that per-device registration gated playback; and that working players
+> were ones with a local cache. **All three were wrong.** TuneIn is fully functional on our
+> reference Z1ES — browsing and playback both — and always was. Every wrong theory was built on a
+> `[1, "Any"]` response that we were causing ourselves.
 
-```json
-POST /sony/avContent
-{
-  "id": 1,
-  "method": "createPlayingListAndQuickPlay",
-  "params": [{
-    "playbackControlMode": "station",
-    "listCount": 0,
-    "uri": "netService:audio?serviceName=tunein&path=1/1/1&id=s20291",
-    "listIndex": 0
-  }],
-  "version": "1.0"
-}
-```
-
-**This is the same primitive we already use for HDD playback, in a mode we did not know about.** Our
-entry above documents `createPlayingListAndQuickPlay` v1.0 with `playbackControlMode: "folder"`,
-`listCount: 1` and an `audio:track?id=N` URI. Here it takes **`playbackControlMode: "station"`**,
-`listCount: 0`, and a `netService:` URI. New enum value, new URI category, same method and version.
-
-It also **contradicts our APK-derived assumption**: the catalogue says radio is played with
-`setPlayContent` + `{uri: "netService:…", playlistName}`. This author uses a different primitive
-altogether. Either both work, or the APK shape is stale.
-
-> **⚠️ Corrected 2026-08-21, same day.** This section first concluded that "Sony withdrew the browse
-> service and left the streaming path intact, so radio is restorable from the outside". **That was
-> wrong**, and it was wrong because it was inferred from someone else's working device rather than
-> tested on ours. Testing it produced a much more ordinary explanation — see below. Do not build on
-> the original claim.
-
-**What actually happens on an unregistered unit** (live, 19404R, 2026-08-21): the call is *accepted*
-and returns `{"playbackControlMode": "station", "uri": "audio:playinglist?id=1"}`, which looks like
-success. But the play queue stays **empty**, nothing plays, and the previous playback session is
-cleared. `setPlayContent` with the APK's netService shape returns `[1, "Any"]`.
-
-The reason is not a withdrawn service. It is this:
+**What actually works** (live, Z1ES, firmware 19404R, 2026-08-25):
 
 ```json
 POST /sony/avContent
-{"method":"registerDevice","version":"1.0","id":1,
- "params":[{"uri":"netService:audio?serviceName=tunein","method":"check"}]}
-
-→ {"result": [{"isRegistered": false}], "id": 1}
+{"method":"getContentList","id":1,"version":"1.3",
+ "params":[{"finish":false,"uri":"netService:audio?serviceName=tunein&path=/"}]}
 ```
 
-The unit is not registered with TuneIn — but **registration is not the reason, and this was our
-second wrong explanation in two days.**
+returns the whole TuneIn directory, localised to the player's region:
 
-> **Corrected 2026-08-25.** We concluded that per-device registration gated playback. An owner who
-> used TuneIn while Sony supported it says otherwise: *"You can use TuneIn on the HAP units without
-> being registered or having an account. When the service was officially supported you could login
-> to save your favorites to/from the cloud but when Sony discontinued official support that quit
-> working."* So `registerDevice` concerns **cloud sync of favourites**, not access. The client no
-> longer gates on it — see the note below.
+```text
+[1] Radios locales   /1     [2] Tendance   /2     [3] Musique  /3
+[4] Sports          /4     [5] Actualités et débats /5   …
+```
 
-`getPin` does still return a real code (`{"pinCode": "SW94LN"}`), so that machinery is alive; it
-just is not the thing standing between us and a playing station.
+Descend with `path=/1`, `/1/1`, … until items carry `isPlayable: true`. Each item hands you a
+ready-made `uri`. Play it:
 
-**What we actually know**, tested on the reference Z1ES 2026-08-25: every station id and every
-`path` value — including a nonexistent path and an empty one — produces the identical outcome. The
-call is accepted, returns `audio:playinglist?id=1`, the queue stays empty, `playinginfo` goes to
-`500`, and any previous playback is cleared. Neither account state nor `path` changes it, so the
-cause is **upstream of both and is not yet understood**.
+```json
+POST /sony/avContent
+{"method":"createPlayingListAndQuickPlay","id":1,"version":"1.0",
+ "params":[{"uri":"netService:audio?serviceName=tunein&path=/1/1/3&id=s25841",
+            "listIndex":0,"listCount":0,"playbackControlMode":"station"}]}
+```
 
-**Leading hypothesis, untested:** station resolution goes through a Sony back-end that is gone, and
-the players where this still works are ones that used TuneIn while it was supported — leaving
-stations resolvable from the device's own local TuneIn database (`tunein_browse.db`, see
-[`../docs/09-disk-layout.md`](../docs/09-disk-layout.md)). That would make `path` an index into that
-local list, which fits the author's instruction to give each station a distinct value.
+Verified end to end: station plays, `getPlayingContentInfo` reports
+`uri: netService:audio?id=s301879&serviceName=tunein`, `audioCodec: ["mp3"]`.
 
-**The test that would settle it** is one only a working player can run: pick a station id that
-player has *never* used, give it a fresh `path`, and see whether it plays. If it does, the cache
-theory is dead.
+#### The three things that had us fooled
 
-**And the hypothesis now has a mechanism** (2026-08-25): TuneIn's device API is alive, but its
-stream-resolution call `Tune.ashx` returns `400` unless the client declares `formats=`. A player
-holding stream URLs cached from when the service worked would never need to make that call. See
-[`notes/2026-08-25-tunein-is-alive.md`](notes/2026-08-25-tunein-is-alive.md) — radio looks
-interposable rather than lost.
+**1. `x-hap-device-id` breaks this exact call.** With the header, `getContentList` on a
+`netService:` URI returns `[1, "Any"]`. Without it, the full tree. This catalogue previously
+described the header as "optional"; it is worse than optional here. Our client now omits it for
+netService browsing.
 
-This is also the likeliest explanation for the `streaming` content type that the Crestron module
-encounters and renders literally as `"UNDOCUMENTED STREAM"` — netService items in a directory
-listing.
+**2. `scope: "directory"` is invalid for TuneIn.** Our first probes sent it and read the resulting
+`[1, "Any"]` as "the service is dead". Omit `scope` entirely, or use `scope: "favorite"`.
+
+**3. `path` is a position in *this player's* tree, and must match the station id.** It is not an
+opaque counter. `/1/1/3` means "third item, in the first folder of the first folder", and the tree is
+**locale-specific** — a French player and a German one do not have the same station at the same path.
+Pairing an arbitrary path with an arbitrary station id silently does nothing, which is exactly what
+we did for days. That also explains the contributed script: its `data-number` values are real paths
+from the author's own German tree, and his advice to "increment the number" is simply how you walk a
+list.
+
+**`[1, "Any"]` is not a diagnosis.** It is this device's generic refusal, and we saw it for at least
+three unrelated causes. Never build a theory on it.
+
+#### Still open
+
+- **Bitrate.** Stations arrive as MP3; a contributor reports 320 kbps as the observed ceiling. Radio
+  Paradise and others publish FLAC and higher-rate streams. Whether the player can be handed one —
+  by proxy or by parameter — is untested and is the obvious next win for a hi-res machine.
+- **`radiko`** returns `[1, "Any"]` at the tree root. A contributor reports it has never worked on
+  any of his units since new. Almost certainly Japan-only.
+- **Our `contentdb` REST still hangs** while a contributor's identical firmware serves it fine
+  through `HAP_app.html`. That is now a property of *our unit*, not of 19404R.
 
 #### `registerDevice` — LIVE-CONFIRMED 2026-08-21
 

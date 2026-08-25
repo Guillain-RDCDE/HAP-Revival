@@ -14,7 +14,7 @@ The hardware still sings. This is the rest of the story.
 
 [![Release](https://img.shields.io/github/v/release/Guillain-RDCDE/HAP-Revival?color=2ea043&label=HAP%20Sync&style=flat-square)](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest)
 &nbsp;
-[![Tests](https://img.shields.io/badge/tests-198%20passing-2ea043?style=flat-square)](tests)
+[![Tests](https://img.shields.io/badge/tests-216%20passing-2ea043?style=flat-square)](tests)
 &nbsp;
 [![License](https://img.shields.io/badge/code-MIT-blue?style=flat-square)](LICENSE)
 
@@ -51,9 +51,9 @@ live smoke test is the exception, since checking a real player is the entire poi
 - [**Web UI**](tools/webui.py) — now playing, transport, sound settings and cover art, in a browser.
   Updates the instant the music changes, because the player says so.
 - [**Control app**](docs/13-control-app.md) — the same UI on your phone's home screen. No App Store.
-- [**Python client**](tools/hap_client.py) — every mapped API method, from the shell or your code.
-  Internet radio too, on the players where it still works — it reads the state back and tells you
-  whether anything actually started, which the player itself will not.
+- [**Python client**](tools/hap_client.py) — every mapped API method, from the shell or your code,
+  including **internet radio**: browse the player's TuneIn directory and play any station, which
+  Sony's own app can no longer do.
 - [**Push notifications**](tools/hap_notify.py) — the player tells you the moment anything changes,
   instead of being asked every five seconds.
 - [**Discovery**](tools/discover.py) — finds the HAP on your network. No IP to hunt down.
@@ -174,11 +174,11 @@ makes — transport, sound settings, playback.
   the full schema is in hand.
 - The hardware is identified from the metal up, including both DSPs and the kernel driver's
   ioctl surface.
-- Internet radio looks recoverable. TuneIn's device API is **alive in 2026** — it just refuses to
-  resolve a station unless the client declares which audio formats it accepts, and then hands back
-  HTTPS streams a 2014 machine may not be able to open. The neighbours solved this exact problem
-  years ago for vTuner receivers, by intercepting DNS and proxying; the same shape fits here.
-  [How it stands](research/notes/2026-08-25-tunein-is-alive.md).
+- **Internet radio works.** It always did — Sony removed it from the app and the front panel, not
+  from the machine. Browse the player's TuneIn directory and play any station over the network:
+  `python tools/hap_client.py <ip> radio-browse root`. It took five days and three wrong theories to
+  find that we were simply sending one header too many
+  ([the gotchas page](docs/16-gotchas.md#6-never-send-x-hap-device-id-on-a-netservice-browse)).
 - Sony's update host is still alive and turns out to be a plain file server, so the firmware image
   may be downloadable rather than needing a NAND dump — [`docs/07-firmware.md`](docs/07-firmware.md).
   Next is capturing one update check to learn the path, then the UART console — i.MX6 UART1 at

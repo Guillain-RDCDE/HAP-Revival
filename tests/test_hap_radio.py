@@ -26,9 +26,10 @@ class Recorder:
         self.calls = []
         self.reply = reply if reply is not None else {}
 
-    def __call__(self, service, method, version, params):
+    def __call__(self, service, method, version, params=None, *, send_client_id=True):
         self.calls.append(
-            {"service": service, "method": method, "version": version, "params": params}
+            {"service": service, "method": method, "version": version,
+             "params": params, "send_client_id": send_client_id}
         )
         return self.reply
 
@@ -234,3 +235,94 @@ def test_playback_started_is_false_when_the_device_errors(hap, monkeypatch):
 
     monkeypatch.setattr(hap, "now_playing", boom)
     assert hap._playback_started(settle_sec=0) is False
+
+
+# ---------- browsing: the way radio actually works ----------
+#
+# Everything above about registration, caches and opaque paths was wrong. A
+# `path` is a position in *this player's* TuneIn tree, locale-specific, and it
+# must match the station id. Browse, then play the uri you were handed.
+
+
+def test_radio_browse_sends_the_working_shape(hap, monkeypatch):
+    rec = Recorder([[{"title": "x"}]])
+    monkeypatch.setattr(hap, "call", rec)
+    hap.radio_browse("/1/1")
+    assert rec.last["method"] == "getContentList"
+    assert rec.last["version"] == "1.3"
+    assert rec.last["params"] == [
+        {"finish": False, "uri": "netService:audio?serviceName=tunein&path=/1/1"}
+    ]
+
+
+def test_radio_browse_omits_the_client_id_header(hap, monkeypatch):
+    """x-hap-device-id makes this exact call fail with [1, "Any"] on a real
+    device. Regression guard for a header that cost days."""
+    seen = {}
+
+    def spy(service, method, version, params=None, *, send_client_id=True):
+        seen["send_client_id"] = send_client_id
+        return [[]]
+
+    monkeypatch.setattr(hap, "call", spy)
+    hap.radio_browse("/")
+    assert seen["send_client_id"] is False
+
+
+def test_radio_browse_unwraps_the_double_list(hap, monkeypatch):
+    """The device returns result[0] as a list of items, not the items."""
+    monkeypatch.setattr(hap, "call", Recorder([[{"title": "a"}, {"title": "b"}]]))
+    assert [i["title"] for i in hap.radio_browse("/")] == ["a", "b"]
+
+
+def test_radio_browse_tolerates_a_flat_list(hap, monkeypatch):
+    monkeypatch.setattr(hap, "call", Recorder([{"title": "a"}]))
+    assert hap.radio_browse("/") == [{"title": "a"}]
+
+
+def test_radio_browse_scope_is_passed_through(hap, monkeypatch):
+    rec = Recorder([[]])
+    monkeypatch.setattr(hap, "call", rec)
+    hap.radio_browse("/", scope="favorite")
+    assert rec.last["params"][0]["scope"] == "favorite"
+
+
+def test_play_station_uri_sends_the_uri_verbatim(hap, monkeypatch):
+    rec = Recorder()
+    monkeypatch.setattr(hap, "call", rec)
+    uri = "netService:audio?serviceName=tunein&path=/1/1/3&id=s25841"
+    hap.play_station_uri(uri)
+    assert rec.last["method"] == "createPlayingListAndQuickPlay"
+    assert rec.last["params"][0]["uri"] == uri
+    assert rec.last["params"][0]["playbackControlMode"] == "station"
+
+
+@pytest.mark.parametrize("bad", ["audio:track?id=1", "", "http://x", "s13606"])
+def test_play_station_uri_refuses_a_non_netservice_uri(hap, monkeypatch, bad):
+    rec = Recorder()
+    monkeypatch.setattr(hap, "call", rec)
+    with pytest.raises(ValueError):
+        hap.play_station_uri(bad)
+    assert rec.calls == []
+
+
+# ---------- the shell that rewrote our argument ----------
+
+
+@pytest.mark.parametrize(
+    "given,expected",
+    [
+        ("/", "/"),
+        ("/1/1", "/1/1"),
+        ("root", "/"),
+        ("", "/"),
+        ("1/1", "/1/1"),                                   # missing leading slash
+        ("C:/Program Files/Git/", "/"),                    # Git Bash mangling
+        (r"C:\Program Files\Git" + "\\", "/"),
+        ("D:/anything", "/"),
+    ],
+)
+def test_shell_mangled_paths_are_repaired(given, expected):
+    from hap_client import _sane_tree_path
+
+    assert _sane_tree_path(given) == expected

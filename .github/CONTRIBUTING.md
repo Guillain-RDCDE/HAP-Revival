@@ -26,16 +26,14 @@ reading before asking someone a question their device physically cannot settle.
 
 | Player | State | Can settle | Cannot |
 |---|---|---|---|
-| **Reference Z1ES** (maintainer's) | `19404R`, TuneIn **unregistered**, HDD library, Spotify Connect in use | Everything on the JSON-RPC and `contentplayer` REST surfaces, push notifications, the gotchas | Radio playback, volume, tone control, anything S1, anything on an older firmware |
+| **Reference Z1ES** (maintainer's) | `19404R`, HDD library, **internet radio works**, `contentdb` REST hangs | Everything on the JSON-RPC and `contentplayer` REST surfaces, push notifications, internet radio, the gotchas | Volume, tone control, anything S1, anything on an older firmware. And its `contentdb` is broken where others' works |
 | **S1 at Amos's workplace** | `19404R`, backup slot holds **`0018120R`** | Volume (`0`–`74`), tone control reads, an S1 tone-control write | Not ours to risk. The one machine that *could* reach an older firmware, and the one we will not ask to |
 | **S1 at Amos's home** | `19404R`, backup slot **spent** (both slots identical) | Second S1 data point | Cannot downgrade — the slot was burned by a re-flash |
-| **Saschko's player** | Radio **still plays** on it; he wrote the browser remote that drives it | Station playback, the meaning of `path`, and whether a *never-played* station still resolves — the only machine we know of that can | Model and firmware unknown to us |
+| **Saschko's player** | German locale; he wrote the browser remote that drives its radio | A second locale's TuneIn tree — paths are locale-specific, so his are not ours | Model and firmware unknown to us |
 
-One caveat on that table. We do not know *why* radio still plays on Saschko's player. It is **not**
-account registration — an owner who used the service confirms stations played with no account, and
-the client no longer gates on it. The leading theory is that his player cached its stations while
-Sony's integration worked; see
-[`research/notes/2026-08-25-tunein-is-alive.md`](../research/notes/2026-08-25-tunein-is-alive.md).
+That table used to say radio worked on his player and not ours, and invited theories about why.
+There was nothing to explain: radio works on ours too, and always did — we were calling the API
+wrongly. See [`docs/16-gotchas.md`](../docs/16-gotchas.md) §6 for the header that hid it.
 
 **What nobody can currently answer**, and what a new contributor would unlock:
 
