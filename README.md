@@ -32,7 +32,7 @@ The hardware still sings. This is the rest of the story.
 
 ## What you can use today
 
-Twelve finished tools. Stdlib-only Python, no accounts, no telemetry.
+Thirteen finished tools. Stdlib-only Python, no accounts, no telemetry.
 All but one run against a built-in mock device, so you can try them with no HAP at all — the
 live smoke test is the exception, since checking a real player is the entire point of it.
 
@@ -67,6 +67,8 @@ live smoke test is the exception, since checking a real player is the entire poi
 - [**Mock device**](tools/mock_hap.py) — a fake HAP that answers the real protocol.
 - [**Live smoke test**](tools/smoke_live.py) — checks the client against your own player and
   asserts it reads real values, which the offline suite cannot.
+- [**Link checker**](tools/check_links.py) — every relative link and heading anchor in the docs,
+  fragments included. Runs in CI.
 
 <br>
 

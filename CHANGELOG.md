@@ -8,6 +8,14 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-25, dead anchors can no longer hide)
+
+- **New tool: [`tools/check_links.py`](tools/check_links.py)**, wired into the docs CI. markdownlint
+  and lychee both ignore `#fragments`, so a link to a heading that no longer exists passes every
+  check we had — two such links were dead for two weeks after a README rewrite before anyone
+  noticed. Stdlib only, external URLs deliberately not checked. Verified it fails on a dead anchor
+  and on a missing file, and passes on the current tree (40 Markdown files).
+
 ### Changed (2026-08-25, registration was never the gate)
 
 Our second wrong explanation in two days, and the second corrected by an owner rather than by more
