@@ -95,8 +95,8 @@ subscription endpoint reported a timeout that was pure collateral damage.
   permanently on a Z1ES. Reading either as "device is asleep" — which the Crestron module does —
   reports a live player as offline.
 
-**Do instead.** Read the state back after every write. Our `play_station` refuses to run on an
-unregistered player precisely because the API would have said yes.
+**Do instead.** Read the state back after every write. `play_station(..., verify=True)` does exactly
+that, and it exists because the device will happily report success for a station it never started.
 
 ---
 
