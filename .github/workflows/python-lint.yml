@@ -24,7 +24,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install ruff
-        run: pip install ruff
+        # Pinned deliberately: unpinned, every ruff release enables new default
+        # rules and turns this gate red on code nobody touched. 0.16.5 did
+        # exactly that on 2026-08-23 (79 findings, none of them new code).
+        # Bump on purpose, with the cleanup in the same commit.
+        run: pip install ruff==0.15.14
       - name: Run ruff
         run: ruff check tools/ tests/
 
