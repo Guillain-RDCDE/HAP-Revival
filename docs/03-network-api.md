@@ -63,13 +63,15 @@ The UUID format is `00000000-0000-1010-8000-<12 hex chars>`. The last 12 hex cha
 Other endpoints on port 60100:
 
 - `/HAP.html` → 301 to `/HAP_app.html` — a 272 KB HTML/JS embedded admin UI (CSS comments in Japanese — internal Sony tooling, not designed for end users).
+- `/HAP_v1.0.html` (9 KB) and `/HAP_ver.1.2.1.html` (14 KB) — two earlier, "out of support" versions of the same admin UI, still served on `19404R`. There is **no directory listing on this port**, so these are only findable by name. Both load `/haplib.js`; v1.2.1 also loads `/browselib.js`. On v1.0 the console is hidden until you click the word **"Player"** in the page title. These two scripts are the only known source for the third API below — see [`../research/notes/2026-08-27-hap-tool-endpoint.md`](../research/notes/2026-08-27-hap-tool-endpoint.md).
 - `/ScalarWebAPI_SCPD.xml` — UPnP SCPD descriptor (essentially empty — the real API is the JSON-RPC below).
 - `/MusicConnect_SCPD.xml` — declares `TransportState` (STOPPED/PLAYING/PAUSED_PLAYBACK/NO_MEDIA_PRESENT) and `LastChange` evented variables.
 - `/HAP-Z1ES_120.png`, `/HAP-Z1ES_48.png`, etc. — device icons.
 
 ### The second API: REST on the same port
 
-Port 60200 serves **two** APIs. Besides the JSON-RPC ScalarWebAPI below, there is a REST surface —
+Port 60200 serves **three** APIs. Besides the JSON-RPC ScalarWebAPI below and the `/sony/hap` tool
+namespace further down, there is a REST surface —
 the one the embedded `HAP_app.html` admin UI calls, and the one the Crestron control module speaks
 exclusively. It splits in two, and the two halves have opposite fates on 19404R:
 
@@ -97,6 +99,31 @@ milliseconds, and so does `/sony/contentdb/v100` itself. Only its leaves hang. T
 registered and its handler never answers — a feature that shipped in firmware `0017310R` (which the
 2016 Crestron module targets) and was later disabled. `HAP_app.html` is therefore not a UI pointed
 at a backend this device never had; it is a UI for a backend this device **lost**.
+
+### The third API: `/sony/hap` — screen capture and key injection
+
+Same port, separate namespace, plain query-string GETs rather than JSON. It appears in **no** other
+source we hold — not the Crestron module, not the decompiled APK, not any capture — only in the
+player's own `haplib.js`. Confirmed live on `19404R`, 2026-08-27:
+
+```text
+GET /sony/hap?target=screen&cmd=display_png    -> 200, image/png, 480x272, ~104 KB, ~1.3 s
+GET /sony/hap?target=screen&cmd=download_png   -> same image, as a download
+GET /sony/hap?target=screen&cmd=capture_png    -> 200, body "None"; writes the PNG to
+                                                  HAP_Internal/anap/capture/YYYY-MMDD_hhmmss.png
+GET /sony/hap?target=keyevent&cmd=<key>        -> 200, body "None"; injects one front-panel key
+                                                  home up down left right enter back option play
+```
+
+`display_png` is the **live framebuffer of the player's display** — menus, highlight bar and all —
+not a rendering of playback state. Paired with `keyevent` it makes the on-device UI scriptable, which
+brings back everything Sony removed from the mobile app but left in the front-panel menus. Requests
+should be cache-busted, as the player's own pages do.
+
+`display_png` is read-only. `capture_png` writes to the share and `keyevent` drives the machine.
+[`tools/hap_screen.py`](../tools/hap_screen.py) wraps all three; the full write-up, including what the
+stream selector reveals about the internet-radio bitrate question, is in
+[`../research/notes/2026-08-27-hap-tool-endpoint.md`](../research/notes/2026-08-27-hap-tool-endpoint.md).
 
 Until that changes, reach the library via the JSON-RPC `avContent.*` methods, or read it off disk
 ([`09-disk-layout.md`](09-disk-layout.md)).

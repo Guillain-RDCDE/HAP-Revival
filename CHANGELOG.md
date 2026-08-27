@@ -8,6 +8,36 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-27, the front panel over HTTP)
+
+A contributor spotted two filenames on frazei's page — `/HAP_v1.0.html` and `/HAP_ver.1.2.1.html` —
+and asked whether we had noticed them. We had not; port 60100 has no directory listing, so they are
+only findable by name. They are served on `19404R`, and the script they load describes an API surface
+that exists in no other source we hold.
+
+- **A third API on port 60200: `/sony/hap?target=…&cmd=…`.** Confirmed live, reads and writes.
+  - `target=screen&cmd=display_png` returns the **live 480×272 framebuffer of the player's own
+    display** as a PNG — menus, highlight bar and all. `download_png` serves the same as a download;
+    `capture_png` makes the player write it to `HAP_Internal/anap/capture/`.
+  - `target=keyevent&cmd=<key>` injects a front-panel key: `home up down left right enter back
+    option play`. Verified by driving the OPTION menu and returning to the starting screen without
+    interrupting playback.
+  - **Together they make the on-device UI scriptable** — everything Sony removed from the mobile app
+    but left in the front-panel menus becomes reachable over the network, with no firmware, no UART
+    and no NAND work.
+- **The stream selector is observable.** Driving OPTION → *Flux* renders "Sélectionnez un flux" with
+  what TuneIn offers for the station — three entries, all 320 kbps MP3. That is the surface an
+  interposed host would be talking to, which sharpens the open bitrate question rather than settling
+  it.
+- **New tool**: [`tools/hap_screen.py`](tools/hap_screen.py) — `show`, `key`, `capture`. Stdlib only.
+- **Three screens preserved** in `research/captures/`, and the full write-up with the evidence in
+  [`research/notes/2026-08-27-hap-tool-endpoint.md`](research/notes/2026-08-27-hap-tool-endpoint.md).
+- **Two corrections to what the pages appear to offer.** v1.0's "On Timer" is not a device feature —
+  it is a `setTimeout` in the browser that sends a power-on; close the tab and it is gone. And
+  v1.2.1's breakage on the reference unit is explained by `browselib.js` building its tree purely
+  from the dead `contentdb` half, but that explanation does not carry to a player where `contentdb`
+  answers and v1.2.1 is broken anyway.
+
 ### Fixed (2026-08-25, internet radio works — and always did)
 
 Five days, three published theories, all wrong. Sony withdrew TuneIn from the mobile app and the

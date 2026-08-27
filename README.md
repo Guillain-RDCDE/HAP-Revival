@@ -169,6 +169,10 @@ makes — transport, sound settings, playback.
   with a [machine-readable spec](api-spec/). A second, REST API sits on the same port, and the
   player pushes state changes over UDP rather than needing to be polled —
   [both found in the Crestron module](research/notes/2026-08-20-crestron-module-teardown.md).
+- **The front panel is mirrorable and its keys are injectable over HTTP** — an undocumented third
+  API on port 60200, found in two "out of support" pages the player still serves. Fetch the display
+  as a PNG, press its buttons, script the on-device UI:
+  `python tools/hap_screen.py <ip> show` ([the write-up](research/notes/2026-08-27-hap-tool-endpoint.md)).
 - Sony's `HDDAudioRemote` Android app is decompiled — the first public decompile of this client.
 - The internal disk is read. It holds no operating system: a SQLite catalogue and your music, and
   the full schema is in hand.
@@ -253,7 +257,9 @@ is provided as-is, without warranty. You are responsible for your own hardware.
 ## Acknowledgements
 
 **Amos**, for tracking down the Crestron module and handing over the protocol —
-[two of our conclusions were wrong](research/notes/2026-08-20-crestron-module-teardown.md) until he did ·
+[two of our conclusions were wrong](research/notes/2026-08-20-crestron-module-teardown.md) until he did,
+and for noticing the two page names that led to
+[the front panel over HTTP](research/notes/2026-08-27-hap-tool-endpoint.md) ·
 **Saschko**, for the browser remote that still plays TuneIn stations, and for finding the header
 that breaks it before we could tell him ·
 [danielrweber/HAPxFer](https://github.com/danielrweber/HAPxFer) for the SMB reference ·
