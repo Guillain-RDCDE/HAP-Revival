@@ -8,6 +8,21 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Corrected (2026-08-27, the console was never waiting for a click)
+
+Same-day correction to the note below, from a contributor's HAP-S1 where the console panel appeared
+without any click. Reading `initialize()` rather than the markup: v1.0 ships the panel
+`display:none`, but **unhides it unconditionally on any browser whose clock reads 2025-09-24 or
+later** — a date hard-coded four years past the last firmware. Between 2021-09-24 and that date it
+stays hidden and the word "Player" merely gains a fade-in hover hint; the click has been unnecessary
+since. It reads the browser's clock, not the player's.
+
+Also corrected: v1.2.1's blank tree fails identically on both machines because every handler in
+`browselib.js` checks `readyState` but never the HTTP status, then `JSON.parse`s the body — the
+exception dies in the callback and the `<div>` stays empty. Whether that machine's `contentdb` is
+actually healthy is now an open question, with one URL that settles it. And the doubled slash those
+URLs carry (`//sony/…`) is **not** the cause: the player serves it identically.
+
 ### Added (2026-08-27, the front panel over HTTP)
 
 A contributor spotted two filenames on frazei's page — `/HAP_v1.0.html` and `/HAP_ver.1.2.1.html` —
