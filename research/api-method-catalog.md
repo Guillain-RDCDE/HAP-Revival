@@ -189,12 +189,12 @@ three unrelated causes. Never build a theory on it.
 - **`radiko`** returns `[1, "Any"]` at the tree root. A contributor reports it has never worked on
   any of his units since new. Almost certainly Japan-only.
 - **Our `contentdb` REST still hangs** while a contributor's identical firmware serves it fine
-  through `HAP_app.html`. That is now a property of *our unit*, not of 19404R. ⚠️ **Re-open
-  2026-08-27**: an HAP-S1 shows the same empty library tree in `HAP_ver.1.2.1.html`, which is
-  `contentdb`-backed. That page fails silently on a dead endpoint *and* on a live one, so it proves
-  nothing either way — but if it is the same player, this line is wrong. Pending one direct
-  `GET /sony/contentdb/v100/audio/genres` from that machine. See
-  [`notes/2026-08-27-hap-tool-endpoint.md`](notes/2026-08-27-hap-tool-endpoint.md).
+  through `HAP_app.html`. That is now a property of *our unit*, not of 19404R. **Confirmed directly
+  2026-08-28**: `GET /sony/contentdb/v100/audio/genres` on an HAP-S1 returns the full genre list with
+  `genreid`, `name` and `number_of_tracks`. On a healthy player the whole library tree is readable
+  over REST — no `downloadByDiff`, no disk removal. (The blank tree in `HAP_ver.1.2.1.html` is not
+  evidence of anything: that page is broken by an undefined `xhr` and never worked on any unit. See
+  [`notes/2026-08-27-hap-tool-endpoint.md`](notes/2026-08-27-hap-tool-endpoint.md).)
 
 #### `registerDevice` — LIVE-CONFIRMED 2026-08-21
 

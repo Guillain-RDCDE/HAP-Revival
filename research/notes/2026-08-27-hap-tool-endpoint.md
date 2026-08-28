@@ -101,17 +101,38 @@ callback, the exception dies there, and the `<div>` the click just opened stays 
 is exactly the reported symptom on an HAP-S1 — *“opens a small blank below but does not load
 anything”* — so the two machines fail identically at the browser, whatever is happening underneath.
 
-**What is not yet established** is whether that machine's `contentdb` is healthy. The catalogue
-records a contributor's identical firmware serving `contentdb` where ours hangs; if that is the same
-player, the JS is at fault and the REST tree is fine, and if it is not, `contentdb` is simply dead on
-both. One URL settles it, opened in a browser on the player's LAN:
+### The page has never worked, on any unit
 
-```text
-http://<ip>:60200/sony/contentdb/v100/audio/genres
+Settled 2026-08-28. `GET /sony/contentdb/v100/audio/genres` on the HAP-S1 returns the **full genre
+list** — `genreid`, `name`, `number_of_tracks`, per-genre `url` — so that machine's `contentdb` is
+entirely healthy and the page is blank anyway. The fault is in the script, and it is not subtle:
+
+```js
+xhr2 = createXMLHttpRequest();          // assigned, used, works — gets paging.total
+xhr2.onreadystatechange = function() {
+    if (xhr2.readyState == 4) {
+        ...
+        xhr.open("GET", … + "?offset=0&limit=" + total, true);   // <-- xhr is not defined
 ```
 
-JSON back means the page is to blame. A spinner that never resolves means the endpoint is dead there
-too, and the claim in the catalogue needs re-attributing.
+**`xhr` is never declared or assigned.** Not in `browselib.js`, which reads it 30 times and assigns
+it never; not in `HAP_ver.1.2.1.html`; and not in `haplib.js`, whose globals are `Xhr` and `XhrC` —
+the only lowercase `xhr` there is the *parameter* of `XHRrequest(xhr, url, …)`. Every browse function
+follows the same two-request shape and dies at the same line.
+
+The `ReferenceError` is raised inside an `onreadystatechange` callback, so nothing surfaces: no
+console banner, no failed request in the network tab — the second request is never issued at all —
+just a `<div>` that opens and stays empty. It looks exactly like a dead backend, which is what both
+of us assumed.
+
+So the reference unit's hung `contentdb` explained nothing: v1.2.1 would be just as blank with a
+perfectly live one. It reads like a global that was renamed to `Xhr` in `haplib.js` without anyone
+updating the browser, and shipped.
+
+**Consequences.** The catalogue line stands and is now evidenced: `contentdb` REST is healthy on a
+contributor's `19404R` and hung on ours — a property of *our unit*. On a healthy player the library
+tree is directly readable over REST, no `downloadByDiff` and no disk removal required. And v1.2.1 is
+of no diagnostic use to anyone; only v1.0 is.
 
 **Checked and cleared, so nobody else chases it**: `browselib.js` builds every URL as
 `apiBaseURL + "/sony/…"` where `apiBaseURL` already ends in `/`, so every request goes out with a

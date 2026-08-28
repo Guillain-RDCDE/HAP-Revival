@@ -17,11 +17,20 @@ later** — a date hard-coded four years past the last firmware. Between 2021-09
 stays hidden and the word "Player" merely gains a fade-in hover hint; the click has been unnecessary
 since. It reads the browser's clock, not the player's.
 
-Also corrected: v1.2.1's blank tree fails identically on both machines because every handler in
-`browselib.js` checks `readyState` but never the HTTP status, then `JSON.parse`s the body — the
-exception dies in the callback and the `<div>` stays empty. Whether that machine's `contentdb` is
-actually healthy is now an open question, with one URL that settles it. And the doubled slash those
-URLs carry (`//sony/…`) is **not** the cause: the player serves it identically.
+Also corrected: v1.2.1's blank tree has nothing to do with our dead `contentdb`.
+
+**`HAP_ver.1.2.1.html` has never worked, on any unit** (settled 2026-08-28). A direct
+`GET /sony/contentdb/v100/audio/genres` on a contributor's HAP-S1 returns the full genre list, and
+the page is blank there anyway. `browselib.js` reads a variable named `xhr` thirty times and never
+assigns it; `haplib.js` calls its globals `Xhr` and `XhrC`. Every browse function raises
+`ReferenceError` inside an `onreadystatechange` callback, where nothing surfaces — no console
+banner, no failed request, because the second request is never issued. Just an empty `<div>` that
+looks precisely like a dead backend.
+
+Two things follow. The catalogue's claim that `contentdb` REST is healthy elsewhere and hung on the
+reference unit is now evidenced rather than inferred — on a healthy player the library tree is
+readable straight over REST, no `downloadByDiff` and no disk removal. And the doubled slash those
+URLs carry (`//sony/…`) is **not** a factor either: the player serves it identically.
 
 ### Added (2026-08-27, the front panel over HTTP)
 
