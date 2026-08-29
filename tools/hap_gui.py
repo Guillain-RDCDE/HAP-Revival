@@ -526,7 +526,11 @@ class App:
         self.fix_list.delete(0, "end")
         for f in self._fix_findings:
             mark = "?" if f.ambiguous else (" " if f.folders else "!")
-            self.fix_list.insert("end", f"{mark} {f.title[:52]:<52} {f.detail[:60]}")
+            # A leading disc marks an album that also exists in a synced source
+            # folder — that is the copy the buttons will open, and editing it is
+            # a local write instead of an SMB1 one.
+            where = "▪" if f.is_local else " "
+            self.fix_list.insert("end", f"{mark}{where} {f.title[:50]:<50} {f.detail[:58]}")
         located = sum(1 for f in self._fix_findings if f.folders)
         self._log(self.fix_log, self._T("gui.fix.summary")
                   .replace("{n}", str(len(self._fix_findings)))
@@ -580,14 +584,20 @@ class App:
         self._run_async(job, self.fix_log, use_progress=True)
 
     def on_fix_open(self) -> None:
+        """Open the album's folder — the local source copy when there is one.
+
+        Editing the player's copy over SMB1 works but is slow, and the device
+        serialises requests. The synced source folder is the same album on a
+        local disk, so the edit is instant and the next Sync carries it over.
+        """
         f = self._fix_selected()
         if f is None:
             return
         if not f.folders:
             messagebox.showinfo("HAP Sync", self._T("gui.fix.not_located"))
             return
-        hap_fixit.open_folder(f.path)
-        self._log(self.fix_log, f"opened {f.path}")
+        hap_fixit.open_folder(f.best_path)
+        self._log(self.fix_log, self._fix_where(f))
 
     def on_fix_edit(self) -> None:
         f = self._fix_selected()
@@ -596,19 +606,25 @@ class App:
         if not f.folders:
             messagebox.showinfo("HAP Sync", self._T("gui.fix.not_located"))
             return
-        used = hap_fixit.open_in_editor(f.path)
+        used = hap_fixit.open_in_editor(f.best_path)
         if not used:
             messagebox.showwarning("HAP Sync", self._T("gui.fix.no_editor"))
             return
-        self._log(self.fix_log, f"{used}\n  {f.path}")
+        self._log(self.fix_log, f"{used}\n  {self._fix_where(f)}")
+
+    def _fix_where(self, f) -> str:
+        """One line saying which copy was opened, and what to do next."""
+        if f.is_local:
+            return f.local_path + "\n  " + self._T("gui.fix.then_sync")
+        return f.path + "\n  " + self._T("gui.fix.on_player")
 
     def on_fix_copy(self) -> None:
         f = self._fix_selected()
         if f is None:
             return
         self.root.clipboard_clear()
-        self.root.clipboard_append(f.path or f.title)
-        self._log(self.fix_log, f"copied {f.path or f.title}")
+        self.root.clipboard_append(f.best_path or f.title)
+        self._log(self.fix_log, f.best_path or f.title)
 
     def on_fix_html(self) -> None:
         harvest, index = self._fix_load_data()

@@ -8,6 +8,24 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-29, fix your own copy, then sync)
+
+Correcting tags directly on the player works, but it is a write over SMB1 to a 2014 box that
+handles one request at a time — fine for one album, painful for 274. Anyone who keeps local
+folders synced to the shares already has a second copy of every one of those albums, on a local
+disk, and **HAP Sync already knows the mapping**: `hap_sync.json` records `D:\FLAC\Internal →
+HAP_Internal`. A share path therefore translates to a local one by swapping the prefix.
+
+So it does. `HAP_Internal/Superpoze/(2010) Lost cosmonaut` becomes
+`D:\FLAC\Internal\Superpoze\(2010) Lost cosmonaut`, and that is the folder Open and Tag editor
+now reach for — in the GUI, the web panel and the CLI alike. The player's own path stays visible
+and copyable underneath. Measured on a real setup: **628 of 628** located findings also existed
+locally, so in practice every fix is a local edit followed by a normal sync.
+
+A local path is only offered when the folder is actually there: a stale mapping must not send an
+editor at something that has moved. Rows with a local copy are marked ▪, and after opening one the
+log says what to do next rather than only printing a path.
+
 ### Added (2026-08-29, from "what is wrong" to "here it is, open it")
 
 The audit could say 274 albums have no artwork. It could not say **where they are**, which is the

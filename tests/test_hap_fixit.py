@@ -157,6 +157,73 @@ def test_finding_details_follow_the_active_language(monkeypatch):
     assert fr != de
 
 
+# ---------- the synced local copy ----------
+
+
+def test_to_local_swaps_the_share_for_its_source_folder(tmp_path):
+    maps = {"HAP_Internal": str(tmp_path / "Internal")}
+    got = hap_fixit.to_local("HAP_Internal/Superpoze/(2010) Lost cosmonaut", maps)
+    assert got == str(tmp_path / "Internal" / "Superpoze" / "(2010) Lost cosmonaut")
+    assert hap_fixit.to_local("HAP_External/A/B", maps) == "", "unmapped share -> nothing"
+
+
+def test_local_path_is_only_offered_when_the_folder_really_exists(tmp_path):
+    maps = {"HAP_Internal": str(tmp_path)}
+    (tmp_path / "X" / "Album").mkdir(parents=True)
+
+    here = hap_fixit.Finding("cover", "A", "d", ["HAP_Internal/X/Album"], "1.2.3.4", maps)
+    gone = hap_fixit.Finding("cover", "B", "d", ["HAP_Internal/X/Absent"], "1.2.3.4", maps)
+
+    assert here.is_local and here.local_path == str(tmp_path / "X" / "Album")
+    # A stale mapping must not send an editor at a folder that is not there.
+    assert not gone.is_local and gone.local_paths == []
+
+
+def test_best_path_prefers_local_and_falls_back_to_the_player(tmp_path):
+    maps = {"HAP_Internal": str(tmp_path)}
+    (tmp_path / "X" / "Album").mkdir(parents=True)
+
+    local = hap_fixit.Finding("cover", "A", "d", ["HAP_Internal/X/Album"], "1.2.3.4", maps)
+    remote = hap_fixit.Finding("cover", "B", "d", ["HAP_Internal/X/Absent"], "1.2.3.4", maps)
+
+    assert local.best_path == str(tmp_path / "X" / "Album")
+    assert remote.best_path == r"\\1.2.3.4\HAP_Internal\X\Absent"
+    assert hap_fixit.Finding("cover", "C", "d", [], "1.2.3.4", maps).best_path == ""
+
+
+def test_findings_carry_no_local_route_when_nothing_is_mapped():
+    h = harvest_with("Dummy", ["01 - Mysterons.flac", "02 - Sour times.flac"])
+    found = hap_fixit.build_findings(h, index(HAP_Internal=DUMMY), maps={})
+    assert not any(f.is_local for f in found)
+    assert found[0].best_path.startswith(r"\\")
+
+
+def test_load_sync_maps_reads_the_shared_config(tmp_path):
+    cfg = tmp_path / "hap_sync.json"
+    cfg.write_bytes(json.dumps({
+        "host": "1.2.3.4",
+        "maps": [{"local": "D:\\FLAC\\Internal", "share": "HAP_Internal"},
+                 {"local": "", "share": "HAP_External"}],
+    }).encode("utf-8"))
+
+    maps = hap_fixit.load_sync_maps(cfg)
+
+    assert maps == {"HAP_Internal": "D:\\FLAC\\Internal"}, "an empty local is not a mapping"
+    assert hap_fixit.load_sync_maps(tmp_path / "absent.json") == {}
+
+
+def test_the_html_report_shows_the_local_copy_first(tmp_path):
+    maps = {"HAP_Internal": str(tmp_path)}
+    (tmp_path / "X" / "Album").mkdir(parents=True)
+    f = hap_fixit.Finding("cover", "A", "d", ["HAP_Internal/X/Album"], "1.2.3.4", maps)
+
+    page = hap_fixit.render_html([f], "1.2.3.4")
+
+    local_at = page.index(str(tmp_path / "X" / "Album"))
+    unc_at = page.index(r"\\1.2.3.4\HAP_Internal\X\Album")
+    assert local_at < unc_at, "the copy to edit belongs at the top"
+
+
 def test_the_html_report_escapes_and_lists_every_finding():
     h = harvest_with("A & B <script>", ["01 - Mysterons.flac", "02 - Sour times.flac"])
     found = hap_fixit.build_findings(h, index(HAP_Internal=DUMMY))

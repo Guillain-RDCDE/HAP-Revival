@@ -8,6 +8,7 @@ the handlers.
 Skipped where there is no display (the CI runner is headless Linux).
 """
 
+import gc
 import sys
 
 import pytest
@@ -38,6 +39,14 @@ def _app(tmp_path_factory):
     try:
         yield instance
     finally:
+        # Drop the tk.Variables and collect them *before* the root goes: a
+        # Variable finalised after the Tcl interpreter is destroyed raises
+        # "main thread is not in main loop" from the garbage collector, which
+        # pytest then reports against whatever unrelated test happens to be
+        # running at the time.
+        for name in [n for n, v in vars(instance).items() if isinstance(v, tk.Variable)]:
+            delattr(instance, name)
+        gc.collect()
         instance.root.destroy()
         hap_gui.CONFIG_PATH = original
 
@@ -175,6 +184,45 @@ def test_open_calls_through_for_a_located_album(app, monkeypatch):
     app.on_fix_open()
 
     assert opened == [r"\\10.0.0.1\HAP_Internal\X\Album"]
+
+
+def test_open_prefers_the_synced_local_copy(app, monkeypatch, tmp_path):
+    # The whole point of the local route: editing a folder on your own disk is
+    # instant, and the next Sync carries it over. Opening the player's copy over
+    # SMB1 would work but is slow enough to matter across 274 albums.
+    import hap_fixit
+
+    (tmp_path / "X" / "Album").mkdir(parents=True)
+    maps = {"HAP_Internal": str(tmp_path)}
+    opened = []
+    monkeypatch.setattr(hap_fixit, "open_folder", lambda p: opened.append(p))
+
+    app._fix_findings = [
+        hap_fixit.Finding("cover", "Album", "d", ["HAP_Internal/X/Album"], "10.0.0.1", maps)
+    ]
+    app.fix_list.insert("end", "Album")
+    app.fix_list.selection_set(0)
+
+    app.on_fix_open()
+
+    assert opened == [str(tmp_path / "X" / "Album")]
+    assert r"\\10.0.0.1" not in opened[0]
+    # And the log must say what to do next, not just print a path.
+    assert app._T("gui.fix.then_sync") in app.fix_log.get("1.0", "end")
+
+
+def test_the_list_marks_which_albums_have_a_local_copy(app, tmp_path):
+    import hap_fixit
+
+    (tmp_path / "X" / "Here").mkdir(parents=True)
+    maps = {"HAP_Internal": str(tmp_path)}
+    app._fix_show([
+        hap_fixit.Finding("cover", "Here", "d", ["HAP_Internal/X/Here"], "10.0.0.1", maps),
+        hap_fixit.Finding("cover", "Away", "d", ["HAP_Internal/X/Away"], "10.0.0.1", maps),
+    ])
+
+    assert "▪" in app.fix_list.get(0)
+    assert "▪" not in app.fix_list.get(1)
 
 
 def test_edit_warns_when_no_tag_editor_is_installed(app, monkeypatch):

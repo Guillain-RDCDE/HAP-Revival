@@ -69,8 +69,9 @@ live smoke test is the exception, since checking a real player is the entire poi
 - [**Library audit**](tools/library_audit.py) — formats, hi-res share, duplicates, missing artwork.
   Runs `--from-player <ip>` over the network, or from the on-disk catalogue if you have it.
 - [**Fix it**](tools/hap_fixit.py) — the audit's findings with the **real folder each one is in**,
-  ready to open in Explorer or a tag editor. Available as a tab in HAP Sync, a panel in the web UI,
-  or a standalone HTML report.
+  ready to open in Explorer or a tag editor. If you sync local folders to the player, it opens
+  **your** copy instead of the player's, so the edit is a local write and the next sync carries it.
+  Available as a tab in HAP Sync, a panel in the web UI, or a standalone HTML report.
 - [**Library browser**](tools/library_browser.py) — reads the player's catalogue offline.
 - [**Mock device**](tools/mock_hap.py) — a fake HAP that answers the real protocol.
 - [**Live smoke test**](tools/smoke_live.py) — checks the client against your own player and

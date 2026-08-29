@@ -1143,7 +1143,9 @@ function libFixRender(d) {
     const left = document.createElement("div");
     left.className = "n";
     const title = document.createElement("div");
-    title.textContent = (item.ambiguous ? "? " : "") + item.title;
+    // ▪ marks an album that also lives in a synced source folder — that copy is
+    // what the buttons open, because editing it beats writing over SMB1.
+    title.textContent = (item.ambiguous ? "? " : "") + (item.local ? "▪ " : "") + item.title;
     const det = document.createElement("div");
     det.className = "fix-det";
     det.textContent = item.detail;
@@ -1178,7 +1180,8 @@ function libFixRender(d) {
   }
   document.getElementById("lib-more").hidden = true;
   document.getElementById("lib-note").textContent =
-    d.located + " / " + d.total + " " + t("web.fix.located");
+    d.located + " / " + d.total + " " + t("web.fix.located")
+    + (d.local ? " · " + t("web.fix.local_count", {n: d.local}) : "");
 }
 
 async function libFixOpen(path, editor, btn) {
@@ -1589,9 +1592,14 @@ class HAPHandler(BaseHTTPRequestHandler):
             # Actions are only meaningful when the browser is on this machine;
             # the page uses this to decide whether to offer the buttons.
             "can_open": sys.platform == "win32",
+            "local": sum(1 for f in findings if f.is_local),
             "items": [
-                {"title": f.title, "detail": f.detail, "paths": f.paths,
-                 "ambiguous": f.ambiguous}
+                # `paths` leads with the local copy when there is one: editing a
+                # synced source folder is a local write, and the next sync
+                # carries it to the player. `local` says which case this is.
+                {"title": f.title, "detail": f.detail,
+                 "paths": f.local_paths + f.paths,
+                 "local": f.is_local, "ambiguous": f.ambiguous}
                 for f in findings[:400]
             ],
         })
@@ -1919,9 +1927,12 @@ class HAPHandler(BaseHTTPRequestHandler):
                     self._send_json(403, {"error": "only from this machine"})
                     return
                 target = str(params.get("path", ""))
-                known = {p for f in hap_fixit.build_findings(
-                    HARVEST.data or {}, hap_fixit.load_index(self.library.host) or {})
-                    for p in f.paths}
+                known = set()
+                for f in hap_fixit.build_findings(
+                        HARVEST.data or {},
+                        hap_fixit.load_index(self.library.host) or {}):
+                    known.update(f.paths)
+                    known.update(f.local_paths)
                 if target not in known:
                     # Never hand an arbitrary string to the shell.
                     self._send_json(400, {"error": "unknown path"})
