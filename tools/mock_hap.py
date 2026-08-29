@@ -44,6 +44,7 @@ import json
 import struct
 import threading
 import time
+import urllib.parse
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -132,6 +133,9 @@ class Track:
         return gradient_png(top, bottom)
 
 
+CONTENTDB_BASE = "/sony/contentdb/v100"
+
+
 DEMO_TRACKS: list[Track] = [
     Track(
         163756, "Symphony No. 2 — V. Im Tempo des Scherzos", "Gustav Mahler",
@@ -155,6 +159,226 @@ DEMO_TRACKS: list[Track] = [
         streaming=True,
     ),
 ]
+
+
+# ---------------------------------------------------------------------------
+# The REST library API (/sony/contentdb/v100)
+# ---------------------------------------------------------------------------
+#
+# Shapes copied from a real 19404R player, 2026-08-29. What matters for anything
+# built on top: every collection is wrapped under its own plural key alongside a
+# `paging` object, a single-object lookup reuses that same plural key with one
+# element — except `genres/{id}`, which answers with a singular `genre` instead.
+# That inconsistency is the device's, not ours, and clients have to handle it.
+#
+# The streaming demo track is excluded: Spotify Connect content is not in the
+# player's library database, so it must not appear here either.
+
+
+def _library_tracks() -> list[Track]:
+    return [t for t in DEMO_TRACKS if not t.streaming]
+
+
+def _distinct(attr: str) -> list[str]:
+    """Unique values in first-seen order, so ids stay stable across calls."""
+    seen: list[str] = []
+    for t in _library_tracks():
+        value = getattr(t, attr)
+        if value and value not in seen:
+            seen.append(value)
+    return seen
+
+
+def _artist_id(name: str) -> int:
+    return _distinct("artist").index(name) + 1
+
+
+def _album_id(name: str) -> int:
+    return _distinct("album").index(name) + 1
+
+
+def _track_json(t: Track, host: str) -> dict:
+    base = f"http://{host}{CONTENTDB_BASE}"
+    return {
+        "trackid": t.id,
+        "name": t.title,
+        "filename": t.file_name,
+        "filepath": "",
+        "url": f"{base}/audio/tracks/{t.id}",
+        "duration": int(t.duration),
+        "track_number": 1,
+        "disk_number": 1,
+        "release_date": "2014",
+        "number_of_plays": 0,
+        "favorite_type": t.favorite_type,
+        "playable": "true",
+        "codec": {
+            "codec_type": t.codec,
+            "sample_rate": t.frequency,
+            "bit_width": t.bandwidth,
+            "bit_rate": t.bitrate,
+        },
+        "artist": {
+            "artistid": _artist_id(t.artist),
+            "name": t.artist,
+            "url": f"{base}/audio/artists/{_artist_id(t.artist)}",
+        },
+        "album": {
+            "albumid": _album_id(t.album),
+            "name": t.album,
+            "url": f"{base}/audio/albums/{_album_id(t.album)}",
+            "release_date": "2014",
+            "number_of_tracks": 1,
+            "duration": int(t.duration),
+            "album_artist": {"name": t.artist},
+            "image": {
+                "url": f"{base}/audio/albums/images/cover_art/{t.cover_id}"
+            },
+        },
+        "genre": {"genreid": 1, "name": "Demo", "url": f"{base}/audio/genres/1"},
+    }
+
+
+def _album_json(name: str, host: str) -> dict:
+    base = f"http://{host}{CONTENTDB_BASE}"
+    tracks = [t for t in _library_tracks() if t.album == name]
+    aid = _album_id(name)
+    return {
+        "albumid": aid,
+        "name": name,
+        "url": f"{base}/audio/albums/{aid}",
+        "tracks_url": f"{base}/audio/albums/{aid}/tracks",
+        "release_date": "2014",
+        "number_of_tracks": len(tracks),
+        "duration": int(sum(t.duration for t in tracks)),
+        "album_artist": {"name": tracks[0].artist if tracks else ""},
+        "image": {
+            "url": f"{base}/audio/albums/images/cover_art/"
+            f"{tracks[0].cover_id if tracks else '00000000'}"
+        },
+    }
+
+
+def _artist_json(name: str, host: str) -> dict:
+    base = f"http://{host}{CONTENTDB_BASE}"
+    aid = _artist_id(name)
+    return {
+        "artistid": aid,
+        "name": name,
+        "url": f"{base}/audio/artists/{aid}",
+        "number_of_tracks": len([t for t in _library_tracks() if t.artist == name]),
+    }
+
+
+def _page(items: list[dict], key: str, query: dict, host: str, path: str) -> dict:
+    """Wrap a collection the way the device does, paging object included."""
+    try:
+        offset = max(0, int(query.get("offset", ["0"])[0]))
+        limit = int(query.get("limit", ["200"])[0])
+    except (TypeError, ValueError):
+        offset, limit = 0, 200
+    window = items[offset : offset + limit]
+    base = f"http://{host}{CONTENTDB_BASE}/{path}"
+    has_next = offset + limit < len(items)
+    return {
+        key: window,
+        "request": f"{base}?offset={offset}&limit={limit}",
+        "paging": {
+            "offset": offset,
+            "limit": limit,
+            "total": len(items),
+            "next": f"{base}?offset={offset + limit}&limit={limit}" if has_next else "",
+            "previous": (
+                f"{base}?offset={max(0, offset - limit)}&limit={limit}" if offset else ""
+            ),
+        },
+    }
+
+
+def contentdb_get(path: str, query: dict, host: str) -> dict | None:
+    """Route one GET under /sony/contentdb/v100. None means 404."""
+    parts = [p for p in path.split("/") if p]
+    tracks = _library_tracks()
+
+    # Anything above the device's ceiling is a 400 there; mirror the refusal so
+    # a client that forgets the cap fails the same way here.
+    try:
+        if int(query.get("limit", ["200"])[0]) > 5000:
+            return None
+    except (TypeError, ValueError):
+        pass
+
+    if parts == ["audio", "tracks"]:
+        return _page([_track_json(t, host) for t in tracks], "tracks", query, host, path)
+    if parts == ["audio", "albums"]:
+        return _page(
+            [_album_json(n, host) for n in _distinct("album")], "albums", query, host, path
+        )
+    if parts == ["audio", "artists"]:
+        return _page(
+            [_artist_json(n, host) for n in _distinct("artist")],
+            "artists",
+            query,
+            host,
+            path,
+        )
+    if parts == ["audio", "genres"]:
+        genre = {
+            "genreid": 1,
+            "name": "Demo",
+            "number_of_tracks": len(tracks),
+            "url": f"http://{host}{CONTENTDB_BASE}/audio/genres/1",
+        }
+        return _page([genre], "genres", query, host, path)
+    if parts == ["audio", "playlists"]:
+        return _page([], "playlists", query, host, path)
+    if parts in (["services", "favorite"], ["services", "favorite", "tracks"]):
+        favs = [t for t in tracks if t.favorite_type == "favorite"]
+        return _page([_track_json(t, host) for t in favs], "tracks", query, host, path)
+
+    # An unknown id on a known route is `200 {}` on the real device, not a 404
+    # (verified 2026-08-29). A client therefore cannot tell "no such track" from
+    # a transport problem by status code alone — it has to look at the body.
+    if len(parts) == 3 and parts[:2] == ["audio", "tracks"] and parts[2].isdigit():
+        match = [t for t in tracks if t.id == int(parts[2])]
+        return {"tracks": [_track_json(t, host) for t in match]} if match else {}
+    if len(parts) == 3 and parts[:2] == ["audio", "albums"] and parts[2].isdigit():
+        names = [n for n in _distinct("album") if _album_id(n) == int(parts[2])]
+        return {"albums": [_album_json(n, host) for n in names]} if names else {}
+    if len(parts) == 3 and parts[:2] == ["audio", "artists"] and parts[2].isdigit():
+        names = [n for n in _distinct("artist") if _artist_id(n) == int(parts[2])]
+        return {"artists": [_artist_json(n, host) for n in names]} if names else {}
+    if len(parts) == 3 and parts[:2] == ["audio", "genres"] and parts[2].isdigit():
+        if parts[2] != "1":
+            return {}
+        # Singular `genre`, matching the device. Not a typo here either.
+        return {
+            "genre": {
+                "genreid": 1,
+                "name": "Demo",
+                "number_of_tracks": len(tracks),
+                "url": f"http://{host}{CONTENTDB_BASE}/audio/genres/1",
+            }
+        }
+
+    if len(parts) == 4 and parts[:2] == ["audio", "albums"] and parts[3] == "tracks":
+        names = [n for n in _distinct("album") if _album_id(n) == int(parts[2])]
+        if not names:
+            return None
+        rows = [_track_json(t, host) for t in tracks if t.album == names[0]]
+        return _page(rows, "tracks", query, host, path)
+    if len(parts) == 4 and parts[:2] == ["audio", "artists"] and parts[3] == "albums":
+        names = [n for n in _distinct("artist") if _artist_id(n) == int(parts[2])]
+        if not names:
+            return None
+        albums = [
+            _album_json(a, host)
+            for a in _distinct("album")
+            if any(t.album == a and t.artist == names[0] for t in tracks)
+        ]
+        return _page(albums, "albums", query, host, path)
+
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -499,6 +723,22 @@ class MockHandler(BaseHTTPRequestHandler):
             pass
 
     def do_GET(self) -> None:
+        # The REST library API: /sony/contentdb/v100/...
+        if self.path.startswith(CONTENTDB_BASE):
+            rest = self.path[len(CONTENTDB_BASE):]
+            path, _, query = rest.partition("?")
+            payload = contentdb_get(path.strip("/"), urllib.parse.parse_qs(query), self._host())
+            if payload is None:
+                body = json.dumps({"error_code": 404, "description": "Not Found"})
+                self._send(404, "application/json", body.encode("utf-8"))
+                return
+            self._send(
+                200,
+                "application/json",
+                json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            )
+            return
+
         # Cover art: /sony/avContent/storage/cover_art/<8-hex-id>
         if "/cover_art/" in self.path:
             cid = self.path.rsplit("/", 1)[-1].split("?", 1)[0]

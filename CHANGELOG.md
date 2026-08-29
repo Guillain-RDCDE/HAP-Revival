@@ -8,6 +8,31 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-29, the library, over the network)
+
+The web UI can now **browse the player's music library and play from it** — artists, albums,
+playlists and favorites, drilling down to tracks, one tap to play. That closes the gap between this
+remote and the app Sony withdrew: the transport controls were already here, the library was the
+missing half.
+
+It rests on `/sony/contentdb/v100`, which this project spent months believing was dead (see the
+correction below). Two measured properties shape the design:
+
+- **Root listings are slow and the cost is fixed** — 28–90 s whether you ask for 2 rows or 5000,
+  which looks like the price of `paging.total` counting the whole table. They are cached; a second
+  read of 17 317 artists comes back in 0.015 s.
+- **Anything scoped by id is sub-second.** Drill-down needs no cache and gets none, so favorites and
+  play counts are never stale.
+
+Also confirmed live: the `trackid` the REST API hands out **is** the id `createPlayingListAndQuickPlay`
+expects — `audio:track?id=<trackid>` — so browsing and playback share one namespace and the UI needs
+no translation between them.
+
+New `tools/hap_library.py` (client + CLI: `artists`, `albums`, `album-tracks`, `favorites`, `count`,
+…), `/api/library/…` routes in `webui.py`, the same endpoints faithfully mocked in `mock_hap.py` so
+`--demo` exercises the browser with no hardware, and 17 tests. Library strings translated into all
+six languages.
+
 ### Corrected (2026-08-27, the console was never waiting for a click)
 
 Same-day correction to the note below, from a contributor's HAP-S1 where the console panel appeared

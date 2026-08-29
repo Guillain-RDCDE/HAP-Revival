@@ -58,6 +58,7 @@ from typing import Any
 # Allow `python tools/webui.py …` from repo root
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import hap_library  # noqa: E402
 import hap_notify  # noqa: E402
 import i18n  # noqa: E402
 from hap_client import HAP, HAPError  # noqa: E402
@@ -267,6 +268,29 @@ main { width: 100%; max-width: 520px; }
 .settings td { padding: 4px 0; }
 .settings td.k { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
 .settings td.v { text-align: right; font-weight: 500; }
+
+/* ===== Library browser ===== */
+.library { font-size: 13px; }
+.lib-head { display: flex; align-items: center; justify-content: space-between; }
+.lib-title { text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; color: var(--muted); }
+.lib-toggle { background: var(--card-bg); color: var(--fg); border: 0; border-radius: 999px; padding: 6px 14px; font-size: 12px; cursor: pointer; }
+.lib-toggle:hover { background: var(--hover); }
+.lib-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 8px; }
+.lib-tab { background: var(--card-bg); color: var(--fg); border: 0; border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+.lib-tab:hover, .lib-tab.on { background: var(--accent); color: #fff; }
+.lib-crumbs { font-size: 11px; color: var(--muted); margin-bottom: 6px; min-height: 14px; }
+.lib-crumbs button { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 11px; padding: 0; }
+/* Capped so a 59 000-track library cannot make the page scroll forever. */
+.lib-list { max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.lib-row { display: flex; align-items: baseline; gap: 8px; padding: 8px 4px; border-bottom: 1px solid var(--hover); cursor: pointer; }
+.lib-row:hover { background: var(--hover); }
+.lib-row .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-row .s { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.lib-row.playing .n { color: var(--accent); font-weight: 600; }
+.lib-foot { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.lib-more { background: var(--card-bg); color: var(--fg); border: 0; border-radius: 999px; padding: 8px 16px; font-size: 12px; cursor: pointer; align-self: flex-start; }
+.lib-more:hover { background: var(--hover); }
+.lib-msg { color: var(--muted); padding: 10px 4px; font-size: 12px; }
 footer { color: var(--muted); font-size: 11px; margin-top: 32px; text-align: center; }
 footer a { color: var(--muted); text-decoration: underline; }
 .error { background: #422; color: #f88; padding: 12px; border-radius: 8px; font-size: 13px; }
@@ -546,6 +570,26 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
       <button class="btn danger" onclick="confirmStandby()" data-i18n-title="web.ctrl.standby" title="Standby">⏻</button>
     </div>
   </div>
+  <div class="card library" id="library-card">
+    <div class="lib-head">
+      <span class="lib-title" data-i18n="web.lib.title">Library</span>
+      <button class="lib-toggle" id="lib-toggle" onclick="toggleLibrary()" data-i18n="web.lib.open">Browse</button>
+    </div>
+    <div id="lib-body" hidden>
+      <div class="lib-tabs">
+        <button class="lib-tab" onclick="libRoot('artists')" data-i18n="web.lib.artists">Artists</button>
+        <button class="lib-tab" onclick="libRoot('albums')" data-i18n="web.lib.albums">Albums</button>
+        <button class="lib-tab" onclick="libRoot('playlists')" data-i18n="web.lib.playlists">Playlists</button>
+        <button class="lib-tab" onclick="libRoot('favorites')" data-i18n="web.lib.favorites">Favorites</button>
+      </div>
+      <div class="lib-crumbs" id="lib-crumbs"></div>
+      <div class="lib-list" id="lib-list"></div>
+      <div class="lib-foot">
+        <button class="lib-more" id="lib-more" hidden onclick="libMore()" data-i18n="web.lib.more">Load more</button>
+        <span class="set-note" id="lib-note"></span>
+      </div>
+    </div>
+  </div>
   <div class="card settings">
     <table>
       <tr><td class="k" data-i18n="web.tbl.dsee">DSEE</td><td class="v" id="s-dsee">—</td></tr>
@@ -582,6 +626,11 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-title]").forEach(el => {
     el.title = t(el.getAttribute("data-i18n-title"));
   });
+  // The library toggle and its rows carry state, not a fixed label, so the
+  // blanket pass above would reset them to "Browse" and to English counts.
+  const toggle = document.getElementById("lib-toggle");
+  if (toggle) toggle.textContent = libOpen ? t("web.lib.close") : t("web.lib.open");
+  if (libOpen && libStack.length) { libCrumbs(); libRender(); }
 }
 function buildLangSelect() {
   const sel = document.getElementById("lang-sel");
@@ -612,6 +661,7 @@ function powerLabel(p) {
 
 let lastState = null;
 let lastDuration = 0;
+let lastUri = "";   // the player's uri for the current track, e.g. audio:track?id=N
 // Anchors for the local progress ticker: the last position the player told us,
 // when it told us, and whether the clock should be running.
 let localPosition = 0;
@@ -864,6 +914,11 @@ function apply(d) {
   document.getElementById("t-position").textContent = fmt(np.position_sec);
   document.getElementById("t-duration").textContent = fmt(np.duration_sec);
   lastDuration = np.duration_sec;
+  // Keep the library's "now playing" highlight in step with the real player.
+  if (lastUri !== (np.uri || "")) {
+    lastUri = np.uri || "";
+    if (libOpen && libStack.length) libRender();
+  }
 
   // Anchor for the local progress ticker (see "Live updates" below).
   localPosition = np.position_sec || 0;
@@ -927,6 +982,132 @@ async function hapCall(action, params) {
     document.getElementById("error-banner").innerHTML =
       '<div class="error">' + t("web.err.action", {msg: e.message}) + "</div>";
   }
+}
+
+/* ===== Library browser =====
+   Two speeds, and the UI has to respect the difference. A root listing
+   (artists / albums) makes the player count its whole catalog and can take a
+   minute; anything scoped by id comes back in well under a second. So the root
+   fetch shows a note explaining the wait, and drill-down does not.
+
+   `libStack` is the navigation trail: each entry knows how to re-fetch itself,
+   which makes Back free and avoids caching anything in the browser. */
+let libStack = [];
+let libOpen = false;
+
+function toggleLibrary() {
+  libOpen = !libOpen;
+  document.getElementById("lib-body").hidden = !libOpen;
+  document.getElementById("lib-toggle").textContent =
+    libOpen ? t("web.lib.close") : t("web.lib.open");
+  if (libOpen && !libStack.length) libRoot("artists");
+}
+
+function libMsg(html) {
+  document.getElementById("lib-list").innerHTML = '<div class="lib-msg">' + html + "</div>";
+}
+
+function libRoot(kind) {
+  libStack = [{kind: kind, url: "/api/library/" + kind, label: t("web.lib." + kind)}];
+  document.querySelectorAll(".lib-tab").forEach((b) =>
+    b.classList.toggle("on", b.getAttribute("onclick") === "libRoot('" + kind + "')"));
+  libLoad(true);
+}
+
+function libPush(entry) {
+  libStack.push(entry);
+  libLoad(true);
+}
+
+function libBack() {
+  if (libStack.length > 1) { libStack.pop(); libLoad(true); }
+}
+
+function libCrumbs() {
+  const el = document.getElementById("lib-crumbs");
+  if (libStack.length <= 1) { el.innerHTML = ""; return; }
+  const trail = libStack.map((s) => s.label).join(" › ");
+  el.innerHTML = '<button onclick="libBack()">← ' + t("web.lib.back") + "</button> · " + trail;
+}
+
+async function libLoad(reset) {
+  const top = libStack[libStack.length - 1];
+  if (reset) { top.offset = 0; top.items = []; }
+  libCrumbs();
+  // Only a root listing is slow enough to need explaining.
+  const slow = libStack.length === 1 && top.kind !== "playlists" && top.kind !== "favorites";
+  if (reset) libMsg(t("web.lib.loading") + (slow ? "<br><br>" + t("web.lib.slow_note") : ""));
+  document.getElementById("lib-more").hidden = true;
+  try {
+    const sep = top.url.includes("?") ? "&" : "?";
+    const r = await fetch(top.url + sep + "offset=" + (top.offset || 0) + "&limit=200");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    top.items = (top.items || []).concat(d.items);
+    top.offset = (top.offset || 0) + d.items.length;
+    top.total = d.total;
+    top.hasMore = d.has_more;
+    libRender();
+  } catch (e) {
+    libMsg(t("web.lib.error", {msg: e.message}));
+  }
+}
+
+function libMore() { libLoad(false); }
+
+function libRender() {
+  const top = libStack[libStack.length - 1];
+  const list = document.getElementById("lib-list");
+  if (!top || !top.items) return;            // a load is still in flight
+  if (!top.items.length) { libMsg(t("web.lib.empty")); return; }
+
+  list.innerHTML = "";
+  for (const item of top.items) {
+    const row = document.createElement("div");
+    row.className = "lib-row";
+    const name = document.createElement("span");
+    name.className = "n";
+    name.textContent = item.name || "—";
+    const side = document.createElement("span");
+    side.className = "s";
+    row.appendChild(name);
+    row.appendChild(side);
+
+    if (item.trackid !== undefined) {
+      const c = item.codec || {};
+      side.textContent = c.codec_type
+        ? c.codec_type + " " + (c.sample_rate / 1000) + "kHz/" + c.bit_width + "bit"
+        : "";
+      // The uri the player reports for the current track is audio:track?id=N,
+      // and N is this same trackid — so highlighting needs no extra lookup.
+      if (lastUri === "audio:track?id=" + item.trackid) row.classList.add("playing");
+      row.onclick = () => { hapCall("play_track", {track_id: item.trackid}); };
+    } else if (item.albumid !== undefined) {
+      side.textContent = t("web.lib.tracks", {n: item.number_of_tracks});
+      row.onclick = () => libPush({
+        url: "/api/library/albums/" + item.albumid + "/tracks",
+        label: item.name,
+      });
+    } else if (item.artistid !== undefined) {
+      side.textContent = t("web.lib.tracks", {n: item.number_of_tracks});
+      row.onclick = () => libPush({
+        url: "/api/library/artists/" + item.artistid + "/albums",
+        label: item.name,
+      });
+    } else if (item.playlistid !== undefined) {
+      side.textContent = t("web.lib.tracks", {n: item.number_of_tracks});
+      row.onclick = () => libPush({
+        url: "/api/library/playlists/" + item.playlistid + "/tracks",
+        label: item.name,
+      });
+    }
+    list.appendChild(row);
+  }
+
+  document.getElementById("lib-more").hidden = !top.hasMore;
+  document.getElementById("lib-note").textContent =
+    top.items.length + " / " + (top.total || top.items.length) + " · " + t("web.lib.play_hint");
 }
 
 document.getElementById("progress-bar").addEventListener("click", (e) => {
@@ -1141,6 +1322,7 @@ class HAPHandler(BaseHTTPRequestHandler):
 
     hap: HAP  # set on subclass before serve
     push: PushWatcher | None = None  # set on subclass before serve
+    library: hap_library.Library | None = None  # set on subclass before serve
 
     # Silence the default request logging
     def log_message(self, fmt, *args):
@@ -1165,6 +1347,65 @@ class HAPHandler(BaseHTTPRequestHandler):
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
+
+    def _serve_library(self, what: str, query: str) -> None:
+        """Back the library browser: /api/library/<collection>[/<id>/<sub>].
+
+        Root listings cost 40-90 s on the device and are cached by the Library
+        object; drill-down by id is sub-second and goes straight through. The
+        browser therefore only ever waits on the first artists/albums fetch.
+        """
+        if self.library is None:
+            self._send_json(503, {"error": "library unavailable"})
+            return
+        args = urllib.parse.parse_qs(query)
+
+        def num(key: str, default: int) -> int:
+            try:
+                return int(args.get(key, [str(default)])[0])
+            except (TypeError, ValueError):
+                return default
+
+        offset, limit = num("offset", 0), min(num("limit", 200), hap_library.MAX_LIMIT)
+        parts = [p for p in what.split("/") if p]
+        lib = self.library
+
+        try:
+            if parts == ["artists"]:
+                page = lib.artists(offset, limit)
+            elif parts == ["albums"]:
+                page = lib.albums(offset, limit)
+            elif parts == ["genres"]:
+                page = lib.genres(offset, limit)
+            elif parts == ["tracks"]:
+                page = lib.tracks(offset, limit)
+            elif parts == ["playlists"]:
+                page = lib.playlists()
+            elif parts == ["favorites"]:
+                page = lib.favorites(offset, limit)
+            elif len(parts) == 3 and parts[0] == "artists" and parts[2] == "albums":
+                page = lib.artist_albums(int(parts[1]), offset, limit)
+            elif len(parts) == 3 and parts[0] == "albums" and parts[2] == "tracks":
+                page = lib.album_tracks(int(parts[1]), offset, limit)
+            elif len(parts) == 3 and parts[0] == "playlists" and parts[2] == "tracks":
+                page = lib.playlist_tracks(int(parts[1]), offset, limit)
+            else:
+                self.send_error(404)
+                return
+        except (hap_library.LibraryError, ValueError) as e:
+            self._send_json(502, {"error": str(e)})
+            return
+
+        self._send_json(
+            200,
+            {
+                "items": page.items,
+                "total": page.total,
+                "offset": page.offset,
+                "limit": page.limit,
+                "has_more": bool(page.next_url),
+            },
+        )
 
     def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
@@ -1267,6 +1508,10 @@ class HAPHandler(BaseHTTPRequestHandler):
                     "error": self.push.last_error,
                 },
             )
+            return
+
+        if path.startswith("/api/library/"):
+            self._serve_library(path[len("/api/library/") :], parsed.query)
             return
 
         if path == "/api/state":
@@ -1439,6 +1684,7 @@ def main() -> int:
         parser.error("an ip address is required (or pass --demo for the mock device)")
 
     HAPHandler.hap = HAP(args.ip)
+    HAPHandler.library = hap_library.Library(args.ip)
     try:
         info = HAPHandler.hap.system_info()
         print(f"Connected: {info.model} firmware {info.version} ({args.ip})")

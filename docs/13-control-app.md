@@ -17,6 +17,11 @@ the custom on-device daemon are still being built.
   settings (DSEE, DSD remastering, gapless, oversampling…), themes, and a
   minimal mode — everything the browser UI already does, in an app shell.
 - Your theme / minimal-mode preferences are **remembered** (stored on-device).
+- **Browse the library and play from it** — artists, albums, playlists, favorites, down to tracks
+  with their codec and sample rate; tap one to play it, and the track currently playing is
+  highlighted. This is the half Sony's own app lost. The first listing takes up to a minute (the
+  player counts its whole catalog before answering) and is then cached; moving through artists and
+  albums after that is instant.
 
 ## One-time setup
 
@@ -95,6 +100,10 @@ it, edit `tools/make_pwa_icons.py` and re-run `python tools/make_pwa_icons.py`.
   and only moves the progress bar. Note the player pushes to **one** subscribed
   port, so the helper machine is what makes this work for several phones at once.
 - iOS only installs PWAs from **Safari**, and only with the device on Wi-Fi.
+- **The library's first listing is slow** — the player takes 28–90 s on an unfiltered collection
+  regardless of how few rows you ask for, because it counts the whole catalog first. The result is
+  cached for fifteen minutes; drilling into an artist or album afterwards is sub-second. There is no
+  search yet, so a large library is browsed rather than queried.
 
 ## Roadmap from here
 

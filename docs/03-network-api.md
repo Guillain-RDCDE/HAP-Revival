@@ -100,6 +100,24 @@ exclusively. It splits in two, and the two halves have opposite fates on 19404R:
   `album.image.url`, `album.tracks_url`, `track.url`. **All of them answer.** Full measurements:
   [`../research/notes/2026-08-29-contentdb-was-never-dead.md`](../research/notes/2026-08-29-contentdb-was-never-dead.md).
 
+  **Paging.** Every response carries `paging: {offset, limit, total, next, previous}`, where `next`
+  is an absolute URL and `previous` is `""` at the start. Follow `next`; do not guess. `limit=5000`
+  is accepted, `limit=10000` is refused with `400` — the device does not clamp. At 5000 the whole
+  59 414-track library is 12 requests.
+
+  **Two speeds, and the split is not about size.** Unfiltered collections cost 28–90 s whether you
+  ask for 2 rows or 5000 — the price of `total` counting the table. Anything scoped by id
+  (`albums/{id}/tracks`, `artists/{id}/albums`, `tracks/{id}`, `services/favorite`) answers in well
+  under a second. So: **cache the four root listings, never cache drill-down.**
+
+  **An unknown id is `200 {}`**, not a 404 — "missing" has to be read from the body.
+  `filepath` comes back empty on every track; only `filename` is populated. And
+  `services/sensme` / `services/directory` have answered in seconds and timed out past two minutes
+  on the same machine an hour apart; treat them as unreliable.
+
+  [`tools/hap_library.py`](../tools/hap_library.py) wraps all of this, and the web UI browses the
+  library through it.
+
 `HAP_app.html` is a UI for a backend this device still has. The API the 2016 Crestron module was
 built on never went away.
 
@@ -243,6 +261,12 @@ Notice the typo `playinglist` (instead of `playlist`) — preserved here verbati
 | `audio:playinglist?id=NNN` | `audio:playinglist?id=69` | A playlist (note typo) |
 | `storage:usb1` | `storage:usb1` | The USB-attached external drive |
 | `storage:internal` | (inferred) | The internal HDD |
+
+**The `N` in `audio:track?id=N` is the REST `trackid`** — one id space, confirmed live 2026-08-29:
+`createPlayingListAndQuickPlay` on the `trackid` returned by `contentdb` started that exact track,
+and `getPlayingContentInfo` then reported the matching `uri`. Browsing and playback need no
+translation between them. Note that the read-back can lag: eight seconds after the call the JSON-RPC
+view still returned empty fields while the front panel was already playing.
 
 ### Cover art
 

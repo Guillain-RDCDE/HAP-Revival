@@ -119,6 +119,58 @@ resolver: it logs every name the player looks up and forwards it upstream unchan
 nothing breaks, and it relays plain-HTTP hosts named with `--hijack` through a proxy that
 records the full path.
 
+## What the surface actually looks like (same day, after the correction)
+
+With the timeout fixed, the rest of the API was worth mapping properly.
+
+**Every response carries a `paging` object**: `{offset, limit, total, next, previous}`, where `next`
+is a complete absolute URL and `previous` is `""` at the start. So a client never has to guess where
+a collection ends — follow `next` until it is empty.
+
+**The speed splits cleanly in two, and it is not about payload size:**
+
+| Request | Time |
+|---|---|
+| `audio/albums/10633/tracks` | 0.1 s |
+| `audio/tracks/148136` | 0.4 s |
+| `services/favorite` | 0.4 s |
+| `audio/artists/1089/albums` | 0.6 s |
+| `audio/albums?limit=2` | 46.7 s |
+| `audio/artists?limit=2` | 49.5 s |
+| `audio/genres/0` | 85.1 s |
+
+`?limit=2` costs about the same as `?limit=5000` (47 s vs 52 s). The cost is **fixed per unfiltered
+collection**, which is what you would expect if `paging.total` forces a full count. Scoped lookups
+have a small total and answer at once. Cover art, which has no paging at all, was always 0.2 s —
+that is the whole reason it looked like a surviving exception to a dead API.
+
+Practical consequence: **cache the four root listings, never cache drill-down.** A second read of
+`audio/artists` (17 317 of them) came back in 0.015 s from cache against 28.5 s cold.
+
+**Page size**: `limit=5000` works (5.2 MB in 52 s), `limit=10000` and `limit=20000` are refused
+instantly with `400 {"error_code": 400, "description": "Bad Request"}`. The device does not clamp.
+At 5000, the whole 59 414-track library is 12 requests, roughly 11 minutes.
+
+**An unknown id is `200 {}`** — not a 404, not an error body. "No such track" has to be read out of
+the body, and it must not be mistaken for a transport failure.
+
+**`filepath` is empty on every track seen**; only `filename` is populated. That limits matching
+library rows against files on the SMB share.
+
+**Variable endpoints**: `services/sensme` and `services/directory` answered in 9.1 s and 4.1 s in one
+sweep and timed out past 120 s in another, an hour later. Not documented as reliable either way.
+
+### Browsing and playback share one id space
+
+`createPlayingListAndQuickPlay` takes `audio:track?id=N`. The REST `trackid` **is** that N, confirmed
+live: `play_track(148136)` started "4 ogives - les fleurs" and `getPlayingContentInfo` then reported
+`uri: audio:track?id=148136`. No mapping needed between the browse tree and the play command.
+
+One trap while checking it: eight seconds after the call, `getPlayingContentInfo` still returned
+empty strings while the front panel was already showing the track at 00:15. The queue is built
+before the JSON-RPC view catches up, so an immediate read-back can look like a failure that isn't.
+The screen endpoint settled it — a good argument for keeping that channel around.
+
 ## Method note
 
 Three separate wrong conclusions in this project — the TuneIn "outage", the v1.2.1 blank
