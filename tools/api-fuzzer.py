@@ -34,7 +34,10 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 
-HTTP_TIMEOUT_SEC = 6
+# 90 s, not 6. A cold contentdb request takes up to 57 s; the old 6 s ceiling
+# turned every one of them into a false negative and had this fuzzer reporting
+# a live API as dead. See docs/16-gotchas.md §7.
+HTTP_TIMEOUT_SEC = 90
 
 # Candidate methods grouped by service.
 # Add to this list as new method names are discovered.

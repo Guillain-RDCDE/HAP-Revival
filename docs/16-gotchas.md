@@ -57,10 +57,10 @@ changes. Setting it after a GET silently does nothing; that produced a false pas
 **Correct in general.** Parallel requests are faster, and a probe sweep is the obvious place for
 them.
 
-**Wrong here.** The daemon handles one request at a time. Any request that hangs makes **every other
-endpoint** time out until it is abandoned — including endpoints that answered a second earlier.
-Anything under `/sony/contentdb/v100/…` hangs forever, so a sweep that touches it poisons everything
-after it.
+**Wrong here.** The daemon handles one request at a time. A slow request makes **every other
+endpoint** time out until it completes — including endpoints that answered a second earlier. Anything
+under `/sony/contentdb/v100/…` takes 5–57 s cold, so a sweep that touches it poisons everything after
+it.
 
 **Do instead.** Probe sequentially, with a known-good request (`…/v100/powerstate`) as a health check
 between steps. This nearly cost us the entire push-notification discovery: the first attempt at the
@@ -116,6 +116,27 @@ service had been working the whole time.
 
 **Corollary worth internalising: `[1, "Any"]` is not a diagnosis.** It is this device's generic
 refusal, observed for at least three unrelated causes. Never build a theory on it.
+
+---
+
+## 7. Never keep a short HTTP timeout
+
+**Correct in general.** A few seconds is a generous ceiling for a LAN request, and a short timeout
+keeps a probe sweep from hanging on a dead endpoint.
+
+**Wrong here.** Cold `/sony/contentdb/v100/…` requests take **5 to 57 seconds** on `0019404R`. Every
+tool in this repository used 6 s, so those endpoints failed every single time — no status, no body.
+We read that as a dead API and documented it as one for months. It is not dead; it is slow, and it
+warms up (`audio/genres`: 6.2 s → 2.0 s → 1.7 s on three consecutive calls).
+
+**Do instead.** Allow at least **90 s** for anything under `contentdb`, and probe sequentially
+(see gotcha 3). If a request fails at exactly your timeout, suspect your timeout.
+
+**The corollary is the general one.** A failure that always arrives at the value you chose is
+evidence about your client, not about the device. The theory that made this so durable was built on
+cover art answering in 0.2 s while album metadata "hung" — a real, reproducible difference that we
+explained with a missing database, when the actual dividing line was our own six-second ceiling.
+Measurements: [`../research/notes/2026-08-29-contentdb-was-never-dead.md`](../research/notes/2026-08-29-contentdb-was-never-dead.md).
 
 ---
 

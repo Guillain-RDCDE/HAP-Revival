@@ -24,8 +24,9 @@ confusingly.
 hangs makes *every other endpoint* time out until it gives up. If everything suddenly goes quiet,
 wait ten seconds — nothing is broken.
 
-**Anything under `/sony/contentdb/v100/…` hangs forever.** That is a known dead API, not you. Don't
-worry when it never returns.
+**Anything under `/sony/contentdb/v100/…` is very slow, not broken.** A cold request can take up to
+a minute. Give it `-m 90` and wait — it does answer. (We spent months believing that API was dead
+because our tools gave up after 6 seconds.)
 
 The full list, with the reasons, is in [`16-gotchas.md`](16-gotchas.md).
 

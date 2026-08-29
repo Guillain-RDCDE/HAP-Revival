@@ -29,6 +29,9 @@ from urllib.error import HTTPError, URLError
 
 SSDP_MULTICAST = ("239.255.255.250", 1900)
 SSDP_TIMEOUT_SEC = 4
+# Deliberately short, unlike everywhere else in this repo: discovery sweeps a
+# whole subnet and only calls fast system/audio methods. Never point this at
+# /sony/contentdb/v100 — those need 90 s (docs/16-gotchas.md §7).
 HTTP_TIMEOUT_SEC = 6
 
 # Methods we know about, keyed by (service, method) -> (version, params).

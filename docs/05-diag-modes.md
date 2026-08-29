@@ -103,11 +103,15 @@ The existence of a hidden menu structure strongly suggests Sony added other gate
 > self-explanatory."*
 
 That entry sequence is exactly the Special Mode combo above, on firmware `0019404R`. If it is real,
-it is the "other gated option" this section has been asking about since the page was written, and it
-matters a lot: **firmware `0017310R` served the `/sony/contentdb/v100` library API that 19404R has
-withdrawn** (see [`08-prior-art.md`](08-prior-art.md) §6 and the
-[teardown note](../research/notes/2026-08-20-crestron-module-teardown.md)). A downgrade would turn
-that inference into a live, testable API.
+it is the "other gated option" this section has been asking about since the page was written.
+
+**One of the reasons we wanted it is gone.** This paragraph used to argue that a downgrade mattered
+because `0017310R` served the `/sony/contentdb/v100` library API "that 19404R has withdrawn".
+19404R withdrew nothing: that API answers fine, it is just slow enough that our 6-second timeouts
+never saw it (2026-08-29 —
+[measurements](../research/notes/2026-08-29-contentdb-was-never-dead.md)). A downgrade may still be
+worth documenting for its own sake; it is no longer the route to a live library API, because we
+already have one.
 
 **The capability is confirmed; its location is not.** The reporter has actually performed a
 downgrade and a subsequent re-upgrade on his own S1 (see the backup-slot section below), so the

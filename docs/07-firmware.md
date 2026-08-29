@@ -10,7 +10,7 @@ What we know — and don't know — about the on-device firmware.
 | 19226R | ~2019 | ~similar | |
 | 18777R | ~2018 | ~similar | Introduced the Special Mode SMB selector |
 | 18444R | ~2017 | ~similar | |
-| **18120R** | ~2016–17 | unknown | **Newly identified 2026-08-22**, seen as the *Previous Version* in a real unit's downgrade dialog ([`05-diag-modes.md`](05-diag-modes.md)). Not on any Sony page we have found. Whether it still serves the `/sony/contentdb/v100` library API is **unknown and worth knowing** — it sits between 19404R, where that API is dead, and 17310R, where the Crestron module used it. |
+| **18120R** | ~2016–17 | unknown | **Newly identified 2026-08-22**, seen as the *Previous Version* in a real unit's downgrade dialog ([`05-diag-modes.md`](05-diag-modes.md)). Not on any Sony page we have found. We used to want it to find out when the `/sony/contentdb/v100` library API died; that question is void — the API is alive on 19404R too ([2026-08-29](../research/notes/2026-08-29-contentdb-was-never-dead.md)). |
 | earlier | 2014–2016 | | Multiple incremental releases |
 
 Each version is distributed as a single binary blob (extension reportedly `.SonyAP` or similar; format not publicly documented). The firmware updater on the device consumes this blob; **no one outside Sony has documented its container format**.
@@ -64,8 +64,9 @@ path.** That is a different problem from "dump the NAND over UART" — and a muc
 
 We do **not** know the path, and we will not find it by guessing at someone else's CDN. The way to
 learn it is to capture one update check from a real device (see below). If the version string turns
-out to be part of the path, older firmwares may be directly addressable too — which would give us
-`0017310R`, and with it the live `contentdb` API, **without downgrading anything**.
+out to be part of the path, older firmwares may be directly addressable too — worth having for the
+archive, though **no longer for the `contentdb` API**: that API is alive on 19404R and always was
+([2026-08-29](../research/notes/2026-08-29-contentdb-was-never-dead.md)).
 
 The UART/NAND route ([`10-uart-console.md`](10-uart-console.md)) remains the way to get the
 *running* system and the proprietary userland. This CDN route, if it works, gets us the *shipped

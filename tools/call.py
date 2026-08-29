@@ -90,7 +90,8 @@ def main() -> int:
         default="[]",
         help='JSON for the params array. Example: \'[{"uri":"audio:album","stIdx":0,"cnt":5}]\'',
     )
-    parser.add_argument("--timeout", type=int, default=8)
+    # 90 s: slow enough for a cold contentdb call, which needs up to 57 s.
+    parser.add_argument("--timeout", type=int, default=90)
     parser.add_argument(
         "--save",
         action="store_true",

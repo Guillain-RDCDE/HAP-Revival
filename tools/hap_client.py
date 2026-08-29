@@ -198,14 +198,17 @@ class HAP:
         self,
         ip: str,
         port: int = 60200,
-        timeout: float = 6.0,
+        timeout: float = 90.0,
         client_id: str = DEFAULT_CLIENT_ID,
     ):
         """
         Args:
             ip: device IP address on the local network
             port: ScalarWebAPI port (always 60200 on HAP-Z1ES firmware 19404R)
-            timeout: per-request HTTP timeout in seconds
+            timeout: per-request HTTP timeout in seconds. Deliberately large:
+                cold `/sony/contentdb/v100/…` requests take 5–57 s, and the 6 s
+                this used to default to is why that API was recorded as dead
+                for months (see docs/16-gotchas.md §7).
             client_id: value sent in the `x-hap-device-id` header. Sony's
                 Android client format is `Android:<os>:<app_ver>:<yyyymmddHHMMSS>_<mac>`
                 — we send a stable identifier instead. Optional on most calls

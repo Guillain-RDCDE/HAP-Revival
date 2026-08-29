@@ -79,26 +79,29 @@ exclusively. It splits in two, and the two halves have opposite fates on 19404R:
   external input, and a single `POST …/operation` endpoint for every write. Verified live
   2026-08-20. Fully mapped in
   [`research/notes/2026-08-20-crestron-module-teardown.md`](../research/notes/2026-08-20-crestron-module-teardown.md).
-- **`/sony/contentdb/v100/...` — mostly dead, but not entirely.** The library half
-  (`audio/{albums,artists,genres,tracks,playlists}`, `services/{sensme,favorite,directory}`) **hangs
-  and times out (0 bytes)** on every listing and metadata path.
+- **`/sony/contentdb/v100/...` — alive, and slow.** Corrected 2026-08-29; this entry previously
+  said "mostly dead", and that was our own measurement error. The library half
+  (`audio/{albums,artists,genres,tracks,playlists}`, `services/{sensme,favorite,directory}`)
+  **answers `200` with real data on `0019404R`** — but a cold request takes **5 to 57 seconds**,
+  and every tool we probed it with used a 6-second timeout. It never had a chance to answer.
 
-  **Cover art is the exception and it works** (verified 2026-08-22):
-  `GET /sony/contentdb/v100/audio/albums/images/cover_art/<ID>` returns **200, `image/jpeg`, in
-  ~0.2 s**, while `GET /sony/contentdb/v100/audio/albums/<albumid>` on the *same album* hangs. So
-  the daemon still serves part of this tree; only the database-backed endpoints are unresponsive,
-  which is what you would expect if the backing service was removed rather than the routes.
+  Measured live, sequentially: `audio/genres` 200 in 10.8 s (a 59 414-track library),
+  `audio/albums` 200 in 15.5 s, `audio/tracks` 200 in 17.4 s, `audio/albums/4964` 200 in 7.2 s —
+  that last one being the exact example this document used to cite as hanging. Repeat calls warm
+  up hard: `audio/genres` went 6.2 s → 2.0 s → 1.7 s. After the player rejoined the network cold,
+  the same endpoints took 20–57 s and still answered `200`.
 
-  The player itself still emits `contentdb` URLs. A `playinginfo` response for HDD content embeds
-  `album.url`, `album.image.url`, `album.tracks_url` and `track.url`, all pointing into this API —
-  of those, only the image one answers. Firmware that hands out links to its own dead endpoints is
-  further evidence of withdrawal rather than of something never implemented.
+  **Budget at least 90 seconds per cold request**, and probe sequentially — see the serialisation
+  trap below. Cover art (`audio/albums/images/cover_art/<ID>`, ~0.2 s) is not an exception to
+  anything; it was simply the only endpoint fast enough to fit under the old ceiling, which is
+  what made the "dead database, surviving routes" theory look so tidy.
 
-The hang is not the generic unknown-path behaviour: an unknown path under `/sony` 404s in
-milliseconds, and so does `/sony/contentdb/v100` itself. Only its leaves hang. The route is
-registered and its handler never answers — a feature that shipped in firmware `0017310R` (which the
-2016 Crestron module targets) and was later disabled. `HAP_app.html` is therefore not a UI pointed
-at a backend this device never had; it is a UI for a backend this device **lost**.
+  The player emits `contentdb` URLs in `playinginfo` responses for HDD content — `album.url`,
+  `album.image.url`, `album.tracks_url`, `track.url`. **All of them answer.** Full measurements:
+  [`../research/notes/2026-08-29-contentdb-was-never-dead.md`](../research/notes/2026-08-29-contentdb-was-never-dead.md).
+
+`HAP_app.html` is a UI for a backend this device still has. The API the 2016 Crestron module was
+built on never went away.
 
 ### The third API: `/sony/hap` — screen capture and key injection
 
@@ -125,8 +128,14 @@ should be cache-busted, as the player's own pages do.
 stream selector reveals about the internet-radio bitrate question, is in
 [`../research/notes/2026-08-27-hap-tool-endpoint.md`](../research/notes/2026-08-27-hap-tool-endpoint.md).
 
-Until that changes, reach the library via the JSON-RPC `avContent.*` methods, or read it off disk
-([`09-disk-layout.md`](09-disk-layout.md)).
+**Trap — `keyevent` cannot drive the network menus.** Selecting
+*Settings → Network Settings → Internet Settings → Wireless setup* makes the player drop its Wi-Fi
+association to run the setup wizard, which destroys the very channel the keys arrive on: no ping, no
+ARP entry, no port 60200, and the wizard left waiting for input nobody can send. Recovering it takes
+a hand on the front panel. Verified the hard way, 2026-08-29. *View Network Status* is safe to open,
+though its list does not scroll under injected keys — `up`/`down` move nothing and focus stays on the
+Close button. To change what the player resolves, advertise the resolver over DHCP from the router
+instead and leave the device untouched.
 
 **Trap — the daemon serialises requests.** While a `contentdb` request is pending, *every* endpoint
 times out, including ones that answered seconds earlier; it recovers on its own once the pending
