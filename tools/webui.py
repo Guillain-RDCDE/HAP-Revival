@@ -278,9 +278,11 @@ main { width: 100%; max-width: 520px; }
 .lib-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 8px; }
 .lib-tab { background: var(--card-bg); color: var(--fg); border: 0; border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
 .lib-tab:hover, .lib-tab.on { background: var(--accent); color: #fff; }
+.lib-search { width: 100%; box-sizing: border-box; background: var(--card-bg); color: var(--fg); border: 0; border-radius: 999px; padding: 8px 14px; font-size: 13px; margin-bottom: 8px; }
+.lib-search:focus { outline: 2px solid var(--accent-soft); }
 .lib-crumbs { font-size: 11px; color: var(--muted); margin-bottom: 6px; min-height: 14px; }
 .lib-crumbs button { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 11px; padding: 0; }
-/* Capped so a 59 000-track library cannot make the page scroll forever. */
+/* Capped so a 78 000-track library cannot make the page scroll forever. */
 .lib-list { max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .lib-row { display: flex; align-items: baseline; gap: 8px; padding: 8px 4px; border-bottom: 1px solid var(--hover); cursor: pointer; }
 .lib-row:hover { background: var(--hover); }
@@ -582,6 +584,8 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
         <button class="lib-tab" onclick="libRoot('playlists')" data-i18n="web.lib.playlists">Playlists</button>
         <button class="lib-tab" onclick="libRoot('favorites')" data-i18n="web.lib.favorites">Favorites</button>
       </div>
+      <input class="lib-search" id="lib-search" type="search" autocomplete="off"
+             oninput="libSearchInput()" data-i18n-placeholder="web.lib.search_ph" placeholder="Search…">
       <div class="lib-crumbs" id="lib-crumbs"></div>
       <div class="lib-list" id="lib-list"></div>
       <div class="lib-foot">
@@ -625,6 +629,9 @@ function applyI18n() {
   });
   document.querySelectorAll("[data-i18n-title]").forEach(el => {
     el.title = t(el.getAttribute("data-i18n-title"));
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+    el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
   });
   // The library toggle and its rows carry state, not a fixed label, so the
   // blanket pass above would reset them to "Browse" and to English counts.
@@ -1008,6 +1015,8 @@ function libMsg(html) {
 }
 
 function libRoot(kind) {
+  const box = document.getElementById("lib-search");
+  if (box) box.value = "";        // a tab click leaves search mode
   libStack = [{kind: kind, url: "/api/library/" + kind, label: t("web.lib." + kind)}];
   document.querySelectorAll(".lib-tab").forEach((b) =>
     b.classList.toggle("on", b.getAttribute("onclick") === "libRoot('" + kind + "')"));
@@ -1056,6 +1065,59 @@ async function libLoad(reset) {
 
 function libMore() { libLoad(false); }
 
+/* ----- search -----
+   The player has no search endpoint and one request costs 30-60 s, so the
+   server matches a harvested copy of the catalog instead. Until that harvest
+   exists the box explains what it costs and offers to build it — it is never
+   started behind the user's back, because it monopolises the player for about
+   an hour and a half. */
+let libSearchTimer = null;
+
+function libSearchInput() {
+  clearTimeout(libSearchTimer);
+  libSearchTimer = setTimeout(libSearch, 200);   // one request per pause, not per key
+}
+
+async function libSearch() {
+  const term = document.getElementById("lib-search").value.trim();
+  if (!term) { if (libStack.length) libRender(); return; }
+  try {
+    const r = await fetch("/api/library/search?q=" + encodeURIComponent(term));
+    const d = await r.json();
+    if (!d.ready) { libOfferHarvest(d); return; }
+    const items = [].concat(d.results.artists, d.results.albums, d.results.tracks);
+    // Show results through the same trail machinery, so Back returns to
+    // wherever the user was browsing before they typed.
+    libStack = libStack.slice(0, 1).concat([{
+      url: "", label: '"' + term + '"', items: items,
+      total: items.length, hasMore: false, isSearch: true,
+    }]);
+    libCrumbs();
+    libRender();
+  } catch (e) {
+    libMsg(t("web.lib.error", {msg: e.message}));
+  }
+}
+
+function libOfferHarvest(state) {
+  if (state.harvesting) {
+    libMsg(t("web.lib.indexing") + "<br><br>" + (state.progress || ""));
+    setTimeout(libSearch, 3000);
+    return;
+  }
+  libMsg(t("web.lib.no_index") + '<br><br><button class="lib-more" onclick="libStartHarvest()">'
+         + t("web.lib.build_index") + "</button>");
+}
+
+async function libStartHarvest() {
+  libMsg(t("web.lib.indexing"));
+  try {
+    await fetch("/api/library/harvest", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: "{}"});
+  } catch (e) { /* the poll below reports whatever actually happened */ }
+  setTimeout(libSearch, 1500);
+}
+
 function libRender() {
   const top = libStack[libStack.length - 1];
   const list = document.getElementById("lib-list");
@@ -1082,7 +1144,7 @@ function libRender() {
       // The uri the player reports for the current track is audio:track?id=N,
       // and N is this same trackid — so highlighting needs no extra lookup.
       if (lastUri === "audio:track?id=" + item.trackid) row.classList.add("playing");
-      row.onclick = () => { hapCall("play_track", {track_id: item.trackid}); };
+      row.onclick = () => { hapCall("play-track", {track_id: item.trackid}); };
     } else if (item.albumid !== undefined) {
       side.textContent = t("web.lib.tracks", {n: item.number_of_tracks});
       row.onclick = () => libPush({
@@ -1316,6 +1378,57 @@ class PushWatcher:
             return self.generation
 
 
+class HarvestState:
+    """The catalog behind search, and the background walk that builds it.
+
+    Harvesting takes about ninety minutes and monopolises the player — the
+    daemon handles one request at a time, so everything else stalls while it
+    runs. It therefore never starts on its own: someone has to ask for it, and
+    the UI says what it will cost before they do.
+    """
+
+    def __init__(self) -> None:
+        self.data: dict | None = None
+        self.running = False
+        self.progress = ""
+        self.error = ""
+        self._lock = threading.Lock()
+
+    def load_cached(self, host: str) -> None:
+        """Pick up a harvest from an earlier run, if one is on disk."""
+        self.data = hap_library.load_harvest(host)
+        if self.data:
+            counts = self.data.get("counts", {})
+            self.progress = f"cached: {counts}"
+
+    def start(self, library: hap_library.Library) -> bool:
+        with self._lock:
+            if self.running:
+                return False
+            self.running = True
+        self.error = ""
+        threading.Thread(target=self._run, args=(library,), daemon=True).start()
+        return True
+
+    def _run(self, library: hap_library.Library) -> None:
+        def note(kind: str, seen: int, total: int) -> None:
+            self.progress = f"{kind} {seen}/{total}"
+
+        try:
+            data = library.harvest(progress=note)
+            hap_library.save_harvest(data)
+            self.data = data
+            self.progress = f"done: {data.get('counts', {})}"
+        except hap_library.LibraryError as e:
+            self.error = str(e)
+            self.progress = "failed"
+        finally:
+            self.running = False
+
+
+HARVEST = HarvestState()
+
+
 class HAPHandler(BaseHTTPRequestHandler):
     """Serves /, /api/state (GET), /api/events (GET, long-poll), and
     /api/<action> (POST)."""
@@ -1347,6 +1460,43 @@ class HAPHandler(BaseHTTPRequestHandler):
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
+
+    def _serve_search(self, query: str) -> None:
+        """Search the harvested catalog.
+
+        The device has no search endpoint, and one request costs 30-60 s, so
+        searching it directly is not an option. Instead the whole catalog is
+        harvested once (about 90 minutes) and matched here, in memory.
+        """
+        args = urllib.parse.parse_qs(query)
+        term = (args.get("q", [""])[0] or "").strip()
+        harvest = HARVEST.data
+        if harvest is None:
+            self._send_json(
+                200,
+                {
+                    "ready": False,
+                    "harvesting": HARVEST.running,
+                    "progress": HARVEST.progress,
+                    "results": {"artists": [], "albums": [], "tracks": []},
+                },
+            )
+            return
+        results = (
+            self.library.search(harvest, term, limit=40)
+            if (self.library and term)
+            else {"artists": [], "albums": [], "tracks": []}
+        )
+        self._send_json(
+            200,
+            {
+                "ready": True,
+                "harvesting": HARVEST.running,
+                "progress": HARVEST.progress,
+                "counts": harvest.get("counts", {}),
+                "results": results,
+            },
+        )
 
     def _serve_library(self, what: str, query: str) -> None:
         """Back the library browser: /api/library/<collection>[/<id>/<sub>].
@@ -1510,6 +1660,10 @@ class HAPHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/library/search":
+            self._serve_search(parsed.query)
+            return
+
         if path.startswith("/api/library/"):
             self._serve_library(path[len("/api/library/") :], parsed.query)
             return
@@ -1617,6 +1771,13 @@ class HAPHandler(BaseHTTPRequestHandler):
                 self.hap.seek_seconds(float(params.get("position_sec", 0)))
             elif path == "/api/play-track":
                 self.hap.play_track(int(params["track_id"]))
+            elif path == "/api/library/harvest":
+                if self.library is None:
+                    self._send_json(503, {"error": "library unavailable"})
+                    return
+                started = HARVEST.start(self.library)
+                self._send_json(200, {"started": started, "running": HARVEST.running})
+                return
             elif path == "/api/set-sound":
                 target = str(params["target"])
                 value = str(params["value"])
@@ -1685,6 +1846,9 @@ def main() -> int:
 
     HAPHandler.hap = HAP(args.ip)
     HAPHandler.library = hap_library.Library(args.ip)
+    HARVEST.load_cached(args.ip)
+    if HARVEST.data:
+        print(f"Library search index loaded from cache: {HARVEST.data.get('counts', {})}")
     try:
         info = HAPHandler.hap.system_info()
         print(f"Connected: {info.model} firmware {info.version} ({args.ip})")

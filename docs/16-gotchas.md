@@ -140,6 +140,40 @@ Measurements: [`../research/notes/2026-08-29-contentdb-was-never-dead.md`](../re
 
 ---
 
+## 8. Never assume the response is valid UTF-8
+
+**Correct in general.** A JSON body is UTF-8. `json.loads(response.read())` is the obvious line to
+write, and it is right almost everywhere.
+
+**Wrong here.** The player does not re-encode tags — it hands back whatever bytes its catalog holds.
+Most of a response is clean UTF-8, but a track or artist imported with Latin-1 tags carries a bare
+high byte in the middle of it. Measured 2026-08-29: on a 343 KB page of 5000 artists, **exactly one
+name** — `Zé Roberto`, artistid 16712 — held a raw `0xE9`. `json.loads` on the bytes raises
+`UnicodeDecodeError` and **the entire page is lost over one character**. During a harvest that walks
+the whole library, one such name anywhere aborts the run.
+
+**Do instead.** Decode strictly first, and fall back only for the bytes that actually fail:
+
+```python
+def _latin1_fallback(exc):
+    return exc.object[exc.start:exc.end].decode("latin-1"), exc.end
+
+codecs.register_error("hap_mixed", _latin1_fallback)
+
+try:
+    text = raw.decode("utf-8")
+except UnicodeDecodeError:
+    text = raw.decode("utf-8", "hap_mixed")
+```
+
+This is what [`tools/hap_library.py`](../tools/hap_library.py) does. Note what it does **not** do:
+`errors="replace"` would turn `Zé Roberto` into `Z� Roberto` and quietly corrupt the name;
+decoding the whole body as Latin-1 would mojibake every correctly-encoded name in it. Only the
+failing bytes get the fallback, and Latin-1 is the right guess for them because that is what those
+tags were written in.
+
+---
+
 ## The green-tests problem
 
 The above makes ordinary unit tests weaker than they look here, and we proved it.

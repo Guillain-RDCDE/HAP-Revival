@@ -49,7 +49,8 @@ live smoke test is the exception, since checking a real player is the entire poi
 ### Control the player
 
 - [**Web UI**](tools/webui.py) — now playing, transport, sound settings and cover art, in a browser.
-  Updates the instant the music changes, because the player says so.
+  Updates the instant the music changes, because the player says so. **Browse and search your whole
+  library from it, and play any track** — the half Sony's own app lost.
 - [**Control app**](docs/13-control-app.md) — the same UI on your phone's home screen. No App Store.
 - [**Python client**](tools/hap_client.py) — every mapped API method, from the shell or your code,
   including **internet radio**: browse the player's TuneIn directory and play any station, which
@@ -62,8 +63,12 @@ live smoke test is the exception, since checking a real player is the entire poi
 
 ### Understand your library
 
-- [**Library browser**](tools/library_browser.py) — reads the player's catalogue offline.
+- [**Library over REST**](tools/hap_library.py) — the whole catalogue from a running player:
+  artists, albums, tracks with codec and sample rate, and a harvest you can search offline.
+  No disk removal.
 - [**Library audit**](tools/library_audit.py) — formats, hi-res share, duplicates, missing artwork.
+  Runs `--from-player <ip>` over the network, or from the on-disk catalogue if you have it.
+- [**Library browser**](tools/library_browser.py) — reads the player's catalogue offline.
 - [**Mock device**](tools/mock_hap.py) — a fake HAP that answers the real protocol.
 - [**Live smoke test**](tools/smoke_live.py) — checks the client against your own player and
   asserts it reads real values, which the offline suite cannot.

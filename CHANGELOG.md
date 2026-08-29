@@ -8,6 +8,48 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-29, search, and the audit without a screwdriver)
+
+**Search.** The web UI can now search the library by artist, album or track, case- and
+accent-insensitively (`dvorak` finds `Dvořák`). The player has no search endpoint and one request
+costs 30–60 s, so searching it directly is not possible; instead the catalog is harvested once and
+matched in memory. The harvest takes about ninety minutes and monopolises the player, so it never
+starts on its own — the UI says what it will cost and waits to be asked. It is cached at
+`~/.hap-revival/library-<host>.json`, deliberately outside the repo: it is the user's own library
+metadata and must not end up in a commit.
+
+**The audiophile audit now runs over the network.** `library_audit.py --from-player <ip>` produces
+the same Hi-Res / DSD / duplicate / missing-cover report that previously required pulling the drive
+out of the machine. `RestAudit` presents the same interface as the SQLite `Audit`, so `build_report`
+is untouched and both sources render identically.
+
+Two figures the disk catalog has and REST does not: the **DRM flag** and the **channel count**. They
+are reported as *not visible over the network API* rather than as zero — "no multichannel tracks" and
+"we cannot see multichannel tracks" are different claims.
+
+First run against a real library, over the network: 17 317 artists, 5 740 albums, **78 369 tracks**,
+239 days of playtime, 93.2 % lossless, 4.6 % hi-res, no DSD, 274 albums without artwork and 391
+duplicated titles. The harvest took 5 512 s.
+
+### Fixed (2026-08-29)
+
+- **A saturated entry was reported as a hi-res track.** One FLAC came back with `sample_rate`
+  1 048 575 (2^20−1), `bit_rate` 2 147 483 647 (INT_MAX), `bit_width` 0 and `duration` 0 — every
+  field a sentinel, on a file the indexer could not read. The audit announced it as a "1048.58 kHz"
+  track exceeding the player's ceiling. Corrupt entries now get their own section, and the
+  over-ceiling list holds only genuine files.
+- **Two figures were wrong wherever they were written.** The library holds **78 369** tracks, not
+  59 414 — that smaller number is genre 0's `number_of_tracks`, i.e. the tracks with *no genre tag*,
+  misread as the library total. And a full harvest takes about **90 minutes**, not 11: the 11 was
+  extrapolated from a single 52 s page, while under sustained load the player needs ~300 s per page.
+  Both corrected in the docs, the tools and all six translations.
+- **Clicking a track in the library did nothing.** The UI posted to `/api/play_track`; the route is
+  `/api/play-track`. Found by driving the page's own JavaScript against the mock.
+- **A harvest died on one character.** The player returns whatever bytes its catalog holds, so tags
+  imported as Latin-1 arrive raw inside otherwise-valid UTF-8 — one artist in 17 317 here. That
+  raised `UnicodeDecodeError` and lost a whole 343 KB page. Now decoded strictly with a Latin-1
+  fallback for only the failing bytes, so the name is recovered rather than replaced. Gotcha 8.
+
 ### Added (2026-08-29, the library, over the network)
 
 The web UI can now **browse the player's music library and play from it** — artists, albums,

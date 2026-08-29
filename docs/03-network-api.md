@@ -85,7 +85,7 @@ exclusively. It splits in two, and the two halves have opposite fates on 19404R:
   **answers `200` with real data on `0019404R`** — but a cold request takes **5 to 57 seconds**,
   and every tool we probed it with used a 6-second timeout. It never had a chance to answer.
 
-  Measured live, sequentially: `audio/genres` 200 in 10.8 s (a 59 414-track library),
+  Measured live, sequentially: `audio/genres` 200 in 10.8 s,
   `audio/albums` 200 in 15.5 s, `audio/tracks` 200 in 17.4 s, `audio/albums/4964` 200 in 7.2 s —
   that last one being the exact example this document used to cite as hanging. Repeat calls warm
   up hard: `audio/genres` went 6.2 s → 2.0 s → 1.7 s. After the player rejoined the network cold,
@@ -103,7 +103,7 @@ exclusively. It splits in two, and the two halves have opposite fates on 19404R:
   **Paging.** Every response carries `paging: {offset, limit, total, next, previous}`, where `next`
   is an absolute URL and `previous` is `""` at the start. Follow `next`; do not guess. `limit=5000`
   is accepted, `limit=10000` is refused with `400` — the device does not clamp. At 5000 the whole
-  59 414-track library is 12 requests.
+  78 369-track library is 16 requests — about 90 minutes in practice, because a page takes roughly 300 s once the player has been working for a while, not the 52 s a first cold page suggests.
 
   **Two speeds, and the split is not about size.** Unfiltered collections cost 28–90 s whether you
   ask for 2 rows or 5000 — the price of `total` counting the table. Anything scoped by id

@@ -57,6 +57,21 @@ def test_fetch_refuses_a_limit_the_device_would_reject():
         lib.fetch("audio/tracks", limit=10000)
 
 
+def test_decode_payload_accepts_plain_utf8():
+    assert hap_library.decode_payload('{"name": "Dvořák"}'.encode()) == '{"name": "Dvořák"}'
+
+
+def test_decode_payload_rescues_a_latin1_byte_in_a_utf8_body():
+    # Measured on the real player: one artist name out of 17 317 carried a bare
+    # 0xE9 in an otherwise valid UTF-8 page. json.loads on the bytes throws, and
+    # the whole 343 KB page would be lost over one character.
+    raw = b'{"name": "Z\xe9 Roberto", "other": "caf\xc3\xa9"}'
+    text = hap_library.decode_payload(raw)
+    assert "Zé Roberto" in text
+    assert "café" in text, "correctly-encoded names must survive untouched"
+    assert "�" not in text, "the byte is recovered, not replaced"
+
+
 def test_set_favorite_rejects_an_unknown_type():
     lib = hap_library.Library("127.0.0.1")
     with pytest.raises(hap_library.LibraryError, match="favorite_type"):
@@ -168,6 +183,37 @@ def test_scoped_lookups_are_never_cached(lib, monkeypatch):
     lib.track(163756)
     lib.track(163756)
     assert len(calls) == 2
+
+
+def test_harvest_walks_every_collection(lib):
+    data = lib.harvest()
+    assert data["counts"]["tracks"] == len(list(lib.tracks()))
+    assert data["counts"]["artists"] == len(list(lib.artists()))
+    assert data["host"] == lib.host
+
+
+def test_search_matches_case_and_accent_insensitively(lib):
+    data = lib.harvest()
+    assert [a["name"] for a in lib.search(data, "MILES")["artists"]] == ["Miles Davis"]
+    assert lib.search(data, "teardrop")["tracks"][0]["name"] == "Teardrop"
+    assert lib.search(data, "")["artists"] == []
+    assert lib.search(data, "zzzznothing")["tracks"] == []
+
+
+def test_search_respects_its_limit(lib):
+    data = lib.harvest()
+    # "a" appears in every demo artist; the cap must still hold.
+    assert len(lib.search(data, "a", limit=1)["artists"]) == 1
+
+
+def test_harvest_round_trips_through_disk(lib, tmp_path):
+    data = lib.harvest()
+    target = tmp_path / "cat.json"
+    hap_library.save_harvest(data, target)
+    back = hap_library.load_harvest(lib.host, target)
+    assert back["counts"] == data["counts"]
+    assert "saved_at" in back
+    assert hap_library.load_harvest(lib.host, tmp_path / "absent.json") is None
 
 
 def test_favorites_reflect_the_devices_own_flag(lib):

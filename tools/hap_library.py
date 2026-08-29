@@ -33,16 +33,25 @@ Usage:
     python tools/hap_library.py <ip> playlists
     python tools/hap_library.py <ip> favorites
     python tools/hap_library.py <ip> count
+    python tools/hap_library.py <ip> harvest          # ~90 min, cached on disk
+    python tools/hap_library.py <ip> search dvorak    # searches the cache
+
+The harvest is written to ~/.hap-revival/library-<host>.json and stays on this
+machine — it is your own library metadata, and it is deliberately kept outside
+the repository so it cannot be committed by accident.
 """
 
 from __future__ import annotations
 
 import argparse
+import codecs
 import json
 import sys
 import time
+import unicodedata
 import urllib.parse
 from dataclasses import dataclass, field
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
@@ -61,12 +70,91 @@ MAX_LIMIT = 5000
 # so they are not cached at all.
 ROOT_CACHE_TTL_SEC = 900.0
 
+# A harvest asks for 5000 rows at a time — about 5 MB — and how long that takes
+# depends on what else the player is doing. Measured between 52 s and over 120 s
+# for the same request on the same day, so the interactive ceiling above is too
+# tight here, and a single slow page must not throw away a run that has already
+# spent four minutes on artists and albums.
+HARVEST_TIMEOUT_SEC = 420.0
+HARVEST_RETRIES = 3
+HARVEST_RETRY_PAUSE_SEC = 10.0
+
 # Response envelopes: the collection key the device uses for each resource.
 COLLECTION_KEYS = ("tracks", "albums", "artists", "genres", "playlists")
 
 
+# Where a harvested catalog is kept. Outside the repo on purpose: it is the
+# user's own music metadata, and it must never end up in a commit.
+CACHE_DIR = Path.home() / ".hap-revival"
+
+
 class LibraryError(Exception):
     """Any failure reaching or parsing the library API."""
+
+
+def _latin1_fallback(exc: UnicodeError):
+    """Decode one stray non-UTF-8 byte as Latin-1 instead of losing it."""
+    if isinstance(exc, UnicodeDecodeError):
+        return exc.object[exc.start : exc.end].decode("latin-1"), exc.end
+    raise exc
+
+
+codecs.register_error("hap_mixed", _latin1_fallback)
+
+
+def decode_payload(raw: bytes) -> str:
+    """Decode a response body, tolerating the player's mixed encodings.
+
+    The player does not re-encode tags: it hands back whatever bytes the catalog
+    holds. Most of a response is valid UTF-8, but a track or artist imported
+    with Latin-1 tags carries raw high bytes in the middle of it — measured
+    2026-08-29 on a 343 KB artist page where exactly one name, `Zé Roberto`
+    (artistid 16712), had a bare 0xE9. `json.loads` on the bytes raises
+    `UnicodeDecodeError` and the whole page is lost over one character.
+
+    Strict UTF-8 first, so nothing is guessed when nothing needs to be; the
+    fallback applies only to the bytes that actually fail, and Latin-1 is the
+    right guess for them because it is what those tags were written in.
+    """
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("utf-8", "hap_mixed")
+
+
+def _fold(text: str) -> str:
+    """Lowercase and strip accents, so `dvorak` finds `Dvořák`."""
+    decomposed = unicodedata.normalize("NFKD", text or "")
+    return "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
+
+
+def cache_path(host: str) -> Path:
+    """Where this host's harvested catalog lives."""
+    safe = "".join(c if c.isalnum() or c in ".-_" else "_" for c in host)
+    return CACHE_DIR / f"library-{safe}.json"
+
+
+def save_harvest(harvest: dict, path: Path | None = None) -> Path:
+    """Write a harvest to disk. Stays on this machine; nothing is uploaded."""
+    target = path or cache_path(harvest.get("host", "unknown"))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = dict(harvest)
+    payload["saved_at"] = time.time()
+    # write_bytes, not write_text: on Windows the default encoding is not UTF-8
+    # and a library full of accents would be mangled on the way out.
+    target.write_bytes(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    return target
+
+
+def load_harvest(host: str, path: Path | None = None) -> dict | None:
+    """Read a previously saved harvest, or None if there isn't one."""
+    target = path or cache_path(host)
+    if not target.is_file():
+        return None
+    try:
+        return json.loads(target.read_bytes().decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
 
 
 @dataclass
@@ -113,7 +201,7 @@ class Library:
         except (URLError, OSError) as e:
             raise LibraryError(f"{e} on {url}") from e
         try:
-            data = json.loads(raw)
+            data = json.loads(decode_payload(raw))
         except json.JSONDecodeError as e:
             raise LibraryError(f"not JSON from {url}: {raw[:120]!r}") from e
         if not isinstance(data, dict):
@@ -223,8 +311,8 @@ class Library:
     def iter_all(self, path: str, limit: int = MAX_LIMIT, **params: object):
         """Yield every item of a collection, following the device's own paging.
 
-        At `limit=5000` the full 59 414-track library is 12 requests, roughly
-        11 minutes. Follows `paging.next` rather than incrementing an offset, so
+        At `limit=5000` a 78 369-track library is 16 requests. Follows
+        `paging.next` rather than incrementing an offset, so
         it stops exactly where the device says the collection ends.
         """
         offset = 0
@@ -238,6 +326,90 @@ class Library:
             if not page.next_url or (page.total and seen >= page.total):
                 return
             offset += len(page.items)
+
+    # ---------- whole-library harvest ----------
+
+    def harvest(self, progress=None, with_tracks: bool = True) -> dict:
+        """Pull the entire library into one dict, following the device's paging.
+
+        Budget about **90 minutes** for a large library — measured 5512 s for
+        17 317 artists + 5740 albums + 78 369 tracks. Page size is capped at
+        5000, so it is the number of requests that costs, not the bytes; and a
+        page takes ~300 s once the player has been working for a while, well
+        above the ~50 s a first cold page suggests. An earlier estimate of
+        11 minutes was extrapolated from one such cold page and was wrong by
+        a factor of seven.
+
+        `progress(kind, seen, total)` is called after each page, for a UI.
+        """
+        out: dict = {
+            "host": self.host,
+            "artists": [],
+            "albums": [],
+            "tracks": [],
+        }
+        wanted = ["artists", "albums"] + (["tracks"] if with_tracks else [])
+        was = self.timeout
+        self.timeout = HARVEST_TIMEOUT_SEC
+        try:
+            self._harvest_into(out, wanted, progress)
+        finally:
+            self.timeout = was
+        out["counts"] = {k: len(out[k]) for k in ("artists", "albums", "tracks")}
+        return out
+
+    def _harvest_into(self, out: dict, wanted: list[str], progress) -> None:
+        for kind in wanted:
+            offset = 0
+            while True:
+                page = self._fetch_page_with_retry(kind, offset, progress)
+                if not page.items:
+                    break
+                out[kind].extend(page.items)
+                if progress:
+                    progress(kind, len(out[kind]), page.total)
+                offset += len(page.items)
+                if not page.next_url or offset >= page.total:
+                    break
+
+    def _fetch_page_with_retry(self, kind: str, offset: int, progress) -> Page:
+        """One harvest page, retried — a slow page is not a dead one.
+
+        The first attempt at a 5 MB page of tracks has timed out on a player
+        that answered the same request in 52 s an hour earlier. Giving up there
+        would discard the artists and albums already collected.
+        """
+        last: LibraryError | None = None
+        for attempt in range(1, HARVEST_RETRIES + 1):
+            try:
+                return self.fetch(f"audio/{kind}", offset=offset, limit=MAX_LIMIT)
+            except LibraryError as e:
+                last = e
+                if attempt < HARVEST_RETRIES:
+                    if progress:
+                        progress(f"{kind} (retry {attempt})", offset, 0)
+                    time.sleep(HARVEST_RETRY_PAUSE_SEC)
+        raise last if last else LibraryError("harvest failed for an unknown reason")
+
+    def search(self, harvest: dict, query: str, limit: int = 60) -> dict:
+        """Substring search over a harvest. Case- and accent-insensitive.
+
+        The device has no search endpoint, and asking it per keystroke would be
+        unusable at 30 s a request — so the whole catalog is matched locally.
+        """
+        needle = _fold(query)
+        if not needle:
+            return {"artists": [], "albums": [], "tracks": []}
+        found: dict[str, list] = {}
+        for kind in ("artists", "albums", "tracks"):
+            hits = []
+            for item in harvest.get(kind) or []:
+                if needle in _fold(item.get("name", "")):
+                    hits.append(item)
+                    if len(hits) >= limit:
+                        break
+            found[kind] = hits
+        return found
 
     # ---------- the one write ----------
 
@@ -310,9 +482,50 @@ def main(argv: list[str] | None = None) -> int:
     for name in ("artist-albums", "album-tracks", "playlist-tracks", "track"):
         p = sub.add_parser(name, parents=[common])
         p.add_argument("id", type=int)
+    sub.add_parser("harvest", parents=[common])
+    p = sub.add_parser("search", parents=[common])
+    p.add_argument("query")
     args = parser.parse_args(argv)
 
     lib = Library(args.host)
+
+    if args.cmd == "harvest":
+        started = time.time()
+
+        def show(kind: str, seen: int, total: int) -> None:
+            print(f"  {kind:<8} {seen:>6} / {total:<6} ({time.time() - started:.0f}s)")
+
+        print(f"Harvesting {args.host} — about 90 minutes for a large library.")
+        try:
+            data = lib.harvest(progress=show)
+        except LibraryError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        where = save_harvest(data)
+        print(f"\n{data['counts']} → {where}")
+        return 0
+
+    if args.cmd == "search":
+        data = load_harvest(args.host)
+        if data is None:
+            print(
+                f"no catalog cached for {args.host}. Run:\n"
+                f"    python tools/hap_library.py {args.host} harvest",
+                file=sys.stderr,
+            )
+            return 1
+        hits = lib.search(data, args.query, limit=args.limit)
+        for kind in ("artists", "albums", "tracks"):
+            rows = hits[kind]
+            if not rows:
+                continue
+            print(f"\n-- {kind} ({len(rows)})")
+            for item in rows:
+                print(_fmt_track(item) if "trackid" in item else _fmt_row(item))
+        if not any(hits.values()):
+            print("aucun résultat")
+        return 0
+
     try:
         if args.cmd == "count":
             for what, fn in (

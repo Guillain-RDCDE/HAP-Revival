@@ -2,9 +2,18 @@
 """
 HAP-Revival library audit — an audiophile health-check of your HAP music library.
 
-Reads the HAP's on-device SQLite catalog (`hdd_browse.db`) and reports what's
-actually *in* your library and what might need attention — entirely offline,
-read-only, nothing written, nothing leaves your machine.
+Reports what's actually *in* your library and what might need attention.
+Read-only, nothing written, and nothing leaves your machine.
+
+**Two sources, one report.** Either read the player over the network — no
+screwdriver, no disk removal — or read the on-device SQLite catalog
+(`hdd_browse.db`) if you happen to have it:
+
+    python tools/hap_library.py 192.168.1.28 harvest   # once, ~90 min
+    python tools/library_audit.py --from-player 192.168.1.28
+
+The network source cannot see two fields the disk catalog has: the **DRM flag**
+and the **channel count**. They are reported as unavailable rather than as zero.
 
 It answers the questions an owner of a hi-res deck actually asks:
 
@@ -21,6 +30,7 @@ Companion to the other catalog tools:
   * `library_audit.py`    — *report* on what the library already contains.  (this)
 
 Usage:
+    python tools/library_audit.py --from-player 192.168.1.28      # over the LAN
     python tools/library_audit.py /path/to/hdd_browse.db          # text report
     python tools/library_audit.py /path/to/hdd_browse.db --html report.html
     python tools/library_audit.py /path/to/hdd_browse.db --top 30 # longer lists
@@ -54,15 +64,32 @@ HAP_PCM_CEILING_HZ = 192_000   # the HAP plays PCM up to 192 kHz; DSD up to 5.6 
 DSD_THRESHOLD_HZ = 2_000_000   # DSD64 ≈ 2.8224 MHz — anything this high is DSD, not PCM
 
 
+def looks_corrupt(srate, bits, dur) -> bool:
+    """True when a track's numbers are sentinels rather than measurements.
+
+    A real library turned one of these up: `sample_rate` 1 048 575 (2^20-1),
+    `bit_rate` 2 147 483 647 (INT_MAX), `bit_width` 0 and `duration` 0 — every
+    field saturated, on a FLAC the indexer evidently could not read. Reported as
+    a 1048.58 kHz hi-res track it is nonsense; what it actually means is that the
+    file is broken and almost certainly will not play.
+    """
+    srate = int(srate or 0)
+    return srate > HAP_PCM_CEILING_HZ and (int(bits or 0) == 0 or int(dur or 0) == 0)
+
+
 def codec_name(v) -> str:
     return CODECS.get(int(v or 0), f"#{v}")
 
 
-def classify(codec: int, srate: int, bits: int) -> str:
-    """One of: dsd, hires, cd, lossy, unknown — the quality bucket of a track."""
+def classify(name: str, srate: int, bits: int) -> str:
+    """One of: dsd, hires, cd, lossy, unknown — the quality bucket of a track.
+
+    Takes the codec *name*, not the catalog's integer code: the REST source only
+    ever knows names, so each source normalises at its own edge and there stays
+    exactly one classifier.
+    """
     srate = int(srate or 0)
     bits = int(bits or 0)
-    name = codec_name(codec)
     if srate >= DSD_THRESHOLD_HZ:
         return "dsd"
     if name in LOSSY:
@@ -121,10 +148,23 @@ class Audit:
         }
 
     def tracks(self):
-        return self.q(
+        rows = self.q(
             "SELECT PROP304B codec, PROP3048 srate, PROP10DE bits, PROP3047 dur, "
             "PROP58D3 drm, PROP10DD multich FROM FT0002"
         )
+        # Normalise the codec to a name here, so build_report never has to know
+        # which source it is reading from.
+        return [
+            {
+                "codec": codec_name(r["codec"]),
+                "srate": r["srate"],
+                "bits": r["bits"],
+                "dur": r["dur"],
+                "drm": r["drm"],
+                "multich": r["multich"],
+            }
+            for r in rows
+        ]
 
     def albums_missing_cover(self):
         return self.q(
@@ -148,16 +188,137 @@ class Audit:
         )
 
     def over_ceiling(self):
-        return self.q(
+        rows = self.q(
             "SELECT t.PROP7020 title, ar.PROP7020 artist, t.PROP3048 srate, "
-            "t.PROP10DE bits, t.PROP304B codec "
+            "t.PROP10DE bits, t.PROP3047 dur, t.PROP304B codec "
             "FROM FT0002 t LEFT JOIN FT5202 ar ON ar.PROP3601=t.PROP7052 "
             "WHERE t.PROP3048 > ? AND t.PROP3048 < ? ORDER BY t.PROP3048 DESC",
             (HAP_PCM_CEILING_HZ, DSD_THRESHOLD_HZ),
         )
+        return [
+            {
+                "title": r["title"],
+                "artist": r["artist"],
+                "srate": r["srate"],
+                "bits": r["bits"],
+                "dur": r["dur"],
+                "codec": codec_name(r["codec"]),
+            }
+            for r in rows
+        ]
 
 
-def build_report(a: Audit, top: int) -> dict:
+class RestAudit:
+    """The same audit, computed from a REST harvest instead of the disk catalog.
+
+    Same interface as `Audit`, so `build_report` cannot tell them apart. The
+    point is that this needs no disk removal at all — see
+    research/notes/2026-08-29-contentdb-was-never-dead.md.
+
+    **Two figures the disk catalog has and this one does not**: the DRM flag
+    (`PROP58D3`) and the channel count (`PROP10DD`) are simply absent from the
+    REST payload. They are reported as unavailable rather than as zero, because
+    "no multichannel tracks" and "we cannot see multichannel tracks" are very
+    different statements to put in front of someone.
+    """
+
+    has_drm_and_channels = False
+    source_label = "the player, over REST"
+
+    def __init__(self, harvest: dict):
+        self.h = harvest
+        self._albums = harvest.get("albums") or []
+        self._tracks = harvest.get("tracks") or []
+        self._artists = harvest.get("artists") or []
+
+    def totals(self) -> dict:
+        return {
+            "tracks": len(self._tracks),
+            "albums": len(self._albums),
+            "artists": len(self._artists),
+            "playtime": sum(int(t.get("duration") or 0) for t in self._tracks),
+        }
+
+    def tracks(self):
+        out = []
+        for t in self._tracks:
+            c = t.get("codec") or {}
+            out.append(
+                {
+                    # The device spells codecs in lower case ("flac"); the disk
+                    # catalog's names are upper. Match the latter so both sources
+                    # produce the same report.
+                    "codec": (c.get("codec_type") or "?").upper(),
+                    "srate": c.get("sample_rate") or 0,
+                    "bits": c.get("bit_width") or 0,
+                    "dur": t.get("duration") or 0,
+                    "drm": 0,
+                    "multich": 0,
+                }
+            )
+        return out
+
+    def albums_missing_cover(self):
+        """Albums with no artwork.
+
+        An album without a cover **omits the `image` key entirely** — it is
+        never present-but-empty (verified on 800 albums, 56 of them bare).
+        """
+        rows = [
+            {
+                "id": a.get("albumid"),
+                "name": a.get("name"),
+                "aa": (a.get("album_artist") or {}).get("name", ""),
+                "trks": a.get("number_of_tracks") or 0,
+            }
+            for a in self._albums
+            if not (a.get("image") or {}).get("url")
+        ]
+        return sorted(rows, key=lambda r: -r["trks"])
+
+    def duplicates(self):
+        """Same title and same duration inside one album — as the SQL does."""
+        seen: dict[tuple, dict] = {}
+        for t in self._tracks:
+            title = t.get("name") or ""
+            dur = int(t.get("duration") or 0)
+            if not title or dur <= 0:
+                continue
+            album = t.get("album") or {}
+            key = (title, album.get("albumid"), dur)
+            row = seen.get(key)
+            if row is None:
+                seen[key] = {
+                    "title": title,
+                    "album": album.get("name", ""),
+                    "artist": (t.get("artist") or {}).get("name", ""),
+                    "n": 1,
+                }
+            else:
+                row["n"] += 1
+        dups = [r for r in seen.values() if r["n"] > 1]
+        return sorted(dups, key=lambda r: -r["n"])
+
+    def over_ceiling(self):
+        rows = []
+        for t in self._tracks:
+            c = t.get("codec") or {}
+            srate = int(c.get("sample_rate") or 0)
+            if HAP_PCM_CEILING_HZ < srate < DSD_THRESHOLD_HZ:
+                rows.append(
+                    {
+                        "title": t.get("name", ""),
+                        "artist": (t.get("artist") or {}).get("name", ""),
+                        "srate": srate,
+                        "bits": c.get("bit_width") or 0,
+                        "dur": t.get("duration") or 0,
+                        "codec": (c.get("codec_type") or "?").upper(),
+                    }
+                )
+        return sorted(rows, key=lambda r: -r["srate"])
+
+
+def build_report(a, top: int) -> dict:
     """Compute everything once; returned dict feeds both text and HTML."""
     tot = a.totals()
     buckets = {"hires": 0, "cd": 0, "lossy": 0, "dsd": 0, "unknown": 0}
@@ -168,7 +329,7 @@ def build_report(a: Audit, top: int) -> dict:
     for t in a.tracks():
         cls = classify(t["codec"], t["srate"], t["bits"])
         buckets[cls] += 1
-        codec_count[codec_name(t["codec"])] = codec_count.get(codec_name(t["codec"]), 0) + 1
+        codec_count[t["codec"]] = codec_count.get(t["codec"], 0) + 1
         sr = int(t["srate"] or 0)
         srate_count[sr] = srate_count.get(sr, 0) + 1
         b = int(t["bits"] or 0)
@@ -180,6 +341,7 @@ def build_report(a: Audit, top: int) -> dict:
             multich += 1
     n = max(1, tot["tracks"])
     lossless_n = buckets["hires"] + buckets["cd"] + buckets["dsd"]
+    over = a.over_ceiling()
     return {
         "totals": tot,
         "buckets": buckets,
@@ -188,11 +350,21 @@ def build_report(a: Audit, top: int) -> dict:
         "bits_count": dict(sorted(bits_count.items())),
         "drm": drm,
         "multich": multich,
+        # The REST source cannot see either. Kept distinct from "zero found".
+        "has_drm_and_channels": getattr(a, "has_drm_and_channels", True),
+        "source": getattr(a, "source_label", "hdd_browse.db"),
         "lossless_pct": 100.0 * lossless_n / n,
         "hires_pct": 100.0 * (buckets["hires"] + buckets["dsd"]) / n,
         "missing_cover": a.albums_missing_cover(),
         "duplicates": a.duplicates(),
-        "over_ceiling": a.over_ceiling(),
+        # Split them: a genuine 352.8 kHz file and an entry whose every number is
+        # a saturated sentinel are different problems with different answers.
+        "over_ceiling": [
+            t for t in over if not looks_corrupt(t["srate"], t.get("bits"), t.get("dur"))
+        ],
+        "corrupt": [
+            t for t in over if looks_corrupt(t["srate"], t.get("bits"), t.get("dur"))
+        ],
         "top": top,
     }
 
@@ -217,6 +389,7 @@ def print_report(r: dict) -> None:
     P("=" * 60)
     P("  HAP LIBRARY AUDIT")
     P("=" * 60)
+    P(f"  source: {r['source']}")
     P(f"  {fmt_int(t['tracks'])} tracks · {fmt_int(t['albums'])} albums · "
       f"{fmt_int(t['artists'])} artists")
     P(f"  total playtime: {fmt_dur_long(t['playtime'])}")
@@ -242,8 +415,11 @@ def print_report(r: dict) -> None:
     for b, c in r["bits_count"].items():
         label = f"{b}-bit" if b else "(n/a)"
         P(f"  {label:<8} {bar(c / n)} {fmt_int(c)}")
-    if r["multich"] or r["drm"]:
-        P("")
+    P("")
+    if not r["has_drm_and_channels"]:
+        P("  multichannel / DRM: not visible over the network API "
+          "(only the on-disk catalog carries those two fields)")
+    elif r["multich"] or r["drm"]:
         P(f"  multichannel tracks: {fmt_int(r['multich'])}   ·   DRM-flagged: {fmt_int(r['drm'])}")
 
     top = r["top"]
@@ -255,10 +431,20 @@ def print_report(r: dict) -> None:
     else:
         P(f"  {len(oc)} track(s) exceed 192 kHz PCM (HAP will downsample/refuse):")
         for row in oc[:top]:
-            P(f"    {khz(row['srate'])} {codec_name(row['codec'])}  "
+            P(f"    {khz(row['srate'])} {row['codec']}  "
               f"· {row['artist'] or '?'} — {row['title'] or '?'}")
         if len(oc) > top:
             P(f"    … and {len(oc) - top} more")
+
+    cor = r.get("corrupt") or []
+    if cor:
+        P("")
+        P("-- unreadable metadata " + "-" * 36)
+        P(f"  {len(cor)} track(s) report impossible values — the indexer could not read")
+        P("  them, and they are unlikely to play:")
+        for row in cor[:top]:
+            P(f"    {khz(row['srate'])} {row['codec']}  "
+              f"· {row['artist'] or '?'} — {row['title'] or '?'}")
 
     mc = r["missing_cover"]
     P("")
@@ -318,7 +504,7 @@ def render_html(r: dict) -> str:
 
     oc = listing(
         "PCM above the 192 kHz ceiling", r["over_ceiling"],
-        lambda x: f"<b>{e(khz(x['srate']))}</b> {e(codec_name(x['codec']))} · "
+        lambda x: f"<b>{e(khz(x['srate']))}</b> {e(x['codec'])} · "
                   f"{e(x['artist'] or '?')} — {e(x['title'] or '?')}",
         "Every PCM track is within the HAP's native range.",
     )
@@ -380,11 +566,23 @@ read-only from hdd_browse.db · HAP-Revival</p>
 
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(description="Audit a HAP music library from its on-disk SQLite catalog.")
-    ap.add_argument("db", help="path to hdd_browse.db")
+    ap = argparse.ArgumentParser(
+        description="Audit a HAP music library — from the player over the network, "
+        "or from its on-disk SQLite catalog."
+    )
+    ap.add_argument("db", nargs="?", help="path to hdd_browse.db")
+    ap.add_argument(
+        "--from-player",
+        metavar="IP",
+        help="audit over REST instead, using the harvest cached by "
+        "`hap_library.py <ip> harvest` (run that first)",
+    )
     ap.add_argument("--html", metavar="FILE", help="also write an HTML report to FILE")
     ap.add_argument("--top", type=int, default=20, help="max items per issue list (default 20)")
     args = ap.parse_args(argv[1:])
+
+    if bool(args.db) == bool(args.from_player):
+        ap.error("give either a path to hdd_browse.db or --from-player <ip>, not both")
 
     # The report uses box-drawing chars; make sure stdout can emit UTF-8 even on
     # a legacy Windows code page (cp1252) console.
@@ -393,12 +591,29 @@ def main(argv: list[str]) -> int:
     except (AttributeError, ValueError):
         pass
 
-    try:
-        audit = Audit(args.db)
-        report = build_report(audit, args.top)
-    except sqlite3.Error as e:
-        print(f"error: could not read DB ({e}). Is this an hdd_browse.db?", file=sys.stderr)
-        return 2
+    if args.from_player:
+        import hap_library
+
+        harvest = hap_library.load_harvest(args.from_player)
+        if harvest is None:
+            print(
+                f"error: no catalog cached for {args.from_player}.\n"
+                f"Harvest it first (about 90 minutes, once):\n"
+                f"    python tools/hap_library.py {args.from_player} harvest",
+                file=sys.stderr,
+            )
+            return 2
+        if not harvest.get("tracks"):
+            print("error: the cached catalog has no tracks in it.", file=sys.stderr)
+            return 2
+        report = build_report(RestAudit(harvest), args.top)
+    else:
+        try:
+            audit = Audit(args.db)
+            report = build_report(audit, args.top)
+        except sqlite3.Error as e:
+            print(f"error: could not read DB ({e}). Is this an hdd_browse.db?", file=sys.stderr)
+            return 2
 
     print_report(report)
     if args.html:

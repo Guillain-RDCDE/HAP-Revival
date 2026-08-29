@@ -37,7 +37,7 @@ Sequential `curl`, one request at a time, generous timeout, against `192.168.1.2
 `audio/albums/4964` is the **exact example** `03-network-api.md` gave as hanging while its
 cover art answered. It answers in 7.2 s.
 
-The payloads are genuine. `audio/genres` reports a library of **59 414 tracks**;
+The payloads are genuine. `audio/genres` reports **59 414 tracks under genre 0** — the untitled genre, i.e. the tracks with no genre tag, not the library total, which is **78 369** (see the harvest below);
 `audio/tracks` returns full metadata — album name, `albumid`, release date, track count,
 duration, artist — the whole tree the project planned to reach by `downloadByDiff` or by
 pulling the disk.
@@ -149,7 +149,7 @@ Practical consequence: **cache the four root listings, never cache drill-down.**
 
 **Page size**: `limit=5000` works (5.2 MB in 52 s), `limit=10000` and `limit=20000` are refused
 instantly with `400 {"error_code": 400, "description": "Bad Request"}`. The device does not clamp.
-At 5000, the whole 59 414-track library is 12 requests, roughly 11 minutes.
+At 5000, the whole 78 369-track library is 16 requests.
 
 **An unknown id is `200 {}`** — not a 404, not an error body. "No such track" has to be read out of
 the body, and it must not be mistaken for a transport failure.
@@ -170,6 +170,24 @@ One trap while checking it: eight seconds after the call, `getPlayingContentInfo
 empty strings while the front panel was already showing the track at 00:15. The queue is built
 before the JSON-RPC view catches up, so an immediate read-back can look like a failure that isn't.
 The screen endpoint settled it — a good argument for keeping that channel around.
+
+### The catalog is not uniformly UTF-8
+
+Harvesting the whole library found this the hard way: the run died on the fourth page of artists with
+`UnicodeDecodeError: invalid continuation byte` at offset 316 631.
+
+One name in 17 317 — `Zé Roberto`, artistid 16712 — stores its `é` as a bare `0xE9`, Latin-1, inside
+a 343 KB page that is otherwise valid UTF-8. The player does not normalise tags; it returns the bytes
+its catalog holds, so the encoding varies **per record**, according to how each file was tagged
+before it was ever imported.
+
+`json.loads` on the raw bytes throws, and the whole page is lost over one character. The fix is a
+decode error handler that falls back to Latin-1 for exactly the failing bytes — not
+`errors="replace"` (which corrupts the name) and not a wholesale Latin-1 decode (which mojibakes
+every correct name). Written up as gotcha 8 in [`docs/16-gotchas.md`](../../docs/16-gotchas.md).
+
+Worth noting what this implies beyond our client: those names are presumably just as broken on the
+player's own front panel, and in Sony's app when it still worked.
 
 ## Method note
 
