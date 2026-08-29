@@ -8,6 +8,32 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Changed (2026-08-29, the README, rewritten in two halves)
+
+The front page listed thirteen tools and a test count that had been wrong for weeks, and asked a
+new arrival to pick from a menu rather than showing them a path. It is now split the way the
+audience is:
+
+**Own a HAP? Start here** — five numbered things the player can do again, each one command or one
+click, in the order someone actually wants them: get music on it, control it from a phone, play the
+internet radio Sony removed, browse and search the library, then audit and repair the collection.
+
+**Under the hood** — for anyone weighing whether to trust the project: what the machine is, the
+three APIs on one port as a table, what has actually been established, the traps that make this
+device unlike anything modern, and how the work is done. That last section says plainly that six
+published conclusions have been overturned, five of them by a contributor, because a project that
+corrects itself in public is easier to rely on than one that never appears to be wrong.
+
+Also fixes the stale numbers (216 → 300 tests, thirteen → nineteen tools), adds a screenshot of the
+Fix tab with the player's MAC masked, and re-points two documentation anchors at the headings that
+replaced the ones they referenced.
+
+### Added (2026-08-29, the front panel, mocked)
+
+`mock_hap.py` now serves `/sony/hap` — a 480×272 framebuffer tinted by whatever is playing, and the
+nine front-panel keys. `hap_screen.py` therefore runs with no hardware, like everything else. The
+README had claimed as much since the endpoint was found on 2026-08-27; it was not true until now.
+
 ### Added (2026-08-29, the local route, for libraries that are not tidy)
 
 The previous entry assumed local folders that mirror the shares: swap the path prefix and you have

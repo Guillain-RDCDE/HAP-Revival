@@ -156,6 +156,56 @@ def live_mock():
         server.server_close()
 
 
+def test_front_panel_is_mocked_so_hap_screen_can_be_tried_without_hardware(live_mock):
+    """`/sony/hap` — the third API on port 60200.
+
+    Without this the README's claim that every tool but the live smoke test runs
+    against the mock was false: hap_screen.py had nothing to talk to.
+    """
+    import struct
+    import urllib.request
+
+    host, port = live_mock
+    base = f"http://{host}:{port}/sony/hap"
+
+    with urllib.request.urlopen(f"{base}?target=screen&cmd=display_png", timeout=10) as r:
+        png = r.read()
+        assert r.headers.get("Content-Type") == "image/png"
+    assert png.startswith(b"\x89PNG\r\n\x1a\n")
+    # The real panel is 480x272; a client that scales or crops must meet that here.
+    assert struct.unpack(">II", png[16:24]) == (480, 272)
+
+    for cmd in ("capture_png",):
+        with urllib.request.urlopen(f"{base}?target=screen&cmd={cmd}", timeout=10) as r:
+            assert r.read() == b"None"
+
+    for key in ("home", "down", "enter", "play"):
+        with urllib.request.urlopen(f"{base}?target=keyevent&cmd={key}", timeout=10) as r:
+            assert r.read() == b"None"
+
+
+def test_an_unknown_front_panel_target_is_a_404(live_mock):
+    import urllib.error
+    import urllib.request
+
+    host, port = live_mock
+    try:
+        urllib.request.urlopen(f"http://{host}:{port}/sony/hap?target=nonsense", timeout=10)
+    except urllib.error.HTTPError as e:
+        assert e.code == 404
+    else:
+        raise AssertionError("an unknown target should 404")
+
+
+def test_gradient_png_can_be_oblong():
+    import struct
+
+    png = mock_hap.gradient_png((10, 20, 30), (200, 210, 220), size=480, height=272)
+    assert struct.unpack(">II", png[16:24]) == (480, 272)
+    square = mock_hap.gradient_png((10, 20, 30), (200, 210, 220), size=64)
+    assert struct.unpack(">II", square[16:24]) == (64, 64), "square stays the default"
+
+
 def test_client_against_live_mock(live_mock):
     import hap_client
     host, port = live_mock

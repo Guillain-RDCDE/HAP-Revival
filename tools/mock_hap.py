@@ -63,20 +63,26 @@ def _png_chunk(tag: bytes, data: bytes) -> bytes:
     )
 
 
-def gradient_png(top: tuple[int, int, int], bottom: tuple[int, int, int], size: int = 320) -> bytes:
-    """A vertical gradient PNG from `top` to `bottom`, `size`×`size`, RGB.
+def gradient_png(top: tuple[int, int, int], bottom: tuple[int, int, int], size: int = 320,
+                 height: int | None = None) -> bytes:
+    """A vertical gradient PNG from `top` to `bottom`, `size`×`height`, RGB.
+
+    Square by default, which is what a cover wants. `height` makes it oblong —
+    the front panel is 480×272, and a client that crops or scales the display
+    should meet the real aspect ratio here too.
 
     Enough to make the now-playing cover and the ambient background look like a
     real album, with zero image dependencies."""
+    height = size if height is None else height
     rows = bytearray()
-    for y in range(size):
-        f = y / (size - 1)
+    for y in range(height):
+        f = y / max(1, height - 1)
         r = round(top[0] + (bottom[0] - top[0]) * f)
         g = round(top[1] + (bottom[1] - top[1]) * f)
         b = round(top[2] + (bottom[2] - top[2]) * f)
         rows.append(0)  # PNG filter type 0 (none) for this scanline
         rows.extend((r, g, b) * size)
-    ihdr = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)  # 8-bit, color type 2 (RGB)
+    ihdr = struct.pack(">IIBBBBB", size, height, 8, 2, 0, 0, 0)  # 8-bit, color type 2 (RGB)
     return (
         b"\x89PNG\r\n\x1a\n"
         + _png_chunk(b"IHDR", ihdr)
@@ -134,6 +140,9 @@ class Track:
 
 
 CONTENTDB_BASE = "/sony/contentdb/v100"
+
+# The nine keys the player's own /haplib.js wires up (docs/03-network-api.md).
+KEYEVENTS = ("home", "up", "down", "left", "right", "enter", "back", "option", "play")
 
 
 DEMO_TRACKS: list[Track] = [
@@ -723,6 +732,29 @@ class MockHandler(BaseHTTPRequestHandler):
             pass
 
     def do_GET(self) -> None:
+        # The front panel: /sony/hap?target=…&cmd=…
+        if self.path.startswith("/sony/hap"):
+            query = urllib.parse.parse_qs(self.path.partition("?")[2])
+            target = (query.get("target") or [""])[0]
+            cmd = (query.get("cmd") or [""])[0]
+            if target == "screen" and cmd in ("display_png", "download_png"):
+                # 480×272, the real panel's size, tinted by what is playing so a
+                # client can see the picture change.
+                tr = STATE.current()
+                self._send(200, "image/png",
+                           gradient_png(tr.accent, (12, 12, 16), size=480, height=272))
+                return
+            if target == "screen" and cmd == "capture_png":
+                self._send(200, "text/plain", b"None")
+                return
+            if target == "keyevent" and cmd in KEYEVENTS:
+                self._send(200, "text/plain", b"None")
+                return
+            # The device answers 200 "None" for a key it does not know, so an
+            # unknown *target* is the only 404 here.
+            self.send_error(404)
+            return
+
         # The REST library API: /sony/contentdb/v100/...
         if self.path.startswith(CONTENTDB_BASE):
             rest = self.path[len(CONTENTDB_BASE):]
