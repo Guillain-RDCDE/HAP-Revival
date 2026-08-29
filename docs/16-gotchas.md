@@ -174,6 +174,27 @@ tags were written in.
 
 ---
 
+## 9. Never reuse one SMB connection across two long listings
+
+**Correct in general.** Opening one connection and reusing it is the efficient, tidy thing to do,
+and reconnecting per unit of work looks wasteful.
+
+**Wrong here.** A long recursive listing desyncs pysmb's SMB1 session. After it, every `listPath`
+on that connection fails — and because a crawler has to tolerate the odd unreadable folder, those
+failures get swallowed and you are left with a **partial index that looks complete**. Measured
+2026-08-29: crawling `HAP_Internal` (27 263 files) then `HAP_External` on the same connection
+returned **5 931** files for the second share. A fresh connection per share returned **66 733**.
+Nothing errored; the number was simply wrong by a factor of eleven.
+
+**Do instead.** One connection per share, as [`tools/hap_fixit.py`](../tools/hap_fixit.py) does —
+and **count the folders you failed to list**, then say so. A crawl that quietly skips a tenth of the
+disk is worse than one that refuses to finish.
+
+The only reason this was caught is that an earlier one-off script had already measured the same
+share at 66 716 files. Without that number to compare against, 5 931 looks perfectly plausible.
+
+---
+
 ## The green-tests problem
 
 The above makes ordinary unit tests weaker than they look here, and we proved it.

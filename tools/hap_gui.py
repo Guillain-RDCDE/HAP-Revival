@@ -325,6 +325,7 @@ class App:
         self._build_transfer_tab(nb)
         self._build_validate_tab(nb)
         self._build_diff_tab(nb)
+        self._build_fix_tab(nb)
 
     def _build_transfer_tab(self, nb: ttk.Notebook) -> None:
         tab = ttk.Frame(nb)
@@ -427,6 +428,183 @@ class App:
         self._reg(help_lbl, "gui.diff_help")
         help_lbl.pack(anchor="w", padx=8, pady=(0, 4))
         self.diff_log = self._make_log(tab)
+
+    def _build_fix_tab(self, nb: ttk.Notebook) -> None:
+        """What the player's own catalog says is wrong, and where those files are.
+
+        This is the tab that turns a report into work: pick a line, open its
+        folder, or hand it straight to a tag editor. It needs two one-off scans
+        first (the library over REST, the shares over SMB), so the buttons say so
+        rather than failing silently.
+        """
+        tab = ttk.Frame(nb)
+        nb.add(tab, text="Fix")
+        self._reg_tab(nb, tab, "gui.tab.fix")
+
+        row = ttk.Frame(tab)
+        row.pack(fill="x", padx=8, pady=8)
+        b_scan = ttk.Button(row, command=self.on_fix_scan)
+        self._reg(b_scan, "gui.btn.fix_scan")
+        b_scan.pack(side="left")
+        b_load = ttk.Button(row, command=self.on_fix_load)
+        self._reg(b_load, "gui.btn.fix_load")
+        b_load.pack(side="left", padx=6)
+        self.fix_kind = tk.StringVar(value="cover")
+        ttk.Combobox(row, textvariable=self.fix_kind, state="readonly", width=12,
+                     values=("cover", "duplicate", "corrupt")).pack(side="left", padx=(16, 0))
+        self._action_widgets += [b_scan, b_load]
+
+        help_lbl = ttk.Label(tab, foreground="#888", justify="left", wraplength=700)
+        self._reg(help_lbl, "gui.fix_help")
+        help_lbl.pack(anchor="w", padx=8, pady=(0, 4))
+
+        listrow = ttk.Frame(tab)
+        listrow.pack(fill="both", expand=True, padx=8, pady=(0, 4))
+        self.fix_list = tk.Listbox(listrow, font=("Consolas", 9), activestyle="none")
+        bar = ttk.Scrollbar(listrow, orient="vertical", command=self.fix_list.yview)
+        self.fix_list.configure(yscrollcommand=bar.set)
+        self.fix_list.pack(side="left", fill="both", expand=True)
+        bar.pack(side="left", fill="y")
+        self.fix_list.bind("<Double-Button-1>", lambda _e: self.on_fix_open())
+
+        acts = ttk.Frame(tab)
+        acts.pack(fill="x", padx=8, pady=(0, 8))
+        b_open = ttk.Button(acts, command=self.on_fix_open)
+        self._reg(b_open, "gui.btn.fix_open")
+        b_open.pack(side="left")
+        b_edit = ttk.Button(acts, command=self.on_fix_edit)
+        self._reg(b_edit, "gui.btn.fix_edit")
+        b_edit.pack(side="left", padx=6)
+        b_copy = ttk.Button(acts, command=self.on_fix_copy)
+        self._reg(b_copy, "gui.btn.fix_copy")
+        b_copy.pack(side="left")
+        b_html = ttk.Button(acts, command=self.on_fix_html)
+        self._reg(b_html, "gui.btn.fix_html")
+        b_html.pack(side="left", padx=6)
+
+        self.fix_log = self._make_log(tab)
+        self._fix_findings: list = []
+
+    # ---- Fix tab actions ----
+
+    def _fix_selected(self):
+        """The finding under the cursor, or None (with a message) if there isn't one."""
+        sel = self.fix_list.curselection()
+        if not sel or not self._fix_findings:
+            messagebox.showinfo("HAP Sync", self._T("gui.fix.pick_one"))
+            return None
+        return self._fix_findings[sel[0]]
+
+    def _fix_show(self, findings: list) -> None:
+        kind = self.fix_kind.get()
+        self._fix_findings = [f for f in findings if f.kind == kind]
+        self.fix_list.delete(0, "end")
+        for f in self._fix_findings:
+            mark = "?" if f.ambiguous else (" " if f.folders else "!")
+            self.fix_list.insert("end", f"{mark} {f.title[:52]:<52} {f.detail[:60]}")
+        located = sum(1 for f in self._fix_findings if f.folders)
+        self._log(self.fix_log,
+                  f"{len(self._fix_findings)} {kind} findings · {located} located"
+                  f" · ? = on the disk more than once · ! = not found")
+
+    def _fix_load_data(self):
+        """Load the two caches. Returns (harvest, index) or (None, None)."""
+        import hap_fixit
+        import hap_library
+        ip = self.ip_var.get().strip()
+        harvest = hap_library.load_harvest(ip)
+        index = hap_fixit.load_index(ip)
+        if harvest is None or index is None:
+            missing = []
+            if harvest is None:
+                missing.append("library harvest")
+            if index is None:
+                missing.append("share index")
+            messagebox.showwarning(
+                "HAP Sync",
+                self._T("gui.fix.need_scan").replace("{what}", ", ".join(missing)))
+            return None, None
+        return harvest, index
+
+    def on_fix_load(self) -> None:
+        import hap_fixit
+        harvest, index = self._fix_load_data()
+        if harvest is None:
+            return
+        self._clear(self.fix_log)
+        self._fix_show(hap_fixit.build_findings(harvest, index))
+
+    def on_fix_scan(self) -> None:
+        """Index the shares (a few minutes). The library harvest is separate and
+        much slower, so it is not triggered from here."""
+        import hap_fixit
+        ip = self.ip_var.get().strip()
+        if not ip:
+            messagebox.showwarning("HAP Sync", self._T("gui.warn.enter_ip"))
+            return
+
+        def job():
+            self._emit("log", line=f"Indexing the shares on {ip}… (a few minutes)")
+
+            def note(share, i, total, files):
+                if i % 100 == 0 or i == total:
+                    self._emit("log", line=f"  {share} {i}/{total} folders, {files} files")
+
+            index = hap_fixit.crawl_shares(ip, progress=note)
+            hap_fixit.save_index(index)
+            counts = {s: len(f) for s, f in index["shares"].items()}
+            self._emit("log", line=f"done: {counts}")
+
+        self._start_job(job, self.fix_log, use_progress=True)
+
+    def on_fix_open(self) -> None:
+        import hap_fixit
+        f = self._fix_selected()
+        if f is None:
+            return
+        if not f.folders:
+            messagebox.showinfo("HAP Sync", self._T("gui.fix.not_located"))
+            return
+        hap_fixit.open_folder(f.path)
+        self._log(self.fix_log, f"opened {f.path}")
+
+    def on_fix_edit(self) -> None:
+        import hap_fixit
+        f = self._fix_selected()
+        if f is None:
+            return
+        if not f.folders:
+            messagebox.showinfo("HAP Sync", self._T("gui.fix.not_located"))
+            return
+        used = hap_fixit.open_in_editor(f.path)
+        if not used:
+            messagebox.showwarning("HAP Sync", self._T("gui.fix.no_editor"))
+            return
+        self._log(self.fix_log, f"{used}\n  {f.path}")
+
+    def on_fix_copy(self) -> None:
+        f = self._fix_selected()
+        if f is None:
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(f.path or f.title)
+        self._log(self.fix_log, f"copied {f.path or f.title}")
+
+    def on_fix_html(self) -> None:
+        import hap_fixit
+        harvest, index = self._fix_load_data()
+        if harvest is None:
+            return
+        target = filedialog.asksaveasfilename(
+            defaultextension=".html", filetypes=[("HTML", "*.html")],
+            initialfile="hap-to-fix.html")
+        if not target:
+            return
+        findings = hap_fixit.build_findings(harvest, index)
+        with open(target, "wb") as fh:
+            fh.write(hap_fixit.render_html(findings, self.ip_var.get().strip()).encode("utf-8"))
+        self._log(self.fix_log, f"wrote {target}")
+        hap_fixit.open_folder(os.path.dirname(target) or ".")
 
     def _make_log(self, parent: tk.Widget) -> tk.Text:
         frame = ttk.Frame(parent)

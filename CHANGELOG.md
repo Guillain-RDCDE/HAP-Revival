@@ -8,6 +8,39 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-29, from "what is wrong" to "here it is, open it")
+
+The audit could say 274 albums have no artwork. It could not say **where they are**, which is the
+only thing that lets you fix them. New `tools/hap_fixit.py` closes that gap, and the same engine is
+offered three ways: a **Fix tab** in the HAP Sync window, a **To fix** panel in the web UI, and a
+standalone **HTML report** with copyable paths.
+
+Locating a library entry on disk is harder than it sounds. The REST catalog returns an empty
+`filepath` on every track, album folders are not named after the album tag (`Dummy (1994)` on disk,
+`Dummy` in the tag), and many albums carry no album artist at all. **Matching on album names
+resolved 0 of 12** real cases. **Matching on file names resolves 267 of 274** — every track carries
+its exact file name, so indexing both SMB shares once (~4 min) and voting per album finds the
+folder. It even survives folders spelled without the tag's accents.
+
+A tie is reported as ambiguous and never resolved by guessing: those seven are albums that really do
+exist twice on disk, which is worth knowing on its own.
+
+**The most useful thing it reports**: several "coverless" albums already have a `cover.jpg` in the
+folder. The player reads artwork **embedded in the tags**, so a loose image does not count — but it
+does mean the artwork is already to hand, and the fix is thirty seconds in a tag editor. The report
+says which case each album is.
+
+Buttons open the folder in Explorer or hand it to Mp3tag (`/fp:`), configurable via `HAP_TAG_EDITOR`.
+In the web UI they appear only when the browser is on the machine running the server, and the server
+refuses any path that is not one of its own findings.
+
+### Fixed (2026-08-29, the share crawl)
+
+- **A share crawl silently lost 90% of the second share.** Reusing one SMB connection across two
+  long listings desyncs pysmb's SMB1 session; every subsequent `listPath` fails, and per-folder
+  error tolerance swallows it. `HAP_External` came back as 5 931 files instead of 66 733, with no
+  error. Now one connection per share, and unlistable folders are counted and reported. Gotcha 9.
+
 ### Added (2026-08-29, search, and the audit without a screwdriver)
 
 **Search.** The web UI can now search the library by artist, album or track, case- and

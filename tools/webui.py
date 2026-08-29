@@ -58,6 +58,7 @@ from typing import Any
 # Allow `python tools/webui.py …` from repo root
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import hap_fixit  # noqa: E402
 import hap_library  # noqa: E402
 import hap_notify  # noqa: E402
 import i18n  # noqa: E402
@@ -293,6 +294,11 @@ main { width: 100%; max-width: 520px; }
 .lib-more { background: var(--card-bg); color: var(--fg); border: 0; border-radius: 999px; padding: 8px 16px; font-size: 12px; cursor: pointer; align-self: flex-start; }
 .lib-more:hover { background: var(--hover); }
 .lib-msg { color: var(--muted); padding: 10px 4px; font-size: 12px; }
+.lib-row.fix { cursor: default; align-items: flex-start; }
+.lib-row.fix .n { display: flex; flex-direction: column; gap: 2px; }
+.fix-det { color: var(--muted); font-size: 11px; }
+.fix-btn { background: var(--card-bg); color: var(--fg); border: 0; border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; margin-left: 4px; }
+.fix-btn:hover { background: var(--accent); color: #fff; }
 footer { color: var(--muted); font-size: 11px; margin-top: 32px; text-align: center; }
 footer a { color: var(--muted); text-decoration: underline; }
 .error { background: #422; color: #f88; padding: 12px; border-radius: 8px; font-size: 13px; }
@@ -583,6 +589,7 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
         <button class="lib-tab" onclick="libRoot('albums')" data-i18n="web.lib.albums">Albums</button>
         <button class="lib-tab" onclick="libRoot('playlists')" data-i18n="web.lib.playlists">Playlists</button>
         <button class="lib-tab" onclick="libRoot('favorites')" data-i18n="web.lib.favorites">Favorites</button>
+        <button class="lib-tab" onclick="libFix()" data-i18n="web.fix.tab">To fix</button>
       </div>
       <input class="lib-search" id="lib-search" type="search" autocomplete="off"
              oninput="libSearchInput()" data-i18n-placeholder="web.lib.search_ph" placeholder="Search…">
@@ -1099,6 +1106,97 @@ async function libSearch() {
   }
 }
 
+/* ----- what to fix -----
+   The audit knows what is wrong; hap_fixit knows where those files are. The
+   buttons only appear when the browser is on the machine running this server —
+   from a phone, "open folder" would pop a window on somebody else's desktop. */
+async function libFix() {
+  const box = document.getElementById("lib-search");
+  if (box) box.value = "";
+  document.querySelectorAll(".lib-tab").forEach(b =>
+    b.classList.toggle("on", b.getAttribute("onclick") === "libFix()"));
+  libStack = [{url: "", label: t("web.fix.tab"), items: [], isFix: true}];
+  libCrumbs();
+  libMsg(t("web.lib.loading"));
+  try {
+    const r = await fetch("/api/fix?kind=cover");
+    const d = await r.json();
+    if (!d.ready) {
+      libMsg(t("web.fix.needs", {what: (d.needs || []).join(", ")}));
+      return;
+    }
+    libStack[0].items = d.items;
+    libStack[0].canOpen = d.can_open;
+    libFixRender(d);
+  } catch (e) {
+    libMsg(t("web.lib.error", {msg: e.message}));
+  }
+}
+
+function libFixRender(d) {
+  const list = document.getElementById("lib-list");
+  list.innerHTML = "";
+  if (!d.items.length) { libMsg(t("web.lib.empty")); return; }
+  for (const item of d.items) {
+    const row = document.createElement("div");
+    row.className = "lib-row fix";
+    const left = document.createElement("div");
+    left.className = "n";
+    const title = document.createElement("div");
+    title.textContent = (item.ambiguous ? "? " : "") + item.title;
+    const det = document.createElement("div");
+    det.className = "fix-det";
+    det.textContent = item.detail;
+    left.appendChild(title);
+    left.appendChild(det);
+    row.appendChild(left);
+
+    const acts = document.createElement("span");
+    acts.className = "s";
+    if (item.paths.length) {
+      const copy = document.createElement("button");
+      copy.className = "fix-btn";
+      copy.textContent = t("web.fix.copy");
+      copy.onclick = (ev) => {
+        ev.stopPropagation();
+        navigator.clipboard.writeText(item.paths[0]);
+        copy.textContent = t("web.fix.copied");
+      };
+      acts.appendChild(copy);
+      if (d.can_open) {
+        for (const [label, editor] of [[t("web.fix.open"), false], [t("web.fix.edit"), true]]) {
+          const b = document.createElement("button");
+          b.className = "fix-btn";
+          b.textContent = label;
+          b.onclick = (ev) => { ev.stopPropagation(); libFixOpen(item.paths[0], editor, b); };
+          acts.appendChild(b);
+        }
+      }
+    }
+    row.appendChild(acts);
+    list.appendChild(row);
+  }
+  document.getElementById("lib-more").hidden = true;
+  document.getElementById("lib-note").textContent =
+    d.located + " / " + d.total + " " + t("web.fix.located");
+}
+
+async function libFixOpen(path, editor, btn) {
+  try {
+    const r = await fetch("/api/fix/open", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({path: path, editor: editor}),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const was = btn.textContent;
+    btn.textContent = "✓";
+    setTimeout(() => { btn.textContent = was; }, 1200);
+  } catch (e) {
+    document.getElementById("error-banner").innerHTML =
+      '<div class="error">' + t("web.err.action", {msg: e.message}) + "</div>";
+  }
+}
+
 function libOfferHarvest(state) {
   if (state.harvesting) {
     libMsg(t("web.lib.indexing") + "<br><br>" + (state.progress || ""));
@@ -1461,6 +1559,43 @@ class HAPHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _serve_fix(self, query: str) -> None:
+        """What needs fixing, and the real path of each item.
+
+        Both scans are one-off and done elsewhere (hap_library harvest, then
+        hap_fixit index) — this only reads their caches, so the page is instant
+        or it says plainly what is missing.
+        """
+        args = urllib.parse.parse_qs(query)
+        kind = (args.get("kind", ["cover"])[0] or "cover").strip()
+        host = getattr(self.library, "host", "") if self.library else ""
+
+        harvest = HARVEST.data or hap_library.load_harvest(host)
+        index = hap_fixit.load_index(host) if host else None
+        if harvest is None or index is None:
+            self._send_json(200, {
+                "ready": False,
+                "needs": ([] if harvest else ["library"]) + ([] if index else ["shares"]),
+                "items": [],
+            })
+            return
+
+        findings = [f for f in hap_fixit.build_findings(harvest, index) if f.kind == kind]
+        self._send_json(200, {
+            "ready": True,
+            "kind": kind,
+            "total": len(findings),
+            "located": sum(1 for f in findings if f.folders),
+            # Actions are only meaningful when the browser is on this machine;
+            # the page uses this to decide whether to offer the buttons.
+            "can_open": sys.platform == "win32",
+            "items": [
+                {"title": f.title, "detail": f.detail, "paths": f.paths,
+                 "ambiguous": f.ambiguous}
+                for f in findings[:400]
+            ],
+        })
+
     def _serve_search(self, query: str) -> None:
         """Search the harvested catalog.
 
@@ -1664,6 +1799,10 @@ class HAPHandler(BaseHTTPRequestHandler):
             self._serve_search(parsed.query)
             return
 
+        if path == "/api/fix":
+            self._serve_fix(parsed.query)
+            return
+
         if path.startswith("/api/library/"):
             self._serve_library(path[len("/api/library/") :], parsed.query)
             return
@@ -1771,6 +1910,29 @@ class HAPHandler(BaseHTTPRequestHandler):
                 self.hap.seek_seconds(float(params.get("position_sec", 0)))
             elif path == "/api/play-track":
                 self.hap.play_track(int(params["track_id"]))
+            elif path == "/api/fix/open":
+                # Opening a folder or an editor happens on the machine running
+                # this server, which is only what the viewer wants if that is
+                # also their machine. From a phone it would silently pop a window
+                # on someone else's desktop, so refuse rather than surprise.
+                if self.client_address[0] not in ("127.0.0.1", "::1"):
+                    self._send_json(403, {"error": "only from this machine"})
+                    return
+                target = str(params.get("path", ""))
+                known = {p for f in hap_fixit.build_findings(
+                    HARVEST.data or {}, hap_fixit.load_index(self.library.host) or {})
+                    for p in f.paths}
+                if target not in known:
+                    # Never hand an arbitrary string to the shell.
+                    self._send_json(400, {"error": "unknown path"})
+                    return
+                if params.get("editor"):
+                    used = hap_fixit.open_in_editor(target)
+                    self._send_json(200, {"editor": used})
+                else:
+                    hap_fixit.open_folder(target)
+                    self._send_json(200, {"opened": target})
+                return
             elif path == "/api/library/harvest":
                 if self.library is None:
                     self._send_json(503, {"error": "library unavailable"})
