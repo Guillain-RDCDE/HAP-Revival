@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 Turn the library audit into something you can act on: every finding, with the
 real folder it lives in, ready to open in Explorer or a tag editor.
 
@@ -24,18 +24,30 @@ that image into the tags, which is exactly what a tag editor does. This tool
 reports the loose image when it finds one, because it means the artwork is
 already to hand.
 
-**Edit your own copy, not the player's.** If you keep local folders that you sync
-to the shares — the mapping HAP Sync already stores in `hap_sync.json` — then a
-share path translates to a local one by swapping the prefix, and that local copy
-is what the buttons open. Writing tags over SMB1 to a 2014 box that handles one
-request at a time is slow; writing them on your own disk is not, and the next
-sync carries the fix across. Measured on a real setup: **628 of 628** located
-findings also existed locally. Rows with a local copy are marked ▪.
+**Edit your own copy, not the player's.** Writing tags over SMB1 to a 2014 box
+that handles one request at a time is slow; writing them on your own disk is not,
+and the next sync carries the fix across. So when the album is also on this
+machine, that copy is what the buttons open. Rows with a local copy are marked ▪.
+
+Finding it works two ways, and you need neither if you have no local library:
+
+1. **Prefix swap** — for folders you sync to the shares, the mapping HAP Sync
+   already stores in `hap_sync.json` turns `HAP_Internal/Artist/Album` into
+   `D:\FLAC\Internal\Artist\Album` directly. Nothing to scan. Measured on a
+   mirrored setup: **628 of 628** located findings also existed locally.
+2. **File names**, via `scan-local` — for a library filed differently from the
+   player, or under different folder names. Same trick that locates albums on the
+   player: index the local folders once (seconds, it is a local disk) and vote.
+   Use it when route 1 finds nothing.
+
+With neither, everything still works; the buttons simply open the player's own
+copy over the network.
 
 Requires: `pip install pysmb` for indexing. Everything else is stdlib.
 
 Usage:
     python tools/hap_fixit.py <ip> index              # crawl both shares, ~4 min
+    python tools/hap_fixit.py <ip> scan-local D:\Music   # optional, see below
     python tools/hap_fixit.py <ip> report             # what needs fixing, where
     python tools/hap_fixit.py <ip> report --html f.html
     python tools/hap_fixit.py <ip> open 3             # open finding 3's folder
@@ -242,6 +254,87 @@ def to_local(folder: str, maps: dict[str, str]) -> str:
     return str(Path(root) / rest.replace("/", os.sep)) if rest else root
 
 
+def local_index_path(host: str) -> Path:
+    return hap_library.CACHE_DIR / f"local-{host.replace(':', '_')}.json"
+
+
+def scan_local(roots, progress=None) -> dict:
+    """Index local music folders by file name, exactly as the shares are indexed.
+
+    For the tidy case — local folders that mirror the shares — this is not
+    needed: swapping the path prefix finds the album directly. It exists for
+    everyone else. A library filed differently from the player, or renamed along
+    the way, still matches on file names, which is the same trick that locates
+    albums on the player itself.
+
+    Local disks are fast: a full walk is seconds, against minutes over SMB1.
+    """
+    out: dict = {"roots": {}, "indexed_at": time.time()}
+    for root in roots:
+        base = Path(root)
+        if not base.is_dir():
+            continue
+        files: list[list] = []
+        for dirpath, _dirs, names in os.walk(base):
+            for name in names:
+                if name.lower().endswith(AUDIO_SUFFIXES + IMAGE_SUFFIXES):
+                    files.append([dirpath, name, 0])
+            if progress:
+                progress(str(base), len(files))
+        out["roots"][str(base)] = files
+    return out
+
+
+def save_local_index(index: dict, host: str, path: Path | None = None) -> Path:
+    target = path or local_index_path(host)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(json.dumps(index, ensure_ascii=False).encode("utf-8"))
+    return target
+
+
+def load_local_index(host: str, path: Path | None = None) -> dict | None:
+    target = path or local_index_path(host)
+    if not target.is_file():
+        return None
+    try:
+        return json.loads(target.read_bytes().decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+
+
+def local_locator(local_index: dict | None) -> Locator | None:
+    """A Locator over local folders. Keys come out as absolute paths."""
+    if not local_index or not local_index.get("roots"):
+        return None
+    files: list[list] = []
+    for rows in local_index["roots"].values():
+        files.extend(rows)
+    # share "" so Locator's f"{share}{folder}" key is the absolute folder itself.
+    return Locator({"host": "", "shares": {"": files}})
+
+
+def resolve_local(folders: list[str], filenames: list[str], maps: dict[str, str],
+                  local: Locator | None) -> list[str]:
+    """Where this album lives on this machine, or [].
+
+    Two routes, cheapest first. **Prefix swap** covers the tidy case — local
+    folders that mirror the shares — exactly and with no scanning. **File-name
+    voting** covers everyone else: a library filed under different folder names
+    still matches, because the file names are the same on both sides.
+    """
+    swapped = []
+    for folder in folders:
+        candidate = to_local(folder, maps)
+        if candidate and Path(candidate).is_dir():
+            swapped.append(candidate)
+    if swapped:
+        return swapped
+    if local is None or not filenames:
+        return []
+    found, _ = local.locate(filenames)
+    return [f for f in found if Path(f).is_dir()]
+
+
 class Finding:
     """One thing to fix, and where it is — on the player and on your own disk.
 
@@ -253,13 +346,18 @@ class Finding:
     """
 
     def __init__(self, kind: str, title: str, detail: str, folders: list[str], host: str,
-                 maps: dict[str, str] | None = None):
+                 maps: dict[str, str] | None = None, local: list[str] | None = None):
         self.kind = kind
         self.title = title
         self.detail = detail
         self.folders = folders
         self.host = host
         self.maps = maps or {}
+        # Resolved once by build_findings. Kept as a plain list rather than a
+        # property: the GUI asks every row whether it is local, and a property
+        # that hits the filesystem would stat the disk hundreds of times per
+        # redraw. `local=None` means "work it out from maps", for direct callers.
+        self._local = local
 
     @property
     def paths(self) -> list[str]:
@@ -272,13 +370,10 @@ class Finding:
 
     @property
     def local_paths(self) -> list[str]:
-        """The synced source folders that actually exist on this machine."""
-        out = []
-        for folder in self.folders:
-            local = to_local(folder, self.maps)
-            if local and Path(local).is_dir():
-                out.append(local)
-        return out
+        """The folders on this machine holding the same album."""
+        if self._local is None:
+            self._local = resolve_local(self.folders, [], self.maps, None)
+        return self._local
 
     @property
     def local_path(self) -> str:
@@ -300,16 +395,22 @@ class Finding:
 
 
 def build_findings(harvest: dict, index: dict, top: int = 0,
-                   maps: dict[str, str] | None = None) -> list[Finding]:
+                   maps: dict[str, str] | None = None,
+                   local_index: dict | None = None) -> list[Finding]:
     """Join the audit's findings to real folders. Ordered worst-first.
 
     `maps` is `{share: local folder}` from hap_sync.json; omit it to read the
-    file. Pass `{}` to work only against the player.
+    file, pass `{}` to work only against the player. `local_index` is an optional
+    `scan_local()` result, which finds the local copy even when the folders are
+    not named like the player's — omit it to load a cached one.
     """
     loc = Locator(index)
     host = harvest.get("host") or index.get("host", "")
     audit = library_audit.RestAudit(harvest)
     maps = load_sync_maps() if maps is None else maps
+    if local_index is None:
+        local_index = load_local_index(host)
+    local = local_locator(local_index)
 
     by_album: dict = collections.defaultdict(list)
     for t in harvest.get("tracks") or []:
@@ -324,7 +425,7 @@ def build_findings(harvest: dict, index: dict, top: int = 0,
         if not folders:
             findings.append(
                 Finding("cover", alb["name"] or "?",
-                        f"{tracks_txt} · {i18n.t('fix.d.not_found')}", [], host, maps))
+                        f"{tracks_txt} · {i18n.t('fix.d.not_found')}", [], host, maps, []))
             continue
         images = loc.loose_images(folders[0])
         parts = [tracks_txt]
@@ -336,7 +437,9 @@ def build_findings(harvest: dict, index: dict, top: int = 0,
             parts.append(i18n.t("fix.d.no_image"))
         if len(folders) > 1:
             parts.append(i18n.t("fix.d.copies", n=len(folders)))
-        findings.append(Finding("cover", alb["name"] or "?", " · ".join(parts), folders, host, maps))
+        findings.append(Finding(
+            "cover", alb["name"] or "?", " · ".join(parts), folders, host, maps,
+            resolve_local(folders, [n for n in names if n], maps, local)))
 
     for dup in audit.duplicates():
         names = [
@@ -344,16 +447,18 @@ def build_findings(harvest: dict, index: dict, top: int = 0,
             for t in harvest.get("tracks") or []
             if t.get("name") == dup["title"]
         ]
-        folders, _ = loc.locate([n for n in names if n][:4])
-        findings.append(
-            Finding("duplicate", f"{dup['title']} ×{dup['n']}",
-                    f"{dup['artist'] or '?'} — {dup['album'] or '?'}", folders, host, maps))
+        clean = [n for n in names if n][:4]
+        folders, _ = loc.locate(clean)
+        findings.append(Finding(
+            "duplicate", f"{dup['title']} ×{dup['n']}",
+            f"{dup['artist'] or '?'} — {dup['album'] or '?'}", folders, host, maps,
+            resolve_local(folders, clean, maps, local)))
 
     report = library_audit.build_report(audit, 9999)
     for bad in report.get("corrupt") or []:
         findings.append(
             Finding("corrupt", bad["title"] or "?",
-                    f"{bad['artist'] or '?'} · {i18n.t('fix.d.corrupt')}", [], host, maps))
+                    f"{bad['artist'] or '?'} · {i18n.t('fix.d.corrupt')}", [], host, maps, []))
 
     order = {"cover": 0, "corrupt": 1, "duplicate": 2}
     findings.sort(key=lambda f: (order.get(f.kind, 9), f.title.lower()))
@@ -502,6 +607,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("host", help="player IP or hostname")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("index", help="crawl both SMB shares (~4 min)")
+    loc = sub.add_parser(
+        "scan-local",
+        help="index local music folders, so albums are found even when your "
+             "folders are not named like the player's")
+    loc.add_argument("folders", nargs="*",
+                     help="folders to scan (default: those in hap_sync.json)")
     rep = sub.add_parser("report", help="findings with their real folders")
     rep.add_argument("--top", type=int, default=40)
     rep.add_argument("--html", metavar="FILE")
@@ -532,6 +643,23 @@ def main(argv: list[str] | None = None) -> int:
         where = save_index(index)
         counts = {s: len(f) for s, f in index["shares"].items()}
         print(f"\n{counts} → {where}")
+        return 0
+
+    if args.cmd == "scan-local":
+        roots = args.folders or sorted(set(load_sync_maps().values()))
+        if not roots:
+            print("error: no folders given and none configured in hap_sync.json.\n"
+                  "Usage: python tools/hap_fixit.py <ip> scan-local D:\\Music",
+                  file=sys.stderr)
+            return 2
+        print("Scanning: " + ", ".join(roots))
+        index = scan_local(roots)
+        counts = {r: len(f) for r, f in index["roots"].items()}
+        if not any(counts.values()):
+            print("error: nothing found in those folders.", file=sys.stderr)
+            return 1
+        where = save_local_index(index, args.host)
+        print(f"{counts} → {where}")
         return 0
 
     harvest = hap_library.load_harvest(args.host)

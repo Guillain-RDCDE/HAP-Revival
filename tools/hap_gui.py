@@ -448,6 +448,9 @@ class App:
         b_scan = ttk.Button(row, command=self.on_fix_scan)
         self._reg(b_scan, "gui.btn.fix_scan")
         b_scan.pack(side="left")
+        b_local = ttk.Button(row, command=self.on_fix_scan_local)
+        self._reg(b_local, "gui.btn.fix_scan_local")
+        b_local.pack(side="left", padx=6)
         b_load = ttk.Button(row, command=self.on_fix_load)
         self._reg(b_load, "gui.btn.fix_load")
         b_load.pack(side="left", padx=6)
@@ -461,7 +464,7 @@ class App:
         self.fix_kind_box.bind("<<ComboboxSelected>>", self._on_fix_kind_pick)
         self._i18n.append((lambda _s: self._retranslate_fix_kinds(), "gui.fix.kind.cover"))
         self._retranslate_fix_kinds()
-        self._action_widgets += [b_scan, b_load]
+        self._action_widgets += [b_scan, b_local, b_load]
 
         help_lbl = ttk.Label(tab, foreground="#888", justify="left", wraplength=700)
         self._reg(help_lbl, "gui.fix_help")
@@ -580,6 +583,34 @@ class App:
             hap_fixit.save_index(index)
             counts = {s: len(f) for s, f in index["shares"].items()}
             self._emit("log", line=f"done: {counts}")
+
+        self._run_async(job, self.fix_log, use_progress=True)
+
+    def on_fix_scan_local(self) -> None:
+        """Index local music folders, for libraries not filed like the player's.
+
+        Only needed when the folders you keep locally are named differently from
+        the ones on the shares — otherwise the mapping on the Transfer tab
+        already resolves each album directly, with nothing to scan.
+        """
+        ip = self.host_var.get().strip()
+        roots = [m["local"] for m in self._collect_maps() if m.get("local")]
+        if not roots:
+            picked = filedialog.askdirectory(title=self._T("gui.btn.fix_scan_local"))
+            if not picked:
+                return
+            roots = [picked]
+
+        def job():
+            self._emit("log", line=self._T("gui.fix.scanning_local")
+                       .replace("{what}", ", ".join(roots)))
+            index = hap_fixit.scan_local(roots)
+            counts = {r: len(f) for r, f in index["roots"].items()}
+            if not any(counts.values()):
+                self._emit("log", line=self._T("gui.fix.local_empty"))
+                return
+            hap_fixit.save_local_index(index, ip or "local")
+            self._emit("log", line=f"{counts}")
 
         self._run_async(job, self.fix_log, use_progress=True)
 

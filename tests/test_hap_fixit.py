@@ -212,6 +212,78 @@ def test_load_sync_maps_reads_the_shared_config(tmp_path):
     assert hap_fixit.load_sync_maps(tmp_path / "absent.json") == {}
 
 
+def test_a_differently_filed_local_library_is_still_found(tmp_path):
+    """The case the prefix swap cannot serve: same music, different folders.
+
+    A user whose local library is not organised like the player's gets nothing
+    from swapping a path prefix. File names still match, which is the same
+    reason the album could be located on the player at all.
+    """
+    # On the player: /Portishead/Dummy (1994). Locally: nothing like it.
+    local = tmp_path / "Mes disques" / "trip-hop" / "portishead 94"
+    local.mkdir(parents=True)
+    for name in ("01 - Mysterons.flac", "02 - Sour times.flac"):
+        (local / name).write_bytes(b"")
+
+    scanned = hap_fixit.scan_local([str(tmp_path)])
+    loc = hap_fixit.local_locator(scanned)
+
+    found = hap_fixit.resolve_local(
+        ["HAP_Internal/Portishead/Dummy (1994)"],
+        ["01 - Mysterons.flac", "02 - Sour times.flac"],
+        {},          # no mapping at all
+        loc,
+    )
+    assert found == [str(local)]
+
+
+def test_the_prefix_swap_wins_when_it_works(tmp_path):
+    # Cheaper and exact: no scan should be consulted when the mapping resolves.
+    mirrored = tmp_path / "Sync" / "X" / "Album"
+    mirrored.mkdir(parents=True)
+    (mirrored / "01 - a.flac").write_bytes(b"")
+    decoy = tmp_path / "Elsewhere" / "somewhere else"
+    decoy.mkdir(parents=True)
+    (decoy / "01 - a.flac").write_bytes(b"")
+
+    loc = hap_fixit.local_locator(hap_fixit.scan_local([str(tmp_path)]))
+    found = hap_fixit.resolve_local(
+        ["HAP_Internal/X/Album"], ["01 - a.flac"],
+        {"HAP_Internal": str(tmp_path / "Sync")}, loc,
+    )
+    assert found == [str(mirrored)]
+
+
+def test_scan_local_ignores_folders_that_are_not_there(tmp_path):
+    scanned = hap_fixit.scan_local([str(tmp_path / "absent"), str(tmp_path)])
+    assert list(scanned["roots"]) == [str(tmp_path)]
+    assert hap_fixit.local_locator({"roots": {}}) is None
+    assert hap_fixit.local_locator(None) is None
+
+
+def test_scan_local_keeps_only_music_and_artwork(tmp_path):
+    (tmp_path / "A").mkdir()
+    for name in ("track.flac", "cover.jpg", "notes.txt", "desktop.ini"):
+        (tmp_path / "A" / name).write_bytes(b"")
+
+    rows = hap_fixit.scan_local([str(tmp_path)])["roots"][str(tmp_path)]
+
+    assert sorted(r[1] for r in rows) == ["cover.jpg", "track.flac"]
+
+
+def test_local_index_round_trips(tmp_path):
+    (tmp_path / "A").mkdir()
+    (tmp_path / "A" / "x.flac").write_bytes(b"")
+    scanned = hap_fixit.scan_local([str(tmp_path)])
+
+    target = tmp_path / "local.json"
+    hap_fixit.save_local_index(scanned, "1.2.3.4", target)
+    back = hap_fixit.load_local_index("1.2.3.4", target)
+
+    assert back["roots"] == scanned["roots"]
+    assert hap_fixit.load_local_index("1.2.3.4", tmp_path / "none.json") is None
+
+
 def test_the_html_report_shows_the_local_copy_first(tmp_path):
     maps = {"HAP_Internal": str(tmp_path)}
     (tmp_path / "X" / "Album").mkdir(parents=True)

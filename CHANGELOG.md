@@ -8,6 +8,26 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-08-29, the local route, for libraries that are not tidy)
+
+The previous entry assumed local folders that mirror the shares: swap the path prefix and you have
+the album. That is the tidy case, and it is not everybody's.
+
+So there are now two routes to the local copy, cheapest first, and you need neither:
+
+1. **Prefix swap** — folders synced to the shares, using the mapping HAP Sync already stores. Exact,
+   nothing to scan. On a mirrored setup it resolved **628 of 628** located findings.
+2. **File names**, via `hap_fixit.py <ip> scan-local` or the **Index my folders** button — for a
+   library filed differently from the player, or under different folder names. It is the same trick
+   that locates albums on the player itself: index the folders once and vote. Local disks are fast:
+   **90 204 files in 70 s**, against minutes over SMB1.
+
+With neither, everything still works — the buttons open the player's own copy over the network,
+which is exactly what happened before any of this existed.
+
+The prefix swap wins whenever it resolves, so a scan never overrides an exact mapping. Also fills
+`gui.validate_help` and `gui.diff_help`, missing from four catalogs since they were written.
+
 ### Added (2026-08-29, fix your own copy, then sync)
 
 Correcting tags directly on the player works, but it is a write over SMB1 to a 2014 box that
