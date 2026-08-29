@@ -53,6 +53,8 @@ import hap_sync as core      # noqa: E402
 import hap_companion as comp  # noqa: E402
 import smb_doctor             # noqa: E402
 import i18n                   # noqa: E402
+import hap_library            # noqa: E402
+import hap_fixit              # noqa: E402
 
 def _set_window_icon(root: "tk.Tk") -> None:
     """Apply the HapSync vinyl icon to the window/taskbar, silently if missing.
@@ -449,9 +451,16 @@ class App:
         b_load = ttk.Button(row, command=self.on_fix_load)
         self._reg(b_load, "gui.btn.fix_load")
         b_load.pack(side="left", padx=6)
+        # The combobox shows translated labels; `fix_kind` keeps the internal key,
+        # so the rest of the code never sees a localised string.
         self.fix_kind = tk.StringVar(value="cover")
-        ttk.Combobox(row, textvariable=self.fix_kind, state="readonly", width=12,
-                     values=("cover", "duplicate", "corrupt")).pack(side="left", padx=(16, 0))
+        self.fix_kind_label = tk.StringVar()
+        self.fix_kind_box = ttk.Combobox(row, textvariable=self.fix_kind_label,
+                                         state="readonly", width=16)
+        self.fix_kind_box.pack(side="left", padx=(16, 0))
+        self.fix_kind_box.bind("<<ComboboxSelected>>", self._on_fix_kind_pick)
+        self._i18n.append((lambda _s: self._retranslate_fix_kinds(), "gui.fix.kind.cover"))
+        self._retranslate_fix_kinds()
         self._action_widgets += [b_scan, b_load]
 
         help_lbl = ttk.Label(tab, foreground="#888", justify="left", wraplength=700)
@@ -487,6 +496,22 @@ class App:
 
     # ---- Fix tab actions ----
 
+    FIX_KINDS = ("cover", "duplicate", "corrupt")
+
+    def _retranslate_fix_kinds(self) -> None:
+        """Refill the category box in the current language, keeping the choice."""
+        labels = [self._T(f"gui.fix.kind.{k}") for k in self.FIX_KINDS]
+        self.fix_kind_box.configure(values=labels)
+        current = self.fix_kind.get()
+        if current in self.FIX_KINDS:
+            self.fix_kind_label.set(labels[self.FIX_KINDS.index(current)])
+
+    def _on_fix_kind_pick(self, _event=None) -> None:
+        labels = [self._T(f"gui.fix.kind.{k}") for k in self.FIX_KINDS]
+        chosen = self.fix_kind_label.get()
+        if chosen in labels:
+            self.fix_kind.set(self.FIX_KINDS[labels.index(chosen)])
+
     def _fix_selected(self):
         """The finding under the cursor, or None (with a message) if there isn't one."""
         sel = self.fix_list.curselection()
@@ -503,15 +528,14 @@ class App:
             mark = "?" if f.ambiguous else (" " if f.folders else "!")
             self.fix_list.insert("end", f"{mark} {f.title[:52]:<52} {f.detail[:60]}")
         located = sum(1 for f in self._fix_findings if f.folders)
-        self._log(self.fix_log,
-                  f"{len(self._fix_findings)} {kind} findings · {located} located"
-                  f" · ? = on the disk more than once · ! = not found")
+        self._log(self.fix_log, self._T("gui.fix.summary")
+                  .replace("{n}", str(len(self._fix_findings)))
+                  .replace("{kind}", self._T(f"gui.fix.kind.{kind}"))
+                  .replace("{located}", str(located)))
 
     def _fix_load_data(self):
         """Load the two caches. Returns (harvest, index) or (None, None)."""
-        import hap_fixit
-        import hap_library
-        ip = self.ip_var.get().strip()
+        ip = self.host_var.get().strip()
         harvest = hap_library.load_harvest(ip)
         index = hap_fixit.load_index(ip)
         if harvest is None or index is None:
@@ -527,7 +551,6 @@ class App:
         return harvest, index
 
     def on_fix_load(self) -> None:
-        import hap_fixit
         harvest, index = self._fix_load_data()
         if harvest is None:
             return
@@ -537,8 +560,7 @@ class App:
     def on_fix_scan(self) -> None:
         """Index the shares (a few minutes). The library harvest is separate and
         much slower, so it is not triggered from here."""
-        import hap_fixit
-        ip = self.ip_var.get().strip()
+        ip = self.host_var.get().strip()
         if not ip:
             messagebox.showwarning("HAP Sync", self._T("gui.warn.enter_ip"))
             return
@@ -555,10 +577,9 @@ class App:
             counts = {s: len(f) for s, f in index["shares"].items()}
             self._emit("log", line=f"done: {counts}")
 
-        self._start_job(job, self.fix_log, use_progress=True)
+        self._run_async(job, self.fix_log, use_progress=True)
 
     def on_fix_open(self) -> None:
-        import hap_fixit
         f = self._fix_selected()
         if f is None:
             return
@@ -569,7 +590,6 @@ class App:
         self._log(self.fix_log, f"opened {f.path}")
 
     def on_fix_edit(self) -> None:
-        import hap_fixit
         f = self._fix_selected()
         if f is None:
             return
@@ -591,7 +611,6 @@ class App:
         self._log(self.fix_log, f"copied {f.path or f.title}")
 
     def on_fix_html(self) -> None:
-        import hap_fixit
         harvest, index = self._fix_load_data()
         if harvest is None:
             return
@@ -602,7 +621,7 @@ class App:
             return
         findings = hap_fixit.build_findings(harvest, index)
         with open(target, "wb") as fh:
-            fh.write(hap_fixit.render_html(findings, self.ip_var.get().strip()).encode("utf-8"))
+            fh.write(hap_fixit.render_html(findings, self.host_var.get().strip()).encode("utf-8"))
         self._log(self.fix_log, f"wrote {target}")
         hap_fixit.open_folder(os.path.dirname(target) or ".")
 

@@ -8,7 +8,19 @@ albums and must stay ties.
 
 import json
 
+import pytest
+
 import hap_fixit
+
+
+@pytest.fixture(autouse=True)
+def english(monkeypatch):
+    """Pin the language: finding details are translated, assertions are not.
+
+    Without this the suite passes or fails according to the OS locale of
+    whoever runs it.
+    """
+    monkeypatch.setenv("HAP_LANG", "en")
 
 
 def index(**shares):
@@ -129,6 +141,20 @@ def test_an_unlocatable_album_is_kept_and_flagged():
     cover = [f for f in found if f.kind == "cover"][0]
     assert cover.folders == [] and cover.paths == []
     assert "not found" in cover.detail
+
+
+def test_finding_details_follow_the_active_language(monkeypatch):
+    # These strings show up in all three surfaces. They were hard-coded English
+    # at first, which put "2 tracks · no artwork" inside a French window.
+    h = harvest_with("Ghost record", ["nowhere-1.flac", "nowhere-2.flac"])
+    monkeypatch.setenv("HAP_LANG", "fr")
+    fr = hap_fixit.build_findings(h, index(HAP_Internal=DUMMY))[0].detail
+    monkeypatch.setenv("HAP_LANG", "de")
+    de = hap_fixit.build_findings(h, index(HAP_Internal=DUMMY))[0].detail
+
+    assert "pistes" in fr and "introuvable" in fr
+    assert "Titel" in de
+    assert fr != de
 
 
 def test_the_html_report_escapes_and_lists_every_finding():

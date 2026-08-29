@@ -52,6 +52,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import hap_library  # noqa: E402
+import i18n  # noqa: E402
 import library_audit  # noqa: E402
 
 SHARES = ("HAP_Internal", "HAP_External")
@@ -242,23 +243,23 @@ def build_findings(harvest: dict, index: dict, top: int = 0) -> list[Finding]:
     for alb in audit.albums_missing_cover():
         names = [t.get("filename") or "" for t in by_album.get(alb["id"], [])]
         folders, _ = loc.locate([n for n in names if n])
+        tracks_txt = i18n.t("fix.d.tracks", n=alb["trks"])
         if not folders:
             findings.append(
                 Finding("cover", alb["name"] or "?",
-                        f"{alb['trks']} tracks · folder not found on either share",
-                        [], host))
+                        f"{tracks_txt} · {i18n.t('fix.d.not_found')}", [], host))
             continue
         images = loc.loose_images(folders[0])
-        detail = f"{alb['trks']} tracks"
+        parts = [tracks_txt]
         if images:
             # The artwork is already there — it just is not in the tags, which
             # is the only place the player looks.
-            detail += f" · {images[0]} is in the folder but not embedded in the tags"
+            parts.append(i18n.t("fix.d.loose_image", img=images[0]))
         else:
-            detail += " · no artwork in the folder either"
+            parts.append(i18n.t("fix.d.no_image"))
         if len(folders) > 1:
-            detail += f" · {len(folders)} copies on disk"
-        findings.append(Finding("cover", alb["name"] or "?", detail, folders, host))
+            parts.append(i18n.t("fix.d.copies", n=len(folders)))
+        findings.append(Finding("cover", alb["name"] or "?", " · ".join(parts), folders, host))
 
     for dup in audit.duplicates():
         names = [
@@ -275,8 +276,7 @@ def build_findings(harvest: dict, index: dict, top: int = 0) -> list[Finding]:
     for bad in report.get("corrupt") or []:
         findings.append(
             Finding("corrupt", bad["title"] or "?",
-                    f"{bad['artist'] or '?'} · unreadable metadata, will likely not play",
-                    [], host))
+                    f"{bad['artist'] or '?'} · {i18n.t('fix.d.corrupt')}", [], host))
 
     order = {"cover": 0, "corrupt": 1, "duplicate": 2}
     findings.sort(key=lambda f: (order.get(f.kind, 9), f.title.lower()))
@@ -329,44 +329,48 @@ def open_in_editor(path: str, editor: str = "") -> str:
 # ------------------------------------------------------------------ rendering
 
 
-def print_report(findings: list[Finding], top: int) -> None:
+def _counts_line(findings: list[Finding]) -> str:
     kinds = collections.Counter(f.kind for f in findings)
+    return i18n.t("fix.r.counts", cover=kinds["cover"],
+                  dup=kinds["duplicate"], corrupt=kinds["corrupt"])
+
+
+def print_report(findings: list[Finding], top: int) -> None:
     print("=" * 72)
-    print("  WHAT TO FIX, AND WHERE")
+    print("  " + i18n.t("fix.r.title").upper())
     print("=" * 72)
-    print(f"  {kinds['cover']} albums without embedded artwork · "
-          f"{kinds['duplicate']} duplicated titles · {kinds['corrupt']} unreadable")
-    unresolved = sum(1 for f in findings if not f.folders)
-    print(f"  located: {len(findings) - unresolved}/{len(findings)}")
+    print("  " + _counts_line(findings))
+    located = sum(1 for f in findings if f.folders)
+    print("  " + i18n.t("fix.r.located", n=located, total=len(findings)))
     print()
     for i, f in enumerate(findings[:top], 1):
         flag = "  ?" if f.ambiguous else ("  ✗" if not f.folders else "   ")
-        print(f"{i:>4}.{flag} [{f.kind}] {f.title}")
+        print(f"{i:>4}.{flag} [{i18n.t('fix.r.kind.' + f.kind)}] {f.title}")
         print(f"        {f.detail}")
         for p in f.paths:
             print(f"        {p}")
     if len(findings) > top:
-        print(f"\n  … and {len(findings) - top} more (use --top)")
+        print("\n  " + i18n.t("fix.r.more", n=len(findings) - top))
     print("=" * 72)
 
 
 def render_html(findings: list[Finding], host: str) -> str:
     e = html.escape
-    kinds = collections.Counter(f.kind for f in findings)
     rows = []
     for i, f in enumerate(findings, 1):
         paths = "".join(
             f'<div class="p"><code>{e(p)}</code>'
-            f'<button onclick="cp(this)" data-p="{e(p)}">copy</button></div>'
+            f'<button onclick="cp(this)" data-p="{e(p)}">{e(i18n.t("fix.r.copy"))}</button></div>'
             for p in f.paths
-        ) or '<div class="p none">not found on either share</div>'
+        ) or f'<div class="p none">{e(i18n.t("fix.d.not_found"))}</div>'
         rows.append(
             f'<tr class="{e(f.kind)}"><td class="n">{i}</td>'
-            f'<td><span class="k">{e(f.kind)}</span> <b>{e(f.title)}</b>'
+            f'<td><span class="k">{e(i18n.t("fix.r.kind." + f.kind))}</span> '
+            f'<b>{e(f.title)}</b>'
             f'<div class="d">{e(f.detail)}</div>{paths}</td></tr>'
         )
     return f"""<!doctype html><meta charset="utf-8">
-<title>HAP — what to fix</title>
+<title>{e(i18n.t("fix.r.title"))}</title>
 <style>
  body{{font:14px/1.5 -apple-system,Segoe UI,sans-serif;background:#111;color:#eee;
       margin:0;padding:32px;max-width:1100px}}
@@ -385,12 +389,10 @@ def render_html(findings: list[Finding], host: str) -> str:
  button{{background:#2a2a2a;color:#ddd;border:0;border-radius:4px;padding:3px 9px;
          font-size:11px;cursor:pointer}} button:hover{{background:#3a3a3a}}
 </style>
-<h1>What to fix on {e(host)}</h1>
-<div class="sub">{kinds['cover']} albums without embedded artwork ·
-{kinds['duplicate']} duplicated titles · {kinds['corrupt']} unreadable ·
-{sum(1 for f in findings if f.folders)}/{len(findings)} located.
-The player reads artwork <b>embedded in the tags</b>, so a cover.jpg sitting in the
-folder does not count — open the folder in a tag editor and write it in.</div>
+<h1>{e(i18n.t("fix.r.title"))} — {e(host)}</h1>
+<div class="sub">{e(_counts_line(findings))} ·
+{e(i18n.t("fix.r.located", n=sum(1 for f in findings if f.folders), total=len(findings)))}<br>
+{e(i18n.t("fix.r.embedded_note"))}</div>
 <table>{''.join(rows)}</table>
 <script>
 function cp(b){{navigator.clipboard.writeText(b.dataset.p);

@@ -34,6 +34,25 @@ Buttons open the folder in Explorer or hand it to Mp3tag (`/fp:`), configurable 
 In the web UI they appear only when the browser is on the machine running the server, and the server
 refuses any path that is not one of its own findings.
 
+### Fixed (2026-08-29, driving the Fix tab for real)
+
+Building the tab was not the same as it working. Three defects only surfaced once the App was
+instantiated and its handlers called — none of them was visible to a linter, an import check, or a
+human reading the diff:
+
+- **Two handlers named things that do not exist**: `self.ip_var` (the IP lives in `host_var`) and
+  `self._start_job` (it is `_run_async`). Both would have raised `AttributeError` on the first
+  click. `tests/test_hap_gui_fix.py` now builds the real window, hides it, and calls every handler.
+- **The findings spoke English inside a French window.** The detail strings were built in the engine
+  with hard-coded English, so a French UI listed "2 tracks · no artwork in the folder either". All
+  of it — details, category names, report headings, the HTML page — now goes through `i18n`, in all
+  six languages, and a test pins the behaviour by comparing two languages.
+
+One further trap worth recording: a per-test `tk.Tk()` fixture made the **second** test of the file
+"skip" with a `TclError`, because building a second root after destroying the first fails on
+Windows. The skipped test was the one that catches the `ip_var` class of bug. One module-scoped
+root, reset between tests, and it runs.
+
 ### Fixed (2026-08-29, the share crawl)
 
 - **A share crawl silently lost 90% of the second share.** Reusing one SMB connection across two
