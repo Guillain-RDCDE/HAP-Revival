@@ -64,6 +64,10 @@ python tools/webui.py <hap-ip>        # then open http://localhost:8080
 Now-playing with cover art, transport, seek, the sound settings, six languages, light and dark.
 Updates arrive the instant the music changes, because the player pushes them.
 
+It also shows **the player's own front panel, live, with its buttons** — so everything Sony left in
+the on-device menus but took out of the app is reachable from the sofa. Including playing a whole
+album, which none of the APIs can do.
+
 On an iPhone: Safari → Share → **Add to Home Screen** gives a standalone remote with its own icon.
 No App Store. [How to install it](docs/13-control-app.md).
 

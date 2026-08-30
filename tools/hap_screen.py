@@ -38,9 +38,23 @@ from urllib.request import urlopen
 TOOL_PORT = 60200
 HTTP_TIMEOUT_SEC = 20
 
-# The nine keys the player's own page wires up. The handler may accept more;
-# nothing else has been observed.
-KEYS = ("home", "up", "down", "left", "right", "enter", "back", "option", "play")
+# The nine keys the player's own page wires up, plus two the page never mentions.
+#
+# `next` and `prev` were found by probing the handler on 2026-08-30: it answers
+# "None" for them and "server error" for everything else tried (stop, pause,
+# previous, menu, display, input, select, ok, return, exit, top, info, function,
+# favorite, repeat, shuffle, add, options, settings). So the accepted set is
+# eleven, not nine.
+#
+# **Accepted is not the same as acts**, and the two differ here. Tested against a
+# live multi-track queue with a control reading (same track, position 25 s → 32 s
+# while untouched):
+#   `next` — advances. Twice in a row, each time a different title at ~7 s in.
+#   `prev` — accepted, but the track did not change. Effect unconfirmed.
+# So `prev` is kept out of the UI until somebody can show it doing something.
+KEYS = ("home", "up", "down", "left", "right", "enter", "back", "option", "play",
+        "next", "prev")
+KEYS_UNVERIFIED = ("prev",)
 
 # The pages leave this long between a key and the follow-up screen grab.
 KEY_SETTLE_SEC = 1.0

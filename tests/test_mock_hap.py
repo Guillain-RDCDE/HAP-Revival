@@ -179,9 +179,14 @@ def test_front_panel_is_mocked_so_hap_screen_can_be_tried_without_hardware(live_
         with urllib.request.urlopen(f"{base}?target=screen&cmd={cmd}", timeout=10) as r:
             assert r.read() == b"None"
 
-    for key in ("home", "down", "enter", "play"):
+    # Eleven keys, not the nine the player's own page wires up: `next` and `prev`
+    # were found by probing the real handler on 2026-08-30.
+    import hap_screen
+
+    assert set(hap_screen.KEYS) >= {"next", "prev"}
+    for key in hap_screen.KEYS:
         with urllib.request.urlopen(f"{base}?target=keyevent&cmd={key}", timeout=10) as r:
-            assert r.read() == b"None"
+            assert r.read() == b"None", key
 
 
 def test_an_unknown_front_panel_target_is_a_404(live_mock):

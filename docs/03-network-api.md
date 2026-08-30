@@ -141,7 +141,25 @@ GET /sony/hap?target=screen&cmd=capture_png    -> 200, body "None"; writes the P
                                                   HAP_Internal/anap/capture/YYYY-MMDD_hhmmss.png
 GET /sony/hap?target=keyevent&cmd=<key>        -> 200, body "None"; injects one front-panel key
                                                   home up down left right enter back option play
+                                                  next prev
 ```
+
+**Eleven keys, not nine.** The player's own `haplib.js` wires up nine; `next` and `prev` are
+accepted by the handler and appear in no page. Found by probing, 2026-08-30 — everything else tried
+was refused (`stop`, `pause`, `previous`, `menu`, `display`, `input`, `select`, `ok`, `return`,
+`exit`, `top`, `info`, `function`, `favorite`, `repeat`, `shuffle`, `add`, `options`, `settings`).
+
+Of the two, only **`next` is confirmed to act**: against a live multi-track queue, with a control
+reading first (untouched, same title, 25 s → 32 s), it advanced twice, each time to a different
+title at ~7 s in. **`prev` is accepted and did nothing** — the track did not change. Treat it as
+unproven rather than as working.
+
+**Trap — `server error` is this endpoint's only refusal.** An unknown `target` and an unknown `cmd`
+both answer `200` with a 12-byte body `server error`, and so does a request with no parameters at
+all. You therefore **cannot probe for hidden targets by sending a nonsense command**: a valid target
+with a bad command is indistinguishable from a target that does not exist. It is the `[1, "Any"]`
+problem again, on the other API. Anyone hunting for more of this surface has to guess whole
+`target`+`cmd` pairs — which means sending commands whose effect is unknown.
 
 `display_png` is the **live framebuffer of the player's display** — menus, highlight bar and all —
 not a rendering of playback state. Paired with `keyevent` it makes the on-device UI scriptable, which
@@ -268,6 +286,18 @@ Notice the typo `playinglist` (instead of `playlist`) — preserved here verbati
 | `audio:playinglist?id=NNN` | `audio:playinglist?id=69` | A playlist (note typo) |
 | `storage:usb1` | `storage:usb1` | The USB-attached external drive |
 | `storage:internal` | (inferred) | The internal HDD |
+
+**Playing a whole album is not possible through this API** (two shapes tried, 2026-08-30):
+
+- `createPlayingListAndQuickPlay` with `uri: audio:album?id=N` returns
+  `{uri: "audio:playinglist?id=0"}` — id **0**, an empty queue, and nothing plays. Gotcha 5 in
+  person: a plausible reply for a call that did nothing.
+- The same call with the album's **first track** and `listCount` set to the album's length builds a
+  real queue (`playinglist?id=72`) and starts it — but the queue holds that one track.
+  `setPlayNextContent` then returns `[1, "Any"]`, so `listCount` is ignored.
+
+The front panel can queue an album; no API we have found can. That is one reason the web UI now
+mirrors the panel rather than only wrapping the API.
 
 **The `N` in `audio:track?id=N` is the REST `trackid`** — one id space, confirmed live 2026-08-29:
 `createPlayingListAndQuickPlay` on the `trackid` returned by `contentdb` started that exact track,

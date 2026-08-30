@@ -61,6 +61,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hap_fixit  # noqa: E402
 import hap_library  # noqa: E402
 import hap_notify  # noqa: E402
+import hap_screen  # noqa: E402
 import i18n  # noqa: E402
 from hap_client import HAP, HAPError  # noqa: E402
 
@@ -269,6 +270,20 @@ main { width: 100%; max-width: 520px; }
 .settings td { padding: 4px 0; }
 .settings td.k { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
 .settings td.v { text-align: right; font-weight: 500; }
+
+/* ===== Front panel ===== */
+.panel-note { margin: 10px 0 8px; }
+/* 480x272 is the real panel. Scaled to the card, pixelated so the device's own
+   font stays crisp rather than being smoothed into mush by the browser. */
+.panel-screen { width: 100%; max-width: 480px; aspect-ratio: 480 / 272; display: block;
+  margin: 0 auto 12px; border-radius: 6px; background: #000; image-rendering: pixelated; }
+.panel-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  max-width: 320px; margin: 0 auto; }
+.pk { background: var(--card-bg); color: var(--fg); border: 0; border-radius: 10px;
+  padding: 14px 0; font-size: 15px; cursor: pointer; }
+.pk:hover { background: var(--hover); }
+.pk.primary { background: var(--accent); color: #fff; font-weight: 600; }
+.pk:disabled { opacity: 0.4; cursor: default; }
 
 /* ===== Library browser ===== */
 .library { font-size: 13px; }
@@ -578,6 +593,28 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
       <button class="btn danger" onclick="confirmStandby()" data-i18n-title="web.ctrl.standby" title="Standby">⏻</button>
     </div>
   </div>
+  <div class="card panel" id="panel-card">
+    <div class="lib-head">
+      <span class="lib-title" data-i18n="web.panel.title">Front panel</span>
+      <button class="lib-toggle" id="panel-toggle" onclick="togglePanel()" data-i18n="web.panel.open">Show</button>
+    </div>
+    <div id="panel-body" hidden>
+      <div class="panel-note set-note" data-i18n="web.panel.note">This is the player's own display. Everything Sony left in its menus is reachable here.</div>
+      <img class="panel-screen" id="panel-img" alt="">
+      <div class="panel-pad">
+        <button class="pk" onclick="panelKey('home')" data-i18n="web.panel.home">Home</button>
+        <button class="pk" onclick="panelKey('up')">▲</button>
+        <button class="pk" onclick="panelKey('option')" data-i18n="web.panel.option">Options</button>
+        <button class="pk" onclick="panelKey('left')">◀</button>
+        <button class="pk primary" onclick="panelKey('enter')" data-i18n="web.panel.enter">OK</button>
+        <button class="pk" onclick="panelKey('right')">▶</button>
+        <button class="pk" onclick="panelKey('back')" data-i18n="web.panel.back">Back</button>
+        <button class="pk" onclick="panelKey('down')">▼</button>
+        <button class="pk" onclick="panelKey('play')">⏯</button>
+        <button class="pk" onclick="panelKey('next')">⏭</button>
+      </div>
+    </div>
+  </div>
   <div class="card library" id="library-card">
     <div class="lib-head">
       <span class="lib-title" data-i18n="web.lib.title">Library</span>
@@ -644,6 +681,8 @@ function applyI18n() {
   // blanket pass above would reset them to "Browse" and to English counts.
   const toggle = document.getElementById("lib-toggle");
   if (toggle) toggle.textContent = libOpen ? t("web.lib.close") : t("web.lib.open");
+  const ptoggle = document.getElementById("panel-toggle");
+  if (ptoggle) ptoggle.textContent = panelOpen ? t("web.panel.close") : t("web.panel.open");
   if (libOpen && libStack.length) { libCrumbs(); libRender(); }
 }
 function buildLangSelect() {
@@ -1103,6 +1142,67 @@ async function libSearch() {
     libRender();
   } catch (e) {
     libMsg(t("web.lib.error", {msg: e.message}));
+  }
+}
+
+/* ----- the front panel -----
+   The player renders its own display; we fetch it as a PNG and press its keys.
+   Each grab costs the device about a second and it serves one request at a
+   time, so the panel refreshes after a key press and on a slow idle timer —
+   never faster. The refresh is deliberately sequential: overlapping grabs would
+   queue up behind each other and make the whole UI feel stuck. */
+let panelOpen = false;
+let panelBusy = false;
+let panelTimer = null;
+
+function togglePanel() {
+  panelOpen = !panelOpen;
+  document.getElementById("panel-body").hidden = !panelOpen;
+  document.getElementById("panel-toggle").textContent =
+    panelOpen ? t("web.panel.close") : t("web.panel.open");
+  clearTimeout(panelTimer);
+  if (panelOpen) panelRefresh();
+}
+
+async function panelRefresh() {
+  if (!panelOpen || panelBusy) return;
+  panelBusy = true;
+  try {
+    // Cache-busted the way the player's own pages do it.
+    const url = "/api/panel/screen?t=" + Date.now();
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const blob = await r.blob();
+    const img = document.getElementById("panel-img");
+    const old = img.src;
+    img.src = URL.createObjectURL(blob);
+    if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+  } catch (e) {
+    document.getElementById("error-banner").innerHTML =
+      '<div class="error">' + t("web.err.unreachable", {msg: e.message}) + "</div>";
+  } finally {
+    panelBusy = false;
+    clearTimeout(panelTimer);
+    if (panelOpen) panelTimer = setTimeout(panelRefresh, 6000);
+  }
+}
+
+async function panelKey(key) {
+  document.querySelectorAll(".pk").forEach((b) => { b.disabled = true; });
+  try {
+    await fetch("/api/panel/key", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({key: key}),
+    });
+    // The player's own pages wait about a second before re-grabbing; the
+    // display has not finished redrawing before that.
+    await new Promise((r) => setTimeout(r, 1000));
+    await panelRefresh();
+  } catch (e) {
+    document.getElementById("error-banner").innerHTML =
+      '<div class="error">' + t("web.err.action", {msg: e.message}) + "</div>";
+  } finally {
+    document.querySelectorAll(".pk").forEach((b) => { b.disabled = false; });
   }
 }
 
@@ -1807,6 +1907,20 @@ class HAPHandler(BaseHTTPRequestHandler):
             self._serve_search(parsed.query)
             return
 
+        if path == "/api/panel/screen":
+            # The player's own front panel, proxied. Not fetched directly by the
+            # browser: it is a second origin, the device sends no CORS headers
+            # for it, and a phone on the LAN would have to reach the player as
+            # well as this server. Going through here keeps it to one origin.
+            try:
+                body, ctype = hap_screen.tool_get(self.hap.ip, "screen", "display_png")
+            except (OSError, ValueError) as e:
+                self._send_json(502, {"error": str(e)})
+                return
+            self._send_bytes(200, ctype or "image/png", body,
+                             {"Cache-Control": "no-store"})
+            return
+
         if path == "/api/fix":
             self._serve_fix(parsed.query)
             return
@@ -1918,6 +2032,17 @@ class HAPHandler(BaseHTTPRequestHandler):
                 self.hap.seek_seconds(float(params.get("position_sec", 0)))
             elif path == "/api/play-track":
                 self.hap.play_track(int(params["track_id"]))
+            elif path == "/api/panel/key":
+                key = str(params.get("key", ""))
+                # Only the keys the device is known to accept. Anything else
+                # answers "server error" there, and passing a caller's string
+                # straight through would make this a query-string injection.
+                if key not in hap_screen.KEYS:
+                    self._send_json(400, {"error": "unknown key"})
+                    return
+                hap_screen.tool_get(self.hap.ip, "keyevent", key)
+                self._send_json(200, {"pressed": key})
+                return
             elif path == "/api/fix/open":
                 # Opening a folder or an editor happens on the machine running
                 # this server, which is only what the viewer wants if that is

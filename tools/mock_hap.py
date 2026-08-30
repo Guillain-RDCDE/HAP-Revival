@@ -141,8 +141,11 @@ class Track:
 
 CONTENTDB_BASE = "/sony/contentdb/v100"
 
-# The nine keys the player's own /haplib.js wires up (docs/03-network-api.md).
-KEYEVENTS = ("home", "up", "down", "left", "right", "enter", "back", "option", "play")
+# Eleven keys: the nine the player's own /haplib.js wires up, plus `next` and
+# `prev`, which the real handler accepts although no page mentions them
+# (docs/03-network-api.md). Kept in step with hap_screen.KEYS.
+KEYEVENTS = ("home", "up", "down", "left", "right", "enter", "back", "option", "play",
+             "next", "prev")
 
 
 DEMO_TRACKS: list[Track] = [

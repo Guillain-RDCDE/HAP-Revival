@@ -14,6 +14,13 @@ measurements behind them, are in
 
 ### Added
 
+- **The front panel, in the web remote.** The player's own 480×272 display, live, with a D-pad and
+  its keys — so everything Sony left in the on-device menus but removed from the app is now
+  reachable from a phone. Including playing a whole album, which no API we have found can do.
+- **Two more front-panel keys.** The handler accepts `next` and `prev`, which appear in none of the
+  player's pages. `next` is confirmed to advance a live queue against a control reading; `prev` is
+  accepted and did nothing, and is recorded as unproven rather than as working.
+
 - **The music library, over the network.** Browse artists, albums and tracks — with codec and
   sample rate — and play any of them, from the web remote or
   [`hap_library.py`](tools/hap_library.py). Accent-insensitive search over a harvested catalogue.
@@ -61,6 +68,15 @@ measurements behind them, are in
   handlers named widgets that did not exist — all three found only by driving the real UI.
 - The `Expect: 100-continue` 417 trap, and the CORS preflight that fails for want of
   `Access-Control-Allow-Headers`.
+
+### Explored, and closed
+
+- **Album playback is not reachable through the API.** `audio:album?id=N` returns a plausible
+  playlist URI for an empty queue; the first-track-plus-`listCount` shape builds a queue of exactly
+  one. Documented as a dead end so nobody spends an evening on it again.
+- **`/sony/hap` cannot be probed for hidden targets.** An unknown target and an unknown command
+  give the identical `200 "server error"`, so a nonsense command proves nothing about whether a
+  target exists — the `[1, "Any"]` problem on the other API.
 
 ### Corrected
 
