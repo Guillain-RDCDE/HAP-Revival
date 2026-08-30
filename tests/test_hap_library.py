@@ -216,6 +216,66 @@ def test_harvest_round_trips_through_disk(lib, tmp_path):
     assert hap_library.load_harvest(lib.host, tmp_path / "absent.json") is None
 
 
+def test_a_harvest_page_retries_with_a_doubling_deadline(lib, monkeypatch):
+    """The protection for libraries larger than the one this was measured on.
+
+    A request costs what it costs to count the whole catalogue, so the per-page
+    time grows with the library. A fixed ceiling is a guess about somebody
+    else's collection; doubling turns "failed" into "took longer".
+    """
+    seen: list[float] = []
+    calls = {"n": 0}
+    real = lib.fetch
+
+    def flaky(path, **params):
+        seen.append(lib.timeout)
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise hap_library.LibraryError("timed out")
+        return real(path, **params)
+
+    monkeypatch.setattr(hap_library, "HARVEST_RETRY_PAUSE_SEC", 0)
+    lib.timeout_for_harvest = 10
+    lib.timeout = 10
+    lib.fetch = flaky
+
+    page = lib._fetch_page_with_retry("tracks", 0, None)
+
+    assert seen == [10, 20, 40], "each attempt must wait twice as long"
+    assert page.items, "the third attempt's result is the one returned"
+    assert lib.timeout == 10, "the deadline is restored afterwards"
+
+
+def test_a_page_that_never_answers_still_raises(lib, monkeypatch):
+    monkeypatch.setattr(hap_library, "HARVEST_RETRY_PAUSE_SEC", 0)
+
+    def always_fails(path, **params):
+        raise hap_library.LibraryError("timed out")
+
+    monkeypatch.setattr(lib, "fetch", always_fails)
+    with pytest.raises(hap_library.LibraryError, match="timed out"):
+        lib._fetch_page_with_retry("tracks", 0, None)
+
+
+def test_harvest_uses_its_own_deadline_not_the_interactive_one(lib):
+    # An interactive call should fail while somebody is still watching; a batch
+    # harvest can afford to wait a great deal longer.
+    lib.timeout = 5
+    lib.timeout_for_harvest = 900
+    during: list[float] = []
+    real = lib.fetch
+
+    def note(path, **params):
+        during.append(lib.timeout)
+        return real(path, **params)
+
+    lib.fetch = note
+    lib.harvest()
+
+    assert during and set(during) == {900}
+    assert lib.timeout == 5, "the interactive deadline is put back"
+
+
 def test_favorites_reflect_the_devices_own_flag(lib):
     assert list(lib.favorites()) == []
     mock_hap.DEMO_TRACKS[2].favorite_type = "favorite"

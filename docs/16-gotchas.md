@@ -132,6 +132,13 @@ warms up (`audio/genres`: 6.2 s → 2.0 s → 1.7 s on three consecutive calls).
 **Do instead.** Allow at least **90 s** for anything under `contentdb`, and probe sequentially
 (see gotcha 3). If a request fails at exactly your timeout, suspect your timeout.
 
+**And do not hard-code that 90 s either.** Those seconds were measured against one 78 369-track
+library, and the cost of an unfiltered request *is* the cost of counting the catalogue — so the
+number is a property of somebody's collection, not of the device. A ceiling calibrated on one
+library is the same mistake as the six-second one, made more slowly. Use a deadline that **doubles
+on each retry**, so a larger collection takes longer instead of failing, and say which attempt you
+are on.
+
 **The corollary is the general one.** A failure that always arrives at the value you chose is
 evidence about your client, not about the device. The theory that made this so durable was built on
 cover art answering in 0.2 s while album metadata "hung" — a real, reproducible difference that we

@@ -223,7 +223,9 @@ the generally right move is the locally wrong one:
 
 - Setting `Content-Type` on a JSON POST from a browser **breaks the request**.
 - Issuing requests concurrently poisons unrelated endpoints — the daemon serialises.
-- A short HTTP timeout reads as a dead API. Cold library requests take **5 to 57 seconds**.
+- A short HTTP timeout reads as a dead API. Cold library requests took **5 to 57 seconds** here —
+  and that figure is a property of the catalogue's size, not of the device, so it is a floor, not a
+  number. Double the deadline on retry rather than picking a ceiling.
 - Response bodies are **not uniformly UTF-8**: one artist name in 17 317 arrived as raw Latin-1
   inside otherwise valid UTF-8, and `json.loads` lost the whole 343 KB page over one character.
 - Reusing one SMB connection across two long listings silently returned **5 931 files instead of

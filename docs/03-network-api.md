@@ -91,8 +91,13 @@ exclusively. It splits in two, and the two halves have opposite fates on 19404R:
   up hard: `audio/genres` went 6.2 s → 2.0 s → 1.7 s. After the player rejoined the network cold,
   the same endpoints took 20–57 s and still answered `200`.
 
-  **Budget at least 90 seconds per cold request**, and probe sequentially — see the serialisation
-  trap below. Cover art (`audio/albums/images/cover_art/<ID>`, ~0.2 s) is not an exception to
+  **Every timing on this page comes from one 78 369-track library, and does not transfer.** The
+  cost of an unfiltered request is the cost of counting your whole catalogue, so a collection
+  several times larger is several times slower per request *and* needs more requests. Budget at
+  least 90 seconds per cold request there, treat it as a floor rather than a figure, and prefer a
+  deadline that doubles on retry over any fixed ceiling —
+  [`tools/hap_library.py`](../tools/hap_library.py) does that, and `--timeout` raises the floor.
+  Probe sequentially — see the serialisation trap below. Cover art (`audio/albums/images/cover_art/<ID>`, ~0.2 s) is not an exception to
   anything; it was simply the only endpoint fast enough to fit under the old ceiling, which is
   what made the "dead database, surviving routes" theory look so tidy.
 
@@ -103,7 +108,9 @@ exclusively. It splits in two, and the two halves have opposite fates on 19404R:
   **Paging.** Every response carries `paging: {offset, limit, total, next, previous}`, where `next`
   is an absolute URL and `previous` is `""` at the start. Follow `next`; do not guess. `limit=5000`
   is accepted, `limit=10000` is refused with `400` — the device does not clamp. At 5000 the whole
-  78 369-track library is 16 requests — about 90 minutes in practice, because a page takes roughly 300 s once the player has been working for a while, not the 52 s a first cold page suggests.
+  78 369-track library is 16 requests — about 90 minutes in practice, because a page takes roughly
+  300 s once the player has been working for a while, not the 52 s a first cold page suggests. A
+  larger catalogue pays twice over: more pages, each of them slower.
 
   **Two speeds, and the split is not about size.** Unfiltered collections cost 28–90 s whether you
   ask for 2 rows or 5000 — the price of `total` counting the table. Anything scoped by id

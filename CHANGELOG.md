@@ -8,6 +8,23 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Fixed (2026-08-30, timeouts calibrated on one library are still guesses)
+
+Every duration in the library tooling was measured against a single 78 369-track collection and
+then written down as a constant. That repeats the six-second mistake more slowly: the cost of an
+unfiltered request **is** the cost of counting the catalogue, so those seconds describe somebody's
+music collection, not the device. A library several times larger pays twice — more pages, each of
+them slower — and would have run straight into the ceiling.
+
+- **The per-page deadline now doubles on each retry** (420 s → 840 s → 1680 s) instead of staying
+  put, so a larger catalogue takes longer rather than failing, and the progress line says which
+  attempt and which deadline it is on.
+- **`--timeout` and `--harvest-timeout`** expose both floors, for collections beyond even that.
+- **The harvest estimates from the pages this player has actually returned** rather than printing
+  a number measured elsewhere: `artists 5000 / 17317 (40s, ~2 min left)`.
+- The docs stop quoting these figures as properties of the device. Gotcha 7 now says outright that
+  hard-coding the 90 s is the same error as hard-coding the 6 s.
+
 ### Changed (2026-08-29, the README, rewritten in two halves)
 
 The front page listed thirteen tools and a test count that had been wrong for weeks, and asked a

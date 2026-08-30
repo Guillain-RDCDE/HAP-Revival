@@ -181,6 +181,10 @@ class Library:
     host: str
     port: int = API_PORT
     timeout: float = DEFAULT_TIMEOUT_SEC
+    # Starting deadline for a harvest page; it doubles on each retry. Separate
+    # from `timeout` because a harvest is a batch job and can afford to wait,
+    # while an interactive call should fail while somebody is still watching.
+    timeout_for_harvest: float = HARVEST_TIMEOUT_SEC
     _cache: dict[str, tuple[float, Page]] = field(default_factory=dict, repr=False)
 
     # ---------- transport ----------
@@ -332,13 +336,17 @@ class Library:
     def harvest(self, progress=None, with_tracks: bool = True) -> dict:
         """Pull the entire library into one dict, following the device's paging.
 
-        Budget about **90 minutes** for a large library — measured 5512 s for
-        17 317 artists + 5740 albums + 78 369 tracks. Page size is capped at
-        5000, so it is the number of requests that costs, not the bytes; and a
-        page takes ~300 s once the player has been working for a while, well
-        above the ~50 s a first cold page suggests. An earlier estimate of
-        11 minutes was extrapolated from one such cold page and was wrong by
-        a factor of seven.
+        **How long depends on your library, and the number below is not yours.**
+        Measured 5512 s — 92 minutes — for 17 317 artists + 5740 albums +
+        78 369 tracks. Page size is capped at 5000, so it is the number of
+        requests that costs rather than the bytes; and because an unfiltered
+        request pays for counting the whole table, a larger catalogue is charged
+        twice: more pages, each of them slower. An earlier estimate of 11 minutes
+        came from extrapolating one cold page and was wrong by a factor of seven,
+        which is why nothing here quotes a duration as a constant. `progress`
+        exists so a caller can estimate from the pages this player has actually
+        returned, and the per-page deadline doubles on retry rather than being
+        a fixed ceiling calibrated on somebody else's collection.
 
         `progress(kind, seen, total)` is called after each page, for a UI.
         """
@@ -350,7 +358,7 @@ class Library:
         }
         wanted = ["artists", "albums"] + (["tracks"] if with_tracks else [])
         was = self.timeout
-        self.timeout = HARVEST_TIMEOUT_SEC
+        self.timeout = self.timeout_for_harvest
         try:
             self._harvest_into(out, wanted, progress)
         finally:
@@ -373,22 +381,37 @@ class Library:
                     break
 
     def _fetch_page_with_retry(self, kind: str, offset: int, progress) -> Page:
-        """One harvest page, retried — a slow page is not a dead one.
+        """One harvest page, retried with a doubling deadline.
 
-        The first attempt at a 5 MB page of tracks has timed out on a player
-        that answered the same request in 52 s an hour earlier. Giving up there
-        would discard the artists and albums already collected.
+        A slow page is not a dead one: the first attempt at a 5 MB page has timed
+        out on a player that answered the same request in 52 s an hour earlier,
+        and giving up there would discard everything already collected.
+
+        **The deadline doubles on each retry rather than staying put.** Every
+        number in this module was measured against one 78 369-track library, and
+        the per-request cost is not a property of the page — it is the cost of
+        `paging.total` counting the table, so it grows with the library. A fixed
+        ceiling is therefore a guess about somebody else's collection. Doubling
+        removes the guess: a library several times larger simply takes a second
+        or third attempt, and says so, instead of failing.
         """
         last: LibraryError | None = None
+        base = self.timeout
         for attempt in range(1, HARVEST_RETRIES + 1):
+            self.timeout = base * (2 ** (attempt - 1))
             try:
                 return self.fetch(f"audio/{kind}", offset=offset, limit=MAX_LIMIT)
             except LibraryError as e:
                 last = e
                 if attempt < HARVEST_RETRIES:
                     if progress:
-                        progress(f"{kind} (retry {attempt})", offset, 0)
+                        # Say the new deadline: on a very large library this is
+                        # the difference between "it is working" and "it hung".
+                        progress(f"{kind} (retry {attempt}, {base * 2 ** attempt:.0f}s)",
+                                 offset, 0)
                     time.sleep(HARVEST_RETRY_PAUSE_SEC)
+            finally:
+                self.timeout = base
         raise last if last else LibraryError("harvest failed for an unknown reason")
 
     def search(self, harvest: dict, query: str, limit: int = 60) -> dict:
@@ -471,6 +494,15 @@ def main(argv: list[str] | None = None) -> int:
     common.add_argument("--limit", type=int, default=30)
     common.add_argument("--offset", type=int, default=0)
     common.add_argument("--json", action="store_true", help="dump raw JSON")
+    common.add_argument(
+        "--timeout", type=float, default=DEFAULT_TIMEOUT_SEC, metavar="SEC",
+        help=f"seconds to wait for one request (default {DEFAULT_TIMEOUT_SEC:.0f}). "
+             "Raise it on a very large library: the cost of a request is the cost "
+             "of counting your whole catalogue.")
+    common.add_argument(
+        "--harvest-timeout", type=float, default=HARVEST_TIMEOUT_SEC, metavar="SEC",
+        help=f"starting deadline for one harvest page (default "
+             f"{HARVEST_TIMEOUT_SEC:.0f}); doubles on each retry.")
 
     parser = argparse.ArgumentParser(
         description="Read a HAP music library over REST.", parents=[common]
@@ -487,15 +519,28 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("query")
     args = parser.parse_args(argv)
 
-    lib = Library(args.host)
+    lib = Library(args.host, timeout=args.timeout,
+                  timeout_for_harvest=args.harvest_timeout)
 
     if args.cmd == "harvest":
         started = time.time()
 
         def show(kind: str, seen: int, total: int) -> None:
-            print(f"  {kind:<8} {seen:>6} / {total:<6} ({time.time() - started:.0f}s)")
+            spent = time.time() - started
+            # Estimate from what this player has actually done, not from a
+            # number measured on somebody else's library. The cost per request
+            # grows with the catalogue, so a printed constant would be a lie on
+            # any collection but the one it was measured on.
+            eta = ""
+            if total and seen and seen < total:
+                remaining = spent / seen * (total - seen)
+                eta = f", ~{remaining / 60:.0f} min left for {kind}"
+            print(f"  {kind:<8} {seen:>6} / {total:<6} ({spent:.0f}s{eta})")
 
-        print(f"Harvesting {args.host} — about 90 minutes for a large library.")
+        print(f"Harvesting {args.host}. Time depends on the size of your library — "
+              f"a 78 000-track one took 92 minutes.\n"
+              f"Each page waits up to {int(lib.timeout_for_harvest)}s and doubles that "
+              f"on a retry, so a much larger library is slower, not broken.")
         try:
             data = lib.harvest(progress=show)
         except LibraryError as e:
