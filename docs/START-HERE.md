@@ -4,9 +4,9 @@
 
 **New here? Not a programmer? This page is for you.**
 
-The rest of this project is written for tinkerers and reverse-engineers, and it
-*looks* intimidating — pages about kernels, serial consoles, and disk partitions.
-You don't need any of that to get value out of this.
+Much of this project is written for tinkerers and reverse-engineers, and it *looks*
+intimidating — pages about kernels, serial consoles, and disk partitions. You don't
+need any of that to get value out of this.
 
 This page answers four questions, in plain language, in about five minutes.
 Every section ends with a link to the deep stuff — follow it **only if you want to**.
@@ -49,7 +49,7 @@ Sony abandoned.
 
 ## 3. What can I do *today*?
 
-Two things, both safe, no soldering, no risk to your device:
+Four things, all safe, no soldering, no risk to your device:
 
 ```text
   🎵  Copy my music onto it          📱  Control it like a phone app
@@ -58,6 +58,13 @@ Two things, both safe, no soldering, no risk to your device:
   │  one click, Windows     │        │  cover art, settings    │
   │  finds the HAP for you  │        │  add to home screen 📲  │
   └────────────────────────┘        └────────────────────────┘
+
+  📻  Internet radio, back           🔎  Browse your library
+  ┌────────────────────────┐        ┌────────────────────────┐
+  │  Sony hid it — it was   │        │  artists, albums,       │
+  │  never actually gone.   │        │  tracks, tap to play.   │
+  │  Thousands of stations. │        │  In the same remote.    │
+  └────────────────────────┘        └────────────────────────┘
 ```
 
 - **🎵 HAP Sync** — a one-click Windows app that copies your music onto the HAP and
@@ -65,6 +72,16 @@ Two things, both safe, no soldering, no risk to your device:
 - **📱 Control app** — control the HAP from any browser, and on an **iPhone or iPad
   you can add it to the home screen** so it opens full-screen like a real app (no App
   Store needed). [How to install it.](13-control-app.md)
+- **📻 Internet radio** — Sony removed it from the app and from the front-panel menus,
+  but never from the machine. The remote above plays any station again.
+- **🔎 Your library** — browse artists, albums and tracks in that same remote, and tap
+  one to play it.
+
+There is a fifth thing, for the patient: a **health check of your whole collection** —
+what is genuinely hi-res, which albums show a blank tile because they have no artwork,
+which tracks are duplicated — and a tool that then opens the offending folder for you to
+fix. It needs a one-off scan of your library that can take an hour or more, so it is
+described on the [main page](../README.md#own-a-hap-start-here) rather than here.
 
 > ✅ **Nothing here can break your device.** These tools only *read* information and
 > control playback — the same things the buttons on the front panel already do.
@@ -79,15 +96,18 @@ Two things, both safe, no soldering, no risk to your device:
 There are three levels. **You can happily stay at Level 1 forever** — most people will.
 
 ```text
-  Level 1 — I just listen     →  copy my music, use the browser remote
-  Level 2 — I tinker          →  swap the hard drive, explore the settings
+  Level 1 — I just listen     →  copy my music, use the remote, play the radio
+  Level 2 — I tinker          →  audit my library, swap the hard drive, the settings
   Level 3 — I hack            →  open the case, build a new operating system
                                   (experts only — this is the rest of the repo)
 ```
 
-The mountain of technical pages you see in this project is **all Level 3**. It exists
-so that, one day, the HAP can do modern streaming and run forever. You don't have to
-read any of it to enjoy the two tools above.
+**You can happily stay at Level 1 forever**, and the first half of the
+[main page](../README.md#own-a-hap-start-here) is written for exactly that.
+
+The mountain of technical pages — kernels, serial consoles, disk partitions — is **all
+Level 3**. It exists so that, one day, the HAP can do modern streaming and run forever.
+You never have to read a line of it.
 
 ---
 

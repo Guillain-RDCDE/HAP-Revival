@@ -33,9 +33,11 @@ The hardware still sings. This is the rest of the story.
 
 ## Own a HAP? Start here
 
-Five things your player can do again. Each one works today, over your own network, with nothing
-sent anywhere. **Nothing here can damage the device**: reads are pure, playback is bounded, and
-standby asks first.
+Six things your player can do again, over your own network, with nothing sent anywhere.
+**Nothing here can damage the device**: reads are pure, playback is bounded, and standby asks first.
+
+The first four work the moment you run them. The last two need a one-off scan of your library
+first — it is slow, and this page says so where it happens rather than letting you find out.
 
 <br>
 
@@ -82,33 +84,61 @@ sending one HTTP header too many. [The whole story](docs/16-gotchas.md#6-never-s
 
 <br>
 
-### 4. Browse and search your whole library, from the remote
+### 4. Browse your whole library, from the remote
 
 The player's own library API answers over the network — artists, albums, tracks with codec and
-sample rate, one tap to play. Search is accent-insensitive, so `dvorak` finds `Dvořák`.
-
-This is the half Sony's app lost. It is in the web remote above, and on the command line:
+sample rate, one tap to play. This is the half Sony's app lost, and browsing works straight away:
 
 ```bash
+python tools/hap_library.py <hap-ip> artists
 python tools/hap_library.py <hap-ip> album-tracks 10633
-python tools/hap_library.py <hap-ip> search dvorak
 ```
+
+Drilling into an artist or an album is instant. A *top-level* listing is not: the player counts its
+entire catalogue before answering, so the first `artists` can take a minute. It is then cached.
 
 <br>
 
-### 5. See what is wrong with your collection — and fix it
+### 5. Search it, and audit it — after one long scan
+
+**These two need a copy of your catalogue first, and taking it is slow.** The player answers one
+request at a time and charges for counting the whole table, so a full read of a 78 000-track
+library took **92 minutes**. Once. After that everything below is instant, and the copy is kept on
+your machine.
+
+```bash
+python tools/hap_library.py <hap-ip> harvest      # once. Go and do something else.
+```
+
+Then search — accent-insensitive, so `dvorak` finds `Dvořák`:
+
+```bash
+python tools/hap_library.py <hap-ip> search dvorak
+```
+
+And the audiophile health check: how much of your library is genuinely hi-res versus CD versus
+lossy, DSD and at what rates, PCM above the player's 192 kHz ceiling, albums showing a blank tile
+for want of artwork, duplicated tracks.
 
 ```bash
 python tools/library_audit.py --from-player <hap-ip>
 ```
 
-An audiophile health check: how much of your library is genuinely hi-res versus CD versus lossy,
-DSD and at what rates, PCM above the player's 192 kHz ceiling, albums showing a blank tile for want
-of artwork, duplicated tracks.
+<br>
 
-Then [**Fix**](tools/hap_fixit.py) tells you **where each of those albums actually is** — and opens
-it in Explorer or a tag editor. If the album is also on your own disk, it opens *your* copy, so the
-edit is instant and your next sync carries it to the player.
+### 6. Then repair what it found
+
+[**Fix**](tools/hap_fixit.py) takes those findings and tells you **where each album actually is** —
+then opens it in Explorer or a tag editor. If the album is also on your own disk it opens *your*
+copy, so the edit is instant and your next sync carries it to the player.
+
+It needs one more scan, of the player's file shares — about four minutes, and the **Index the
+shares** button in HAP Sync does it for you:
+
+```bash
+python tools/hap_fixit.py <hap-ip> index          # ~4 min, once
+python tools/hap_fixit.py <hap-ip> report
+```
 
 <div align="center">
 <br>
