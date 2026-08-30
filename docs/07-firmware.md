@@ -79,6 +79,25 @@ capturing its traffic. There is nothing newer than 19404R, so the check finds no
 is written to the device — but the request itself reveals the host, the path scheme, and whether the
 device speaks HTTP or HTTPS. That single capture is the whole unlock, and it risks nothing.
 
+**Why this still needs a real capture, and blind guessing does not work.** The path is opaque. On
+2026-08-30, `info.update.sony.net` was probed with every obvious HAP pattern — `/HAP-Z1ES/`,
+`/GET5/HAP-Z1ES/`, `/HAP-Z1ES/pkg_info.xml`, `/HAP-Z1ES/0019404R/`, and a dozen more — and every one
+returned a genuine Akamai `404 Not found`. The host is alive (that is a real answer, not a timeout),
+but the manifest path is not guessable. Contrast the TuneIn side of the same original capture goal,
+which *was* answerable from the public API without any capture (see
+[`../research/notes/2026-08-25-tunein-is-alive.md`](../research/notes/2026-08-25-tunein-is-alive.md)):
+the firmware OTA path has no such public shortcut, so this is now the **only** thing the capture is
+still needed for.
+
+**And the capture itself is currently blocked on this network.** The clean route — advertise a
+logging DNS resolver over DHCP — needs the router to distribute a custom DNS server, which this
+Livebox does not offer (confirmed 2026-08-30: the DHCP tab exposes only the address range, and the
+DNS tab only names local devices). The remaining routes are all active-interception or physical:
+an Ethernet cable into a PC sharing its connection; or ARP redirection from a PC on the same LAN
+(needs a packet-capture driver such as npcap, and is less reliable across the TP-Link Deco mesh this
+network runs). None is hard, but each needs a piece we do not have to hand, and the firmware image
+is no longer on the critical path now that the front panel is scriptable.
+
 ## GPL source code (what Sony is legally required to publish)
 
 This is the big one. Because the firmware contains GPL-licensed software (the Linux kernel, BusyBox, Samba, etc.), Sony must publish the source code for those components. They do, at:

@@ -120,6 +120,33 @@ under a different service name.
 
 Steps 2 to 4 are ordinary work. Step 1 needs someone standing next to the machine.
 
+## Update 2026-08-30 — step 1 answered without a capture, and the FLAC question closed
+
+The capture in step 1 was never actually needed for the TuneIn host. Two facts, both from the
+player and the public API, no packet capture involved:
+
+**The player uses `opml.radiotime.com` — cross-checked against live playback.** Playing a real
+station over the API (`s6553`, ALOUETTE) and reading `getPlayingContentInfo` back gives
+`audioInfo.codec = "mp3,aac"`, `bitrate = "128000"`, and a cover art URL the **player itself
+proxies**: `http://<ip>:60200/sony/avContent/storage/radio_icon/tunein/s6553`. Querying
+`opml.radiotime.com/Tune.ashx?id=s6553&formats=mp3,aac` from the PC returns exactly the streams that
+station plays (`alouette.ice.infomaniak.ch/alouette-high.{aac,mp3}`). Same station id, same service,
+same result — the player is speaking to this host. So the only reason left to capture the player's
+traffic is the **firmware OTA path**, which has no public-API shortcut (blind path-guessing on
+`info.update.sony.net` returned 404 for every HAP pattern tried, 2026-08-30).
+
+**FLAC is not available, and the ceiling is the station's, not the device's.** Asking
+`Tune.ashx?id=s6553&formats=mp3,aac,flac,ogg,wma` returns the *same* four MP3/AAC URLs. TuneIn
+stations simply do not offer FLAC. This settles the open bitrate question: "serve the player a FLAC
+stream" cannot mean *getting* a real FLAC stream from TuneIn — there isn't one. It could only mean
+**substituting our own** stream (a local Icecast serving FLAC) via the proxy in steps 3–4. Worth
+knowing before anyone builds that proxy expecting hi-res radio to fall out of it.
+
+Steps 3–4 still need the player to resolve `opml.radiotime.com` to a local service, i.e. DNS
+redirection — which this network's Livebox does not allow (it distributes no custom DNS, confirmed
+2026-08-30). So the proxy remains possible but blocked on the same DNS-redirection step as the
+firmware capture, not on learning the host.
+
 ## Sources
 
 - [milaq/YCast](https://github.com/milaq/YCast) · [coffeegreg/YTuner](https://github.com/coffeegreg/YTuner) · [victorantos/denon](https://github.com/victorantos/denon)
