@@ -120,7 +120,7 @@ under a different service name.
 
 Steps 2 to 4 are ordinary work. Step 1 needs someone standing next to the machine.
 
-## Update 2026-08-30 — step 1 answered without a capture, and the FLAC question closed
+## Update 2026-08-30 — step 1 answered without a capture, and the FLAC question sharpened
 
 The capture in step 1 was never actually needed for the TuneIn host. Two facts, both from the
 player and the public API, no packet capture involved:
@@ -135,17 +135,42 @@ same result — the player is speaking to this host. So the only reason left to 
 traffic is the **firmware OTA path**, which has no public-API shortcut (blind path-guessing on
 `info.update.sony.net` returned 404 for every HAP pattern tried, 2026-08-30).
 
-**FLAC is not available, and the ceiling is the station's, not the device's.** Asking
-`Tune.ashx?id=s6553&formats=mp3,aac,flac,ogg,wma` returns the *same* four MP3/AAC URLs. TuneIn
-stations simply do not offer FLAC. This settles the open bitrate question: "serve the player a FLAC
-stream" cannot mean *getting* a real FLAC stream from TuneIn — there isn't one. It could only mean
-**substituting our own** stream (a local Icecast serving FLAC) via the proxy in steps 3–4. Worth
-knowing before anyone builds that proxy expecting hi-res radio to fall out of it.
+**FLAC over TuneIn: no. FLAC radio in general: yes. The gap between those two is the whole story,
+and the first draft of this note got it wrong by testing one station.**
 
-Steps 3–4 still need the player to resolve `opml.radiotime.com` to a local service, i.e. DNS
-redirection — which this network's Livebox does not allow (it distributes no custom DNS, confirmed
-2026-08-30). So the proxy remains possible but blocked on the same DNS-redirection step as the
-firmware capture, not on learning the host.
+*What TuneIn carries.* Asking `Tune.ashx?id=…&formats=mp3,aac,flac,ogg,wma` returns MP3/AAC every
+time, across stations — ALOUETTE (`s6553`) gives the infomaniak MP3/AAC feeds, and **Radio Paradise
+(`s13606`), which broadcasts FLAC on its own infrastructure, comes back through TuneIn as
+`stream.radioparadise.com/ti-main-320`** — the `ti-` prefix is literally a TuneIn-only MP3 feed the
+station cuts for aggregators. So TuneIn normalises everything down to lossy. That much *is* settled.
+
+*What actually exists.* Hi-res FLAC internet radio is real and reachable — just not through TuneIn.
+Verified live 2026-08-30, direct Icecast/HTTP, no aggregator:
+
+| Station | Direct stream | Format |
+|---|---|---|
+| Radio Paradise (main) | `https://stream.radioparadise.com/flac` | Ogg FLAC, 16/44 |
+| Radio Paradise (Mellow) | `https://stream.radioparadise.com/mellow-flac` | Ogg FLAC |
+| Intense Radio | `https://secure.live-streams.nl/flac.flac` | FLAC 24/44 |
+| JB Radio-2 | `http://199.189.87.9:10999/flac` | Ogg FLAC 16/96 |
+
+[`radio-browser.info`](https://www.radio-browser.info/) lists many more, filterable by codec.
+(Mother Earth Radio, the famous 24/192 one, **closed in 2025** — do not put it in any default list.)
+
+*Why the player still can't have them, and the two things that would have to be true.* The HAP's
+radio is **TuneIn-only, with no custom-URL entry** — confirmed against the Sony manual and by the
+absence of any API to add one (`getSchemeList` returns `[]`, `getSourceList` on `netService`/`audio`
+returns `[]`, introspection is disabled). So the only route to FLAC radio on this device is a proxy
+that answers a TuneIn station id with one of the real FLAC URLs above. That needs **both**:
+
+1. **DNS redirection** of `opml.radiotime.com` to the proxy — blocked on this network (the Livebox
+   distributes no custom DNS, confirmed 2026-08-30), and the same wall the firmware capture hits.
+2. **The player's network-radio decoder actually handling FLAC-over-HTTP** — *unverified, and the
+   real risk.* That codepath has only ever been fed MP3/AAC by TuneIn; the on-device FLAC decoder is
+   used for files off the disk, and there is no evidence the streaming path can reach it. This could
+   sink the whole idea even with the proxy working, and it cannot be tested until the DNS step is
+   solved. Anyone building the proxy should test this first, with a single hard-coded FLAC URL,
+   before writing anything else.
 
 ## Sources
 
