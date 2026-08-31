@@ -172,6 +172,41 @@ that answers a TuneIn station id with one of the real FLAC URLs above. That need
    solved. Anyone building the proxy should test this first, with a single hard-coded FLAC URL,
    before writing anything else.
 
+## Update 2026-08-31 — the interposition was attempted, and the player refused it
+
+We built the full rig and pointed it at a real player. The result is instructive, and it closes the
+"just build the proxy" optimism of steps 3–4 above.
+
+**Setup.** Windows PC on the same Wi-Fi as the HAP, npcap + scapy. ARP-poison the HAP alone
+(gateway → us), scapy-spoof its DNS for `opml.radiotime.com` → us, and serve a fake `Tune.ashx`
+(returns a URL back to us) plus a live re-stream of Radio Paradise's real Ogg-FLAC on `:80`. Then
+play a station by id and watch whether the HAP pulls FLAC and decodes it.
+
+**What worked.** DNS interception is solid: the HAP accepted our spoofed answers every time (hundreds
+of them). Our fake-TuneIn server is correct — from the LAN, `GET /Tune.ashx` returns the FLAC URL and
+`GET /rp.flac` delivers genuine FLAC (verified, 1.7 MB pulled by `curl`).
+
+**What did not.** The HAP never once opened a TCP connection to us — **zero SYN across every run.**
+Under interception it degrades into a DNS-retry storm (measured ~**898 queries per minute** for
+`opml.radiotime.com`) and never reaches the connect stage, so it can never receive the FLAC. Two
+forwarding strategies were tried to keep it online during the MitM, and neither held:
+
+- *Userland scapy forwarding* relayed almost nothing (the HAP was already wedged into the DNS loop).
+- *Windows interface IP-forwarding flag* (`Set-NetIPInterface -Forwarding Enabled`) does **not**
+  actually route on a client OS without the RRAS `RemoteAccess` service, which is stopped by
+  default — so the HAP stayed black-holed.
+
+**Conclusion.** The 2014 TuneIn client does not tolerate a man-in-the-middle: cut off from its normal
+path even briefly, it loops on DNS instead of connecting. So the decode question — *can the HAP's
+network-radio pipeline play FLAC-over-HTTP?* — **remains empirically unanswered**, because we could
+not deliver a byte of FLAC to it. Answering it would need genuinely transparent routing so the
+interception is invisible to the player: a Linux box (or the Mac) as a real router/NAT between the
+HAP and the gateway, or a properly configured RRAS/NAT on Windows — not ARP poisoning from a client.
+
+The rig and this dead-end are recorded so the next attempt starts from transparent routing, not from
+scratch. Everything was restored afterwards: ARP corrected, forwarding disabled, the player back to
+normal playback.
+
 ## Sources
 
 - [milaq/YCast](https://github.com/milaq/YCast) · [coffeegreg/YTuner](https://github.com/coffeegreg/YTuner) · [victorantos/denon](https://github.com/victorantos/denon)
