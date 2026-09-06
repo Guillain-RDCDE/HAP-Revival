@@ -19,8 +19,8 @@ The hardware still sings. This is the rest of the story.
 [![License](https://img.shields.io/badge/code-MIT-blue?style=flat-square)](LICENSE)
 
 [**Download HAP Sync**](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest) &nbsp;·&nbsp;
-[I own a HAP](#own-a-hap-start-here) &nbsp;·&nbsp;
-[How it works](#under-the-hood) &nbsp;·&nbsp;
+[I own a HAP](docs/REFERENCE.md#own-a-hap-start-here) &nbsp;·&nbsp;
+[How it works](docs/REFERENCE.md#under-the-hood) &nbsp;·&nbsp;
 [Documentation](docs/00-overview.md)
 
 </div>
@@ -30,6 +30,10 @@ The hardware still sings. This is the rest of the story.
 ---
 
 <br>
+
+## More
+
+**[Reference](docs/REFERENCE.md)** — getting started with a HAP, installing, how it works under the hood, the supported devices, the tools, and the full documentation index.
 
 ## License
 

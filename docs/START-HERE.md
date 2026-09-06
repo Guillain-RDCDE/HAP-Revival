@@ -81,7 +81,7 @@ There is a fifth thing, for the patient: a **health check of your whole collecti
 what is genuinely hi-res, which albums show a blank tile because they have no artwork,
 which tracks are duplicated — and a tool that then opens the offending folder for you to
 fix. It needs a one-off scan of your library that can take an hour or more, so it is
-described on the [main page](../README.md#own-a-hap-start-here) rather than here.
+described on the [main page](REFERENCE.md#own-a-hap-start-here) rather than here.
 
 > ✅ **Nothing here can break your device.** These tools only *read* information and
 > control playback — the same things the buttons on the front panel already do.
@@ -103,7 +103,7 @@ There are three levels. **You can happily stay at Level 1 forever** — most peo
 ```
 
 **You can happily stay at Level 1 forever**, and the first half of the
-[main page](../README.md#own-a-hap-start-here) is written for exactly that.
+[main page](REFERENCE.md#own-a-hap-start-here) is written for exactly that.
 
 The mountain of technical pages — kernels, serial consoles, disk partitions — is **all
 Level 3**. It exists so that, one day, the HAP can do modern streaming and run forever.
@@ -129,7 +129,7 @@ The technical docs throw these around. Here's all you need to know:
 ## Where to go next
 
 - Just want to **use** it? → grab [HAP Sync](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe) and read the [music guide](12-music-sync.md). You're done.
-- Curious **why** the project exists? → the [README](../README.md#what-the-machine-is).
-- Ready for **Level 3**? → the full [documentation index](../README.md#documentation). Take your time; it'll still be here.
+- Curious **why** the project exists? → the [README](REFERENCE.md#what-the-machine-is).
+- Ready for **Level 3**? → the full [documentation index](REFERENCE.md#documentation). Take your time; it'll still be here.
 
 *Welcome aboard. It's a music project pretending to be a software project — and you're here for the music.* 🎶

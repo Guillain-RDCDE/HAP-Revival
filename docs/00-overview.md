@@ -45,7 +45,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 - The FPGA bitstream programming model (we have the `forza_snd_driver` source, but the FPGA logic itself is closed).
 - The exact protocol used by the official **iOS** app for real-time updates. The **Android** equivalent has been confirmed (APK decompile, 2026-05-25) to use plain HTTP polling at 5 s cadence — four background threads polling four endpoints, no WebSocket. Note this is a choice Sony's app makes, not a limit of the device: the HAP does have a UDP push mechanism, found in the Crestron module and verified live on 2026-08-20 ([`03-network-api.md`](03-network-api.md#real-time-updates--push-notifications-over-udp)). Our own clients use it. The iOS app likely polls like the Android one, pending Wireshark capture.
 
-Filling these gaps is the work of Phase 1 — see [`README.md`](../README.md#what-has-been-established).
+Filling these gaps is the work of Phase 1 — see [`README.md`](REFERENCE.md#what-has-been-established).
 
 ## Audience
 
