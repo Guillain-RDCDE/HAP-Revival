@@ -42,7 +42,7 @@ Updates arrive the instant the music changes, because the player pushes them.
 <br>
 <img src="../.github/webui-phone.png" width="280" alt="The web remote on a phone: now playing, with ambient colour from the cover art">
 <br>
-<sub><i>The web remote, now-playing. Background colour is pulled from the cover art. Runs on any phone — and with no player at hand, against the bundled mock (<code>webui.py --demo</code>), which is what this shot is.</i></sub>
+<sub><i>The web remote, now-playing. The background colour is pulled from the cover art. Runs on any phone, against a real player or the bundled mock (<code>webui.py --demo</code>).</i></sub>
 <br>
 </div>
 
