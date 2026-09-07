@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD033 MD041 -->
 # HAP-Revival — reference
 
 [← Back to the README](../README.md)
@@ -37,9 +38,29 @@ python tools/webui.py <hap-ip>        # then open http://localhost:8080
 Now-playing with cover art, transport, seek, the sound settings, six languages, light and dark.
 Updates arrive the instant the music changes, because the player pushes them.
 
+<div align="center">
+<br>
+<img src="../.github/webui-phone.png" width="280" alt="The web remote on a phone: now playing, with ambient colour from the cover art">
+<br>
+<sub><i>The web remote, now-playing. Background colour is pulled from the cover art. Runs on any phone — and with no player at hand, against the bundled mock (<code>webui.py --demo</code>), which is what this shot is.</i></sub>
+<br>
+</div>
+
 It also shows **the player's own front panel, live, with its buttons** — so everything Sony left in
 the on-device menus but took out of the app is reachable from the sofa. Including playing a whole
 album, which none of the APIs can do.
+
+<div align="center">
+<br>
+<img src="../research/captures/screen-20260827-nowplaying-tunein.png" width="31%" alt="Front panel, now playing an internet radio station">
+&nbsp;
+<img src="../research/captures/screen-20260827-stream-select.png" width="31%" alt="Front panel, choosing a stream">
+&nbsp;
+<img src="../research/captures/screen-20260827-option-menu.png" width="31%" alt="Front panel, the options menu">
+<br>
+<sub><i>The player's own 480×272 display, fetched over HTTP: now playing, stream select, options — the real device, not a mock-up.</i></sub>
+<br>
+</div>
 
 On an iPhone: Safari → Share → **Add to Home Screen** gives a standalone remote with its own icon.
 No App Store. [How to install it](../docs/13-control-app.md).
@@ -100,6 +121,14 @@ for want of artwork, duplicated tracks.
 ```bash
 python tools/library_audit.py --from-player <hap-ip>
 ```
+
+<div align="center">
+<br>
+<img src="../.github/library-audit.png" width="760" alt="The library audit: quality mix, formats and sample rates of a real 78,369-track library">
+<br>
+<sub><i>The audit, run over the network against a real 78,369-track library. It also produces a full HTML report (<code>--html</code>).</i></sub>
+<br>
+</div>
 
 <br>
 
@@ -363,4 +392,3 @@ Corrections are as welcome as findings. Several claims on these pages were wrong
 owned the hardware said so.
 
 <br>
-
