@@ -12,6 +12,10 @@ The hardware still sings. This is the rest of the story.
 
 <br>
 
+**Already working:** get music onto it · a phone remote · internet radio · browse, search and audit your library · repair its tags and artwork.
+
+<br>
+
 [![Release](https://img.shields.io/github/v/release/Guillain-RDCDE/HAP-Revival?color=2ea043&label=HAP%20Sync&style=flat-square)](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest)
 &nbsp;
 [![Tests](https://img.shields.io/badge/tests-300%20passing-2ea043?style=flat-square)](tests)
