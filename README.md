@@ -18,7 +18,7 @@ The hardware still sings. This is the rest of the story.
 
 [![Release](https://img.shields.io/github/v/release/Guillain-RDCDE/HAP-Revival?color=2ea043&label=HAP%20Sync&style=flat-square)](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest)
 &nbsp;
-[![Tests](https://img.shields.io/badge/tests-300%20passing-2ea043?style=flat-square)](tests)
+[![Tests](https://img.shields.io/github/actions/workflow/status/Guillain-RDCDE/HAP-Revival/python-lint.yml?branch=main&label=tests&style=flat-square)](https://github.com/Guillain-RDCDE/HAP-Revival/actions/workflows/python-lint.yml)
 &nbsp;
 [![License](https://img.shields.io/badge/code-MIT-blue?style=flat-square)](LICENSE)
 
@@ -41,8 +41,9 @@ The hardware still sings. This is the rest of the story.
 
 ## License
 
-Code is [MIT](LICENSE). Documentation and research notes are
-[CC BY 4.0](LICENSE-docs). Not affiliated with Sony.
+Code (`tools/`, `tests/`, `api-spec/examples/`) is [MIT](LICENSE). Documentation and research
+notes (`docs/`, `research/` and every other Markdown file) are [CC BY-SA 4.0](LICENSE-docs).
+Not affiliated with Sony.
 
 <br>
 

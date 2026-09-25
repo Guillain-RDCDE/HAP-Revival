@@ -282,7 +282,7 @@ tool gave up after six seconds. The lesson generalised in
 [gotcha 7](../docs/16-gotchas.md#7-never-keep-a-short-http-timeout): *a failure that always arrives at
 the value you chose is evidence about your client, not about the device.*
 
-300 tests, stdlib-only, run against a mock device on every push, plus a live smoke test that
+The test suite is stdlib-only and runs against a mock device on every push, plus a live smoke test that
 asserts real values from a real player — because green unit tests once passed against a client that
 read nothing at all.
 
@@ -311,7 +311,7 @@ protocols — work on one transfers to the other.
 
 ## The tools
 
-Nineteen of them. Stdlib-only Python, no accounts, no telemetry.
+Stdlib-only Python, no accounts, no telemetry.
 
 <details>
 <summary>Full list</summary>
