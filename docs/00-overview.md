@@ -10,7 +10,8 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 
 | Path | What it contains |
 |---|---|
-| `README.md` | Project introduction and roadmap |
+| `README.md` | Project introduction |
+| `docs/REFERENCE.md` | Getting started, how it works, the tools and the roadmap |
 | `docs/` | Reference documentation — start here |
 | `research/` | Active reconnaissance work, captures, lab notes |
 | `tools/` | Working scripts (discovery, fuzzer, recipes) |
@@ -30,7 +31,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 | Firmware blob | 19404R — no public copy, but Sony's update host is alive and is a **plain Akamai file server over HTTP**, so the image may be downloadable once we learn the path. `0018120R` newly identified from a real unit's downgrade dialog | [`07-firmware.md`](07-firmware.md) |
 | Prior art | Exhaustive bibliography, three GitHub repos total | [`08-prior-art.md`](08-prior-art.md) |
 | On-disk layout | Disk read directly 2026-06-02: two ext4 partitions (`/data` SQLite catalog + `/mnt/internal` music); ground-truth DB schema; no rootfs on disk | [`09-disk-layout.md`](09-disk-layout.md) |
-| OS acquisition | Live-device software vectors (Samba symlink, HTTP traversal) blocked. Capturing one Network Update check to learn the CDN path is now the cheapest lead; **UART serial console** remains the way to the *running* system and the proprietary userland | [`10-uart-console.md`](10-uart-console.md), [`research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md) |
+| OS acquisition | Live-device software vectors (Samba symlink, HTTP traversal) blocked. Capturing one Network Update check to learn the CDN path is now the cheapest lead, but it needs a machine routing the player's traffic — redirecting it from a PC on the same LAN was tried on 2026-08-31 and failed; **UART serial console** remains the way to the *running* system and the proprietary userland | [`10-uart-console.md`](10-uart-console.md), [`research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md) |
 | Audio path | Decoded from the GPL Forza driver: Altera FPGA over PCIe → CS48L10 (oversampling) + ADSP-21488 SHARC (DSEE-HX "HEQ") + DSD remastering → 2× PCM1795; controlled via `/dev/forza` ioctls | [`11-audio-path.md`](11-audio-path.md) |
 | Music sync | `hap_sync.py` — HAP-dedicated FreeFileSync replacement: two-folder→two-share, junk/format filtering, SMB1 via pysmb (no Windows SMB1), remote-index cache | [`12-music-sync.md`](12-music-sync.md) |
 | Control app | `webui.py` is an installable **PWA** — add to the iPhone/iPad home screen, standalone full-screen, no App Store. The bridge to the future native app | [`13-control-app.md`](13-control-app.md) |
@@ -45,7 +46,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 - The FPGA bitstream programming model (we have the `forza_snd_driver` source, but the FPGA logic itself is closed).
 - The exact protocol used by the official **iOS** app for real-time updates. The **Android** equivalent has been confirmed (APK decompile, 2026-05-25) to use plain HTTP polling at 5 s cadence — four background threads polling four endpoints, no WebSocket. Note this is a choice Sony's app makes, not a limit of the device: the HAP does have a UDP push mechanism, found in the Crestron module and verified live on 2026-08-20 ([`03-network-api.md`](03-network-api.md#real-time-updates--push-notifications-over-udp)). Our own clients use it. The iOS app likely polls like the Android one, pending Wireshark capture.
 
-Filling these gaps is the work of Phase 1 — see [`README.md`](REFERENCE.md#what-has-been-established).
+Filling these gaps is the work of Phase 1 — see [`REFERENCE.md`](REFERENCE.md#what-has-been-established).
 
 ## Audience
 

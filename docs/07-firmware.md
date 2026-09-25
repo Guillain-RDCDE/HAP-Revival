@@ -92,11 +92,17 @@ still needed for.
 **And the capture itself is currently blocked on this network.** The clean route — advertise a
 logging DNS resolver over DHCP — needs the router to distribute a custom DNS server, which this
 Livebox does not offer (confirmed 2026-08-30: the DHCP tab exposes only the address range, and the
-DNS tab only names local devices). The remaining routes are all active-interception or physical:
-an Ethernet cable into a PC sharing its connection; or ARP redirection from a PC on the same LAN
-(needs a packet-capture driver such as npcap, and is less reliable across the TP-Link Deco mesh this
-network runs). None is hard, but each needs a piece we do not have to hand, and the firmware image
-is no longer on the critical path now that the front panel is scriptable.
+DNS tab only names local devices).
+
+**ARP redirection from a PC on the same LAN has been tried, and does not work.** On 2026-08-31, for
+the radio experiment, a Windows PC redirected the player's traffic with npcap and answered its DNS
+queries. The player accepted the forged answers but never opened a single TCP connection to the PC:
+its 2014 network client fell into a storm of repeated DNS lookups instead
+([write-up](../research/notes/2026-08-25-tunein-is-alive.md#update-2026-08-31--the-interposition-was-attempted-and-the-player-refused-it)).
+The route that remains is a machine that genuinely *routes* the player's traffic: a Linux box, a
+Mac or a Raspberry Pi acting as its gateway, over Wi-Fi or with an Ethernet cable and connection
+sharing. None is hard, but each needs a piece we do not have to hand, and the firmware image is no
+longer on the critical path now that the front panel is scriptable.
 
 ## GPL source code (what Sony is legally required to publish)
 

@@ -21,15 +21,16 @@ Thanks for being here. The HAP-Z1ES / HAP-S1 community is small — every carefu
 ## Which machine can answer which question
 
 Findings here are only as good as the hardware behind them, and no single player can produce them
-all. As of 2026-08-24 the project reaches four, each able to answer things the others cannot. Worth
-reading before asking someone a question their device physically cannot settle.
+all. Each player below can answer things the others cannot. Worth reading before asking someone a
+question their device physically cannot settle.
 
 | Player | State | Can settle | Cannot |
 |---|---|---|---|
-| **Reference Z1ES** (maintainer's) | `19404R`, HDD library, **internet radio works**, `contentdb` REST hangs | Everything on the JSON-RPC and `contentplayer` REST surfaces, push notifications, internet radio, the gotchas | Volume, tone control, anything S1, anything on an older firmware. And its `contentdb` is broken where others' works |
+| **Reference Z1ES** (maintainer's) | `19404R`, HDD library, **internet radio works**, `contentdb` REST slow but healthy | Everything on the JSON-RPC, `contentplayer` and `contentdb` REST surfaces, the front panel over HTTP, push notifications, internet radio, the gotchas | Volume, tone control, anything S1, anything on an older firmware |
 | **S1 at Amos's workplace** | `19404R`, backup slot holds **`0018120R`** | Volume (`0`–`74`), tone control reads, an S1 tone-control write | Not ours to risk. The one machine that *could* reach an older firmware, and the one we will not ask to |
 | **S1 at Amos's home** | `19404R`, backup slot **spent** (both slots identical) | Second S1 data point | Cannot downgrade — the slot was burned by a re-flash |
 | **Saschko's player** | German locale; he wrote the browser remote that drives its radio | A second locale's TuneIn tree — paths are locale-specific, so his are not ours | Model and firmware unknown to us |
+| **Øyvind's S1** ([#1](https://github.com/Guillain-RDCDE/HAP-Revival/issues/1)) | `19404R`, Norway; its owner is willing to open the case | A third S1 data point, a Norwegian TuneIn tree, and possibly the first UART session | Nothing on an older firmware |
 
 That table used to say radio worked on his player and not ours, and invited theories about why.
 There was nothing to explain: radio works on ours too, and always did — we were calling the API
@@ -37,17 +38,17 @@ wrongly. See [`docs/16-gotchas.md`](../docs/16-gotchas.md) §6 for the header th
 
 **What nobody can currently answer**, and what a new contributor would unlock:
 
-- **A player running any firmware older than `19404R`.** It would settle whether Sony withdrew the
-  `/sony/contentdb/v100` library API or never finished it — currently our most consequential
-  inference. `0018120R` and `0017310R` are both known to exist and neither is running anywhere we
-  can reach.
-- **A registered player whose owner will run three calls**, to pin down `path` semantics and make
-  internet radio reliable rather than folklore.
-- **An opened case.** No UART, no NAND dump, no board photographs of our own.
-- **One packet capture, from anyone at all.** Which host the player calls when you press play on a
-  station, and what it sends. TuneIn's device API is alive and answering; we simply do not know what
-  the HAP asks it. The same capture also reveals the firmware download URL. It is the single
-  highest-value thing anyone with a HAP and ten minutes could do.
+- **A player running any firmware older than `19404R`.** For the archive: `0018120R` and
+  `0017310R` are both known to exist and neither is running anywhere we can reach. (It no longer
+  matters for the library API, which is alive on `19404R` too.)
+- **An opened case.** No UART, no NAND dump, no board photographs of our own yet. One owner has
+  offered ([#1](https://github.com/Guillain-RDCDE/HAP-Revival/issues/1)).
+- **One capture of a firmware update check.** The update host is a plain file server, but the path
+  to the image is not guessable ([`docs/07-firmware.md`](../docs/07-firmware.md)). It takes a
+  machine that *routes* the player's traffic — a Linux box, a Mac or a Raspberry Pi acting as its
+  gateway. Redirecting traffic from an ordinary PC on the same network was tried on 2026-08-31 and
+  the player refused to connect. The radio half of the old capture question needed no capture at
+  all: the player asks TuneIn's public API, and asking it the same thing gives the same streams.
 
 ## What we explicitly do not want
 

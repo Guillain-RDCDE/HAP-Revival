@@ -102,8 +102,11 @@ it, edit `tools/make_pwa_icons.py` and re-run `python tools/make_pwa_icons.py`.
 - iOS only installs PWAs from **Safari**, and only with the device on Wi-Fi.
 - **The library's first listing is slow** — the player takes 28–90 s on an unfiltered collection
   regardless of how few rows you ask for, because it counts the whole catalog first. The result is
-  cached for fifteen minutes; drilling into an artist or album afterwards is sub-second. There is no
-  search yet, so a large library is browsed rather than queried.
+  cached for fifteen minutes; drilling into an artist or album afterwards is sub-second.
+- **Search needs one harvest first.** The player has no search endpoint, so the remote matches a
+  copy of the whole catalogue, accent-insensitively. Building that copy monopolises the player for
+  about an hour and a half on a large library, so it is never started behind your back: the search
+  box explains the cost and offers to run it. Afterwards results are instant.
 
 ## Roadmap from here
 

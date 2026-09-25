@@ -106,47 +106,22 @@ confirm any of it.
 
 ---
 
-## 5. Is your player still paired with TuneIn?
+## 5. Internet radio: send us your station tree
 
-This one sends data, so the quoting matters and it differs per shell. Each form below has been run
-and verified; pick your shell and paste exactly.
+There is no longer a radio question to ask you about pairing. Radio works on every player tested so
+far, whether or not it is linked to a TuneIn account, and including stations that had never been
+played on it. We used to think otherwise because our own client sent one header too many (see
+[`16-gotchas.md`](16-gotchas.md) and
+[`../research/notes/2026-08-25-tunein-is-alive.md`](../research/notes/2026-08-25-tunein-is-alive.md)).
 
-**Windows PowerShell** — note the `--%` right after `curl.exe`. It is not a typo; without it
-PowerShell mangles the quotes and you get `illegal Request`:
-
-```powershell
-curl.exe --% -X POST http://192.168.1.28:60200/sony/avContent -H "Content-Type: application/json" -d "{\"method\":\"registerDevice\",\"id\":1,\"version\":\"1.0\",\"params\":[{\"uri\":\"netService:audio?serviceName=tunein\",\"method\":\"check\"}]}"
-```
-
-**Windows Command Prompt** (`cmd.exe`) — the same without `--%`:
+What still differs from one player to the next is the **station tree**. Positions in it depend on
+the player's region, so ours are no use to an owner in another one. If you have Python:
 
 ```text
-curl.exe -X POST http://192.168.1.28:60200/sony/avContent -H "Content-Type: application/json" -d "{\"method\":\"registerDevice\",\"id\":1,\"version\":\"1.0\",\"params\":[{\"uri\":\"netService:audio?serviceName=tunein\",\"method\":\"check\"}]}"
+python tools/hap_client.py 192.168.1.28 radio-browse root
 ```
 
-**macOS / Linux**:
-
-```bash
-curl -X POST http://192.168.1.28:60200/sony/avContent -H 'Content-Type: application/json' \
-  -d '{"method":"registerDevice","id":1,"version":"1.0","params":[{"uri":"netService:audio?serviceName=tunein","method":"check"}]}'
-```
-
-You will get `{"result": [{"isRegistered": true}], "id": 1}` — or `false`.
-
-**Why we want it.** `false` is **not** a problem in itself — an owner tells us stations played fine
-with no account, and logging in only ever synced favourites to the cloud. We collect the answer
-because radio works on some players and not others.
-
-**If radio still works on your player, that is the far more interesting answer.** Tell us, and tell
-us whether you used TuneIn back when Sony supported it — we think that is what separates the players
-that work from the ones that don't. TuneIn's own servers are still up and answering in 2026; see
-[`../research/notes/2026-08-25-tunein-is-alive.md`](../research/notes/2026-08-25-tunein-is-alive.md).
-
-And if radio works for you, one test would settle a question nobody can answer otherwise: play a
-station you have **never played before**, with a station id fresh off tunein.com. Does it start?
-
-If you have Python, `python tools/hap_client.py <ip> radio-status` does the same thing and is easier
-to read.
+Send the list it prints. No Python? Skip this one — §1 to §4 matter more.
 
 ---
 
@@ -169,6 +144,5 @@ titles you consider private.
 - Run something whose effect we have not explained here.
 
 Every **command** on this page was run against a real HAP-Z1ES, in the shell it is written for,
-before being written down — §5 is here in three forms precisely because the first one we wrote
-failed in PowerShell. The two **menu** sections we cannot test ourselves; they are transcribed from
+before being written down. The two **menu** sections we cannot test ourselves; they are transcribed from
 contributors' photographs. If anything here misbehaves, that is a bug in this page — please tell us.
