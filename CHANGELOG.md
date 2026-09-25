@@ -8,9 +8,14 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
-Since `hap-sync-v0.2.0` (2026-08-15). Long-form write-ups of everything below, with the
-measurements behind them, are in
-[`CHANGELOG-detail-2026-08.md`](CHANGELOG-detail-2026-08.md).
+## [hap-sync-v0.3.0] — 2026-09-25
+
+Everything since `hap-sync-v0.2.0` (2026-08-15). The downloadable
+[`HapSync.exe`](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe)
+(Windows x64, 14.8 MB, self-contained — SHA-256
+`5207e0d11cf7cf64eb4b1be7d5f71ac71bfb0eeaadd4c7e6726719d87e87438b`) gains the **Fix** tab; the rest of the repository gains the web remote's front panel, the library,
+internet radio and the audit. Long-form write-ups of everything below, with the measurements behind
+them, are in [`CHANGELOG-detail-2026-08.md`](CHANGELOG-detail-2026-08.md).
 
 ### Added
 
@@ -68,6 +73,17 @@ measurements behind them, are in
   handlers named widgets that did not exist — all three found only by driving the real UI.
 - The `Expect: 100-continue` 417 trap, and the CORS preflight that fails for want of
   `Access-Control-Allow-Headers`.
+- **`radio-status` no longer says an unlinked player cannot play radio.** It can; a TuneIn account
+  only ever synced favourites. The live smoke test also drops a check for a guard that no longer
+  exists.
+- **Documentation brought back in line with what is now known**: the contributor guide no longer
+  calls the reference player's library API broken, nor says a capture is needed for the radio; the
+  five-minute help page no longer asks owners about TuneIn pairing; the firmware page records that
+  redirecting traffic from a PC was tried on 2026-08-31 and failed; the control-app page describes
+  the search that exists.
+- **Licensing is stated once and consistently.** GitHub now recognises `LICENSE` as MIT (a
+  trailing paragraph made it unrecognisable), and the README no longer calls the documentation
+  licence CC BY when it is CC BY-SA.
 
 ### Explored, and closed
 
