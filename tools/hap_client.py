@@ -875,9 +875,9 @@ def _cli_radio_status(hap: HAP, _args) -> None:
         code = _first_field(hap.radio_registration("getPin"), "pinCode")
         _row("Pairing PIN", code or "-")
         print()
-        print("This player is not bound to a TuneIn account, so radio playback")
-        print("will silently do nothing. Pair it on TuneIn's site with the PIN")
-        print("above, then re-run this command to confirm.")
+        print("This player is not linked to a TuneIn account. Stations still play;")
+        print("an account only ever synced favourites to the cloud. Pair it on")
+        print("TuneIn's site with the PIN above only if you want that.")
 
 
 def _sane_tree_path(path: str) -> str:
@@ -985,7 +985,7 @@ def main() -> int:
     p.set_defaults(func=_cli_seek)
 
     sub.add_parser(
-        "radio-status", help="TuneIn registration state (and a pairing PIN if unbound)"
+        "radio-status", help="TuneIn account link (favourites sync only; radio plays either way)"
     ).set_defaults(func=_cli_radio_status)
 
     p = sub.add_parser("radio-browse", help="Browse the player's TuneIn tree")

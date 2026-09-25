@@ -262,17 +262,6 @@ def build(ip: str, include_writes: bool) -> Smoke:
 
         s.check("idempotent sound write round-trips", idempotent_sound_write)
 
-        def unregistered_guard():
-            """play_station must not fire on an unregistered player."""
-            if hap.radio_is_registered():
-                raise SkipCheck("player is registered — guard not exercised")
-            before = hap.now_playing().state
-            # We deliberately do NOT call play_station here: the point is that the
-            # CLI guard exists. Assert the predicate the guard reads instead.
-            return f"unregistered, guard would refuse (state stays {before})"
-
-        s.check("radio guard predicate is readable", unregistered_guard)
-
     return s
 
 
