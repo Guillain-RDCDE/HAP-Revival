@@ -37,6 +37,7 @@ Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) an
 | Control app | `webui.py` is an installable **PWA** — add to the iPhone/iPad home screen, standalone full-screen, no App Store. The bridge to the future native app | [`13-control-app.md`](13-control-app.md) |
 | Rootfs extraction | **Tested** off-device pipeline: NAND dump → `jefferson` (userspace, no MTD kernel modules — WSL2 lacks them) → browsable rootfs, via `tools/extract_rootfs.sh` | [`14-nand-extract.md`](14-nand-extract.md) |
 | Forza control interface | The decoded `/dev/forza` ioctl contract (magic 0xDF; API/DSP/DAC command sets; field semantics traced arm-by-arm) — the Phase-4 lever for the DSP/DAC chain. DSP is model-selected: SHARC on the Z1ES (Spiritoso), CS48L10 on Allegro | [`15-forza-ioctl.md`](15-forza-ioctl.md) |
+| Amp control | The Z1ES is a fixed-output source with no analog volume; it powers and sets the volume of a separate amp over **infrared** (Amp Control Settings), not the network — which corrects a common online claim that the `MusicConnect` service is a LAN link to Sony ES receivers | [`17-amp-control.md`](17-amp-control.md) |
 
 ## What we don't know yet
 

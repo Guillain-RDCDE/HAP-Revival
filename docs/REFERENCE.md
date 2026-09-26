@@ -425,6 +425,7 @@ New here? [**Start Here**](../docs/START-HERE.md). The project in one page:
 | [Diag modes](../docs/05-diag-modes.md) | [HDD swap](../docs/06-hdd-swap.md) | [Firmware](../docs/07-firmware.md) | [Prior art](../docs/08-prior-art.md) |
 | [Disk layout](../docs/09-disk-layout.md) | [UART console](../docs/10-uart-console.md) | [Audio path](../docs/11-audio-path.md) | [Music sync](../docs/12-music-sync.md) |
 | [Control app](../docs/13-control-app.md) | [NAND extraction](../docs/14-nand-extract.md) | [Forza ioctl](../docs/15-forza-ioctl.md) | [**Gotchas**](../docs/16-gotchas.md) |
+| [Amp control](../docs/17-amp-control.md) | | | |
 
 Reconnaissance notes live in [`research/`](../research/), the tools in [`tools/`](../tools/), the API
 specification in [`api-spec/`](../api-spec/).

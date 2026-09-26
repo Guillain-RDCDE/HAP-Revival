@@ -8,6 +8,18 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-09-26, amplifier control and the MusicConnect purpose)
+
+- **New page [`docs/17-amp-control.md`](docs/17-amp-control.md).** How the HAP-Z1ES controls a
+  separate amplifier and why that path is **infrared**, not the network: the player has no analog
+  volume stage (its own volume is digital, before the DAC), so the hi-fi configuration is fixed
+  output with the amp doing analog volume — and Sony's shipped "Amp Control Settings" commands the
+  amp over IR (a wired mono-minijack to a Sony amp's IR-input, or the bundled IR blaster for other
+  brands). Audio never rides the IR link. Includes the honest "isn't IR absurd on a hi-fi
+  component?" answer (control is not signal), and settles the widely-copied online claim that
+  `MusicConnect` is a LAN link to a Sony ES receiver: right about the purpose, wrong about the
+  mechanism — Sony documents amp control as IR only, and no Sony source names `MusicConnect`.
+
 ### Added (2026-09-26, the network surface, mapped to its limit)
 
 - **Proof the player can never be a network render target.** `ConnectionManager.GetProtocolInfo`

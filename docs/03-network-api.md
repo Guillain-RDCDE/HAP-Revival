@@ -247,6 +247,9 @@ the instant they happen, which a 5-second poll cannot, and the same events make 
 automation. It reports transport state only, so pair it with one `getPlayingContentInfo` call per
 change to learn *what* is playing.
 
+The purpose of `MusicConnect`, and why the popular "LAN link to a Sony ES receiver" description is
+half right and half wrong, is treated in full in [`17-amp-control.md`](17-amp-control.md).
+
 ## DLNA media server (port 60300)
 
 Advertised over SSDP as `urn:schemas-upnp-org:device:MediaServer:1`, with its own UUID
