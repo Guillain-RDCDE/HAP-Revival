@@ -8,6 +8,18 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-09-26, the network surface, mapped to its limit)
+
+- **Proof the player can never be a network render target.** `ConnectionManager.GetProtocolInfo`
+  returns an **empty `Sink`** and a 12-format `Source` (FLAC and DSD included). No audio can be
+  pushed to it over the network by any means — which, with Spotify capped by its 2021 SDK and
+  TuneIn serving only MP3/AAC, closes every network-only route to streaming a format we choose.
+  Recorded in [`docs/03-network-api.md`](docs/03-network-api.md).
+- **`MusicConnect` has a working event channel.** Its control endpoint is a dead 404, but a GENA
+  `SUBSCRIBE /MusicConnect/event` is accepted and the player pushes its transport state
+  (`PLAYING` / `PAUSED_PLAYBACK` / `STOPPED` / `NO_MEDIA_PRESENT`) on subscribe and on every change —
+  a push alternative to polling now-playing. `SUBSCRIBE /ScalarWebAPI/event` is a 404.
+
 ### Added (2026-09-26, the console is on the rear panel)
 
 - **The serial console is reachable without opening the player.** The small unlabelled slot on the

@@ -201,9 +201,27 @@ times out, including ones that answered seconds earlier; it recovers on its own 
 request is abandoned. Probe sequentially, with a known-good request as a health check between each,
 or you will record false negatives across the whole surface.
 
-### Genuinely vestigial
+### `MusicConnect` — no control, but a working event channel
 
-- **`MusicConnect`** — declared in the UPnP description, but `POST /MusicConnect/control` returns **404**.
+`POST /MusicConnect/control` returns **404** — the service has no callable actions (its SCPD
+declares only state variables, no `actionList`). But the **eventing half works**, and it is the one
+useful thing here. A GENA `SUBSCRIBE /MusicConnect/event` (on port 60100) is accepted with a `200`
+and an `SID`, and the player immediately posts a `NOTIFY` with the current transport state, then
+another on every change (verified 2026-09-26 through the Mac router — the callback must be an
+address the player can reach, e.g. the router's `192.168.50.1`):
+
+```xml
+<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0"><e:property><LastChange>
+  <Event xmlns="urn:schemas-sony-com:metadata-1-0/MusicConnect/">
+    <TransportState val="PLAYING"/>
+  </Event>
+</LastChange></e:property></e:propertyset>
+```
+
+So `MusicConnect` is a **push** now-playing signal (`STOPPED` / `PLAYING` / `PAUSED_PLAYBACK` /
+`NO_MEDIA_PRESENT`), an event-driven alternative to polling `getPlayingContentInfo`. It carries the
+transport state only — no track identity. `SUBSCRIBE /ScalarWebAPI/event` returns **404**; that
+service is not evented.
 
 ## DLNA media server (port 60300)
 
@@ -218,8 +236,24 @@ are as slow as the REST catalogue (about 25 s for the album list), for the same 
 counts the whole table first. Each track's `<res>` carries its size, duration, sample rate, bit
 depth and a `http-get` URL on port 60400.
 
-The player is a **server only**. It does not advertise a MediaRenderer, so nothing can be pushed to
-it over DLNA.
+The player is a **server only**, and `ConnectionManager.GetProtocolInfo` proves it cannot be
+otherwise. Its **`Sink` list is empty** — the player accepts no incoming protocol at all — while its
+`Source` list advertises 12 formats it can serve, DSD and FLAC among them (verified 2026-09-26):
+
+```text
+Sink:   (empty)
+Source: http-get:*:audio/flac:...    http-get:*:audio/x-flac:...
+        http-get:*:audio/dsd:...     http-get:*:audio/x-dsd:...
+        audio/mpeg, audio/mp4, audio/aiff, audio/wav, audio/x-wav,
+        audio/3gpp, audio/x-ms-wma, audio/x-sony-oma
+```
+
+An empty `Sink` is the decisive point for the streaming-FLAC goal: **there is no way to push audio
+to this player over the network** — no MediaRenderer is advertised, and even the ConnectionManager
+declares zero sink protocols. Every network-only route to make it play a stream we choose is
+therefore closed (DLNA push here; Spotify capped by its 2021 SDK; TuneIn MP3/AAC only). The
+remaining path is running our own code on the device — the UART/root route in
+[`10-uart-console.md`](10-uart-console.md).
 
 ## File server (port 60400)
 
