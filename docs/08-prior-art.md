@@ -222,6 +222,8 @@ The world's open-source HAP-Z1ES/HAP-S1 corpus, in totality, in 2026:
 
 That's it. **HAP-Revival is positioned to become the canonical reference** by virtue of being the only structured project that has bothered to consolidate all of the above and to extend the API mapping work that frazei started.
 
+**Re-checked 2026-09-26.** A fresh sweep confirmed the corpus is unchanged: still no public root, serial-console, UART or firmware-extraction work on the HAP-Z1ES or HAP-S1 anywhere — this project would be the first. The `MusicConnect` service is documented nowhere outside this repository. On firmware, the Sony Help Guide describes **only a network update**; there is no USB-update procedure for the HAP, and the "go back one version" a few users mention is the internally retained previous image, not a downloadable blob — so [`07-firmware.md`](07-firmware.md)'s OTA-only conclusion holds, and installing our own userland still routes through the UART/root path, not a firmware file. Roon and Qobuz remain long-standing unmet user requests with no community solution.
+
 ## Recommended reading order for new contributors
 
 1. The **HAP-S1 service manual PDF** (cleanest) — get the hardware architecture in your head.

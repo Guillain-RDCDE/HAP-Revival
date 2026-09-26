@@ -46,3 +46,11 @@ The SCPD itself (`/MusicConnect_SCPD.xml`) does load and declares the `Transport
 **Implication**: forget SOAP/UPnP control for HAP. The JSON-RPC on port 60200 is the only working control plane. The UPnP descriptor exists for SSDP discovery and as a Sony-internal vestige.
 
 To-do: try the same SOAP probe against port 60200 (some Sony devices route both protocols through the same port). Try also `/event` for UPnP eventing — if that works, it might be an alternative to WebSocket notifications.
+
+**Resolved 2026-09-26 — the `/event` half works.** A GENA `SUBSCRIBE /MusicConnect/event`
+(port 60100) is accepted with a `200` + `SID`, and the player pushes a `LastChange` `NOTIFY`
+carrying `TransportState` on subscribe and on every change — a genuine push channel for
+now-playing state, exactly the WebSocket alternative this to-do guessed at. The callback must be an
+address the player can reach. `SUBSCRIBE /ScalarWebAPI/event` is a 404. So the split is: control is
+JSON-RPC only (SOAP control = 404), but eventing is live on MusicConnect. Verified through the Mac
+router with the unit cabled; documented in [`docs/03-network-api.md`](../../docs/03-network-api.md).
