@@ -16,6 +16,11 @@ How the HAP-Z1ES talks to the world over the LAN.
 | 1902 | UDP | SDDP | Control4 discovery announcement |
 | 5353 | UDP | mDNS | `_spotify-connect._tcp` (`CPath=/sony/spotifyConnect`, port 60200) and `_smb._tcp` |
 
+The 2026-09-26 observations were made on the owner's own home network, with the player wired to a
+Mac mini that bridged it to the household Wi-Fi.
+
+![The Mac mini sitting on the HAP-Z1ES, wired to it, during the 2026-09-26 session](../research/captures/2026-09-26-mac-mini-on-the-hap.jpg)
+
 A full TCP scan of ports 1–65535 on 2026-09-26 found these six TCP ports open and no others. The
 player silently drops connection attempts to closed ports rather than refusing them, so a full scan
 takes about half an hour.
