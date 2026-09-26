@@ -4,7 +4,7 @@
 
 ## In one paragraph
 
-Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) and 2014–2015 (HAP-S1), built around a custom FPGA, an Analog Devices SHARC DSP, and dual PCM1795 DACs. The hardware still measures and sounds outstanding a decade later. The software, frozen at firmware 19404R, does not: SMBv1 file transfer, no Tidal, no Qobuz, no Roon, standard-resolution Spotify on a hi-res chassis, a remote app that hasn't seen meaningful updates since 2022. **HAP-Revival** documents the device from the metal up, rebuilds the missing software in the open, and produces a modern control app worthy of the analog chain Sony built.
+Sony shipped two excellent audiophile-grade source players in 2014 (HAP-Z1ES) and 2014–2015 (HAP-S1), built around a custom FPGA, an Analog Devices SHARC DSP, and dual PCM1795 DACs. The hardware still measures and sounds outstanding a decade later. The software, frozen at firmware 19404R, does not: SMBv1 file transfer, no Tidal, no Qobuz, no Roon, Spotify capped below lossless on a hi-res chassis (the app greys out Lossless for this player), a remote app that hasn't seen meaningful updates since 2022. **HAP-Revival** documents the device from the metal up, rebuilds the missing software in the open, and produces a modern control app worthy of the analog chain Sony built.
 
 ## Project structure
 

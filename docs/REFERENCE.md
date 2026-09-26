@@ -155,6 +155,61 @@ python tools/hap_fixit.py <hap-ip> report
 
 <br>
 
+### What it cannot do yet: Spotify in lossless
+
+Spotify still works on the HAP. In the Spotify app on your phone, pick **HAP-Z1ES** from the list of
+devices (Spotify Connect) and the music plays through the player.
+
+The quality stops at **Very High**: compressed audio, up to 320 kbps. Since September 2025, Spotify
+Premium also offers **Lossless** — FLAC, up to 24-bit/44.1 kHz — but the app greys that option out
+for the HAP:
+
+<div align="center">
+<br>
+<img src="../research/captures/2026-09-26-spotify-lossless-greyed-for-hap.png" width="420" alt="The Spotify app's quality settings for the HAP-Z1ES: Lossless is greyed out">
+<br>
+<sub><i>Spotify's quality settings for the HAP-Z1ES (French-language app). Every level up to Very High can be chosen; Lossless, at the bottom, cannot.</i></sub>
+<br>
+</div>
+
+This is not a setting you can change. Spotify only sends Lossless to devices whose built-in Spotify
+software is recent enough to ask for it, and the HAP's has not changed since Sony's last firmware in
+January 2021. We measured it on 2026-09-26: a three-minute track arrived as about 6.4 MB, an
+average of about 273 kbps. That is Very High, exactly as the app says. The same track in Lossless
+would be three to four times larger.
+
+Two things you can do today:
+
+- **In the Spotify app, set the HAP to Very High** rather than Automatic, so the quality never
+  drops lower. The setting is in the app's audio-quality settings, under the HAP-Z1ES.
+- **Play your own FLAC files instead.** Copied onto the player (see step 1), they play at full
+  quality, well beyond what any streaming service sends it.
+
+Getting streamed lossless music onto this player is one of this project's main goals. It needs our
+own software running on the player, which is what the later phases of the [roadmap](#roadmap) are
+about.
+
+<br>
+
+### A message you can ignore
+
+In the player's **Music Services** menu, the first entry, with an ⓘ icon (*Avis important !* on a
+French-language player), shows this when you choose it:
+
+<div align="center">
+<br>
+<img src="../research/captures/screen-20260926-music-services-update-required.png" width="420" alt="The player's screen: a software update is required to use this service, Now or Later">
+<br>
+<sub><i>"A software update is required to use this service." The player's own screen, in French.</i></sub>
+<br>
+</div>
+
+**Choose Later.** There is no update to install: 19404R, from January 2021, is the last firmware
+Sony released, and a network update check on 2026-09-26 answered "Already up to date". The message
+comes from the player itself, without asking Sony anything.
+
+<br>
+
 ---
 
 <br>
@@ -203,7 +258,7 @@ live smoke test needs real hardware, since checking a real player is the entire 
 Dual Burr-Brown PCM1795 DACs, an Analog Devices SHARC DSP, a custom FPGA on the clock domain, an
 isolated linear supply, fourteen kilos of chassis — and, underneath, an i.MX6 running **Linux
 3.0.35** with Samba 3.0.37. A decade on it still measures and sounds superb. The software is what
-rotted: SMBv1 transfers, standard-resolution Spotify on a hi-res deck, nothing added since 2016.
+rotted: SMBv1 transfers, Spotify stuck below lossless on a hi-res deck, nothing added since 2016.
 
 The analog chain — FPGA → SHARC → PCM1795 — is the entire point of this hardware. **Every phase of
 this project leaves it untouched.**

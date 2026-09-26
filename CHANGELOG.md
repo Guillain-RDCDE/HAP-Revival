@@ -15,6 +15,10 @@ once we ship a versioned release.
   with the catalogue's `trackid`), plus track and album artwork. Also recorded: the Control4 SDDP
   announcement on UDP 1902, the mDNS services, and a full TCP scan confirming the open ports. See
   [`docs/03-network-api.md`](docs/03-network-api.md).
+- **What Spotify gives this player, measured.** It tops out at Very High (about 273 kbps measured);
+  the Spotify app greys out Lossless for the HAP, because the player's built-in Spotify software
+  predates it. Explained for owners in [`docs/REFERENCE.md`](docs/REFERENCE.md), with the
+  "software update required" message in Music Services that can be safely ignored.
 
 ## [hap-sync-v0.3.0] — 2026-09-25
 
