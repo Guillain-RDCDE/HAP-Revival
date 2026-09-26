@@ -8,6 +8,14 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-09-26, two more servers on the player)
+
+- **Two more servers on the player, in no documentation until now.** Port 60300 is a DLNA/UPnP
+  media server; port 60400 serves **the original track files, bit for bit** (`getContent?id=`
+  with the catalogue's `trackid`), plus track and album artwork. Also recorded: the Control4 SDDP
+  announcement on UDP 1902, the mDNS services, and a full TCP scan confirming the open ports. See
+  [`docs/03-network-api.md`](docs/03-network-api.md).
+
 ## [hap-sync-v0.3.0] — 2026-09-25
 
 Everything since `hap-sync-v0.2.0` (2026-08-15). The downloadable

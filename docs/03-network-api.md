@@ -11,6 +11,14 @@ How the HAP-Z1ES talks to the world over the LAN.
 | 1900 | UDP | SSDP | UPnP discovery, server banner `Linux/3.0 UPnP/1.0 Sony-HAP/1.0` |
 | 60100 | TCP | HTTP (lighttpd) | UPnP device description + embedded web UI |
 | 60200 | TCP | HTTP (lighttpd) | **JSON-RPC ScalarWebAPI** — the control plane |
+| 60300 | TCP | HTTP | **DLNA / UPnP MediaServer** — see [below](#dlna-media-server-port-60300) |
+| 60400 | TCP | HTTP | **File server: the original track files** — see [below](#file-server-port-60400) |
+| 1902 | UDP | SDDP | Control4 discovery announcement |
+| 5353 | UDP | mDNS | `_spotify-connect._tcp` (`CPath=/sony/spotifyConnect`, port 60200) and `_smb._tcp` |
+
+A full TCP scan of ports 1–65535 on 2026-09-26 found these six TCP ports open and no others. The
+player silently drops connection attempts to closed ports rather than refusing them, so a full scan
+takes about half an hour.
 
 **Not open** (verified empirically): 22 (SSH), 23 (telnet), 80 (HTTP), 443 (HTTPS), 5000, 8000, 8080, 8443, 10000 (Sony Home Audio API on cousin devices), 54480 (Sony Personal Audio API), 52323 (BRAVIA), 33335 (Sony receiver "External Control", per the Crestron STR-DN1050 module — refused, 2026-08-21).
 
@@ -36,8 +44,11 @@ Also advertised:
 - `urn:schemas-upnp-org:device:Basic:1`
 - `urn:schemas-sony-com:service:ScalarWebAPI:1`
 - `urn:schemas-sony-com:service:MusicConnect:1`
+- `urn:schemas-upnp-org:device:MediaServer:1`, with `ContentDirectory:1` and `ConnectionManager:1`
+  (`LOCATION: http://<ip>:60300/dms.xml`)
 
-The UUID format is `00000000-0000-1010-8000-<12 hex chars>`. The last 12 hex chars are the **Wi-Fi MAC** (without colons), not the Ethernet MAC.
+The UUID format is `00000000-0000-1010-8000-<12 hex chars>`. The last 12 hex chars are the MAC address (without colons) of the **interface in use**: the Wi-Fi
+MAC when the player is on Wi-Fi, the Ethernet MAC when it is wired (observed 2026-09-26).
 
 ## UPnP device description (port 60100)
 
@@ -188,6 +199,37 @@ or you will record false negatives across the whole surface.
 ### Genuinely vestigial
 
 - **`MusicConnect`** — declared in the UPnP description, but `POST /MusicConnect/control` returns **404**.
+
+## DLNA media server (port 60300)
+
+Advertised over SSDP as `urn:schemas-upnp-org:device:MediaServer:1`, with its own UUID
+(`00000001-…`, the root device being `00000000-…`). `GET http://<ip>:60300/dms.xml` describes a
+standard ContentDirectory + ConnectionManager server (`av:standardCDS 5.0`,
+`av:X_WakeupOnLAN 1`).
+
+A `Browse` of object `0` returns the same top level as the front panel: Genres, Artists, Composers,
+Albums, Folders, SensMe stations, Playlists, Favourites, Tracks — in about 0.1 s. Large containers
+are as slow as the REST catalogue (about 25 s for the album list), for the same reason: the player
+counts the whole table first. Each track's `<res>` carries its size, duration, sample rate, bit
+depth and a `http-get` URL on port 60400.
+
+The player is a **server only**. It does not advertise a MediaRenderer, so nothing can be pushed to
+it over DLNA.
+
+## File server (port 60400)
+
+| Path | Returns |
+|---|---|
+| `/getContent?id=<trackid>` | The track file itself, with its real `Content-Type` and `Accept-Ranges: bytes` |
+| `/getTrackArt?id=<trackid>` | The track's artwork, JPEG |
+| `/getAlbumIcon?id=<albumid>` | The album thumbnail, JPEG |
+
+`<trackid>` is the same number as the REST catalogue's `trackid`
+([`research/notes/2026-08-29-contentdb-was-never-dead.md`](../research/notes/2026-08-29-contentdb-was-never-dead.md)).
+
+**The file is the original, bit for bit.** Verified 2026-09-26 on a 24-bit/96 kHz FLAC: the download
+has the same size and the same MD5 as the source file on the owner's computer. So any track in the
+library can be played or copied off the player without SMB1.
 
 ## JSON-RPC ScalarWebAPI (port 60200)
 
