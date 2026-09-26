@@ -95,7 +95,7 @@ Per the HAP-S1 service manual ([`manuals/sony-service-manual-hap-s1.pdf`](manual
 - **SYS/MPU PROG**: programming header for the U-COM Cortex-M3 (housekeeping MCU, not the application SoC).
 - **SYS/JIG**: factory test jig connector.
 
-**Still unprobed on real hardware:** the physical test-point location on the MAIN PWB (p40) and the actual boot-log/U-Boot behaviour. The SoC-side console pins are now known (above); the remaining work is tracing `CSI0_DAT10/11` to their board test points and doing the live probe — the highest-leverage hardware step remaining.
+**Located on the real hardware (2026-09-26):** the console leaves the MAIN board on `CN701`, crosses to the IO board's `CN4008`, and ends at **`CN4007` — the unlabelled 7-way flat-flex slot on the rear panel**, next to the `EXT` USB socket (1.0 mm pitch; pins RX/TX/GND plus a reset and a 3.3 V rail to leave alone). No disassembly needed. Pinout, cable and procedure: [`10-uart-console.md`](10-uart-console.md). Still unprobed: the live boot-log/U-Boot behaviour.
 
 ## Service manual references
 

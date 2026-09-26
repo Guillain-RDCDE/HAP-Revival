@@ -8,6 +8,16 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-09-26, the console is on the rear panel)
+
+- **The serial console is reachable without opening the player.** The small unlabelled slot on the
+  rear panel, between the `EXT` USB socket and the rating label, is `CN4007`: a 7-way, 1.0 mm
+  flat-flex socket carrying the i.MX6 console UART at 3.3 V. Traced through the service manual
+  (MAIN `CN701` → IO `CN4008` → `CN4007`) and checked on the open unit. Pinout, the pitch
+  measurement, the parts to buy and the board inventory are in
+  [`docs/10-uart-console.md`](docs/10-uart-console.md), with photos under `research/captures/`.
+- **Corrected:** earlier versions placed `CN4008` on the MAIN board. It is on the IO board.
+
 ### Added (2026-09-26, two more servers on the player)
 
 - **Two more servers on the player, in no documentation until now.** Port 60300 is a DLNA/UPnP
