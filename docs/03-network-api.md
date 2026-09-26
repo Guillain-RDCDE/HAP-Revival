@@ -223,13 +223,28 @@ So `MusicConnect` is a **push** now-playing signal (`STOPPED` / `PLAYING` / `PAU
 transport state only — no track identity. `SUBSCRIBE /ScalarWebAPI/event` returns **404**; that
 service is not evented.
 
-**Nobody uses this channel — not even Sony.** The decompiled official app (HDD Audio Remote) never
-references `MusicConnect`; it polls the ScalarWebAPI on a 5-second timer instead (see the APK notes
-in [`08-prior-art.md`](08-prior-art.md)). And the service type is documented nowhere on the public
-web outside this repository. It is a live but unwired capability: a controller that subscribes here
-reacts to play/pause/stop the instant they happen, which Sony's own 5-second poll cannot, and the
-same events make a clean trigger for automation (start a capture, log a listening session). The one
-limit is that it reports transport state only, so pair it with one `getPlayingContentInfo` call per
+**What it is for — and what it is not.** The name and payload point to a **system-integration
+channel**: the player broadcasts its transport state on the network so a companion device can react
+to playback starting or stopping. That is the plausible design intent, and it fits the evidence.
+But two things must be said precisely, because a widely-copied online description gets the mechanism
+wrong:
+
+- Sony *does* ship an amplifier-linking feature — **Amp Control Settings** — that powers a connected
+  amplifier on/off and controls its volume and mute when you play. But the Help Guide documents this
+  over **infrared only**: the `IR REMOTE OUT` jack with a mono mini-plug cable to a Sony amp's IR
+  input, or the supplied IR blaster; audio is analog RCA/XLR. There is **no network amp control** in
+  Sony's documentation, and no mention of `MusicConnect` or of specific networked receivers (ES /
+  STR-ZA). Claims that `MusicConnect` is the LAN link to an ES receiver are unsourced and contradict
+  Sony's own IR-based amp-control docs.
+- So on this device `MusicConnect` is a real, working **network broadcast of transport state** whose
+  actual consumer is unconfirmed. The decompiled official app (HDD Audio Remote) never references it
+  and polls the ScalarWebAPI on a 5-second timer instead (see the APK notes in
+  [`08-prior-art.md`](08-prior-art.md)), and the service type is documented nowhere on the public web
+  outside this repository.
+
+Whatever Sony intended, the capability is ours to use: a subscriber here reacts to play/pause/stop
+the instant they happen, which a 5-second poll cannot, and the same events make a clean trigger for
+automation. It reports transport state only, so pair it with one `getPlayingContentInfo` call per
 change to learn *what* is playing.
 
 ## DLNA media server (port 60300)
