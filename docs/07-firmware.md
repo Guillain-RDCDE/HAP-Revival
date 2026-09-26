@@ -72,12 +72,51 @@ The UART/NAND route ([`10-uart-console.md`](10-uart-console.md)) remains the way
 *running* system and the proprietary userland. This CDN route, if it works, gets us the *shipped
 image* — cheaper, and with zero risk to hardware. Try it first.
 
+### Correction (2026-09-26): the device checks `ssm1.internet.sony.tv`, and the path is not discoverable
+
+Two things changed the picture above. First, capturing the player's own update traffic on
+2026-09-26 (behind a Mac acting as its router) showed the device does **not** talk to
+`info.update.sony.net` for the check — it goes to **`ssm1.internet.sony.tv`** (with `ssm2` as
+failover), over **cert-pinned HTTPS**, so the request path is invisible in the capture, and a
+man-in-the-middle is refused (`TLSV1_ALERT_UNKNOWN_CA` — the player validates the chain). The one
+cleartext artefact is a reachability canary at `http://ssm1.internet.sony.tv/HA/index.xml` →
+`<rule>We must use time as a tool, not as a crutch.</rule>` (97 bytes).
+
+Second, probing `ssm1` directly on 2026-09-26 as a normal client (no MITM needed to *read* a public
+file) settles whether the manifest path is guessable — it is not:
+
+| Host | `/HA/index.xml` | anything else under `/HA/…` | Server |
+|---|---|---|---|
+| `ssm1.internet.sony.tv` | `200` (the canary) | **`403` on every path tried** | nginx |
+| `ssm2.internet.sony.tv` | no response | no response | (failover, down when tested) |
+| `info.update.sony.net` | `404` | `404` | Akamai NetStorage |
+
+The blanket `403` on `ssm1` (versus a `404` for a path outside the tree, e.g. `/GET5/HA/`) is a
+deliberate deny: the host serves the canary and nothing else to anonymous clients. So the version
+manifest that names the blob is either inside the pinned TLS request (uncapturable) or behind that
+deny (unguessable), and the blob store answers only to an exact path we do not have.
+
+**Revised conclusion — firmware acquisition converges with the UART work, it is not independent of
+it.** We cannot decrypt the player's TLS (its cert validation is sound), and we cannot guess the
+path. But the blob is a static file a normal HTTPS client can fetch with no cert obstacle once the
+path is known — and the path (plus any request parameters the check sends) is written in the
+device's own updater config on the rootfs. So the clean route is: **get root over UART → read the
+update URL/parameters the daemon uses → fetch the manifest and blob ourselves as an ordinary
+client → unpack with `fwtool.py`.** Root unlocks the *running* system and the *shipped image* in one
+move. Blind CDN probing is closed; do not spend more time on it.
+
 ### Next step: capture one update check (zero risk)
 
 On a device already running the latest firmware, trigger **Settings → Network Update** while
 capturing its traffic. There is nothing newer than 19404R, so the check finds no update and nothing
-is written to the device — but the request itself reveals the host, the path scheme, and whether the
-device speaks HTTP or HTTPS. That single capture is the whole unlock, and it risks nothing.
+is written to the device — but the request itself reveals the host and whether the device speaks HTTP
+or HTTPS.
+
+**Done on 2026-09-26, and it revealed the host but not the path** (see the correction above): the
+check is cert-pinned HTTPS to `ssm1.internet.sony.tv`, so the capture shows *that* the device checks
+and *where*, but not the manifest path — that is inside the TLS. So the capture was necessary to
+correct the host, but it is **not** the whole unlock after all; reading the path from the rootfs over
+a UART root shell is. The reconnaissance below is kept for the record.
 
 **Why this still needs a real capture, and blind guessing does not work.** The path is opaque. On
 2026-08-30, `info.update.sony.net` was probed with every obvious HAP pattern — `/HAP-Z1ES/`,
