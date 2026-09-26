@@ -223,6 +223,15 @@ So `MusicConnect` is a **push** now-playing signal (`STOPPED` / `PLAYING` / `PAU
 transport state only — no track identity. `SUBSCRIBE /ScalarWebAPI/event` returns **404**; that
 service is not evented.
 
+**Nobody uses this channel — not even Sony.** The decompiled official app (HDD Audio Remote) never
+references `MusicConnect`; it polls the ScalarWebAPI on a 5-second timer instead (see the APK notes
+in [`08-prior-art.md`](08-prior-art.md)). And the service type is documented nowhere on the public
+web outside this repository. It is a live but unwired capability: a controller that subscribes here
+reacts to play/pause/stop the instant they happen, which Sony's own 5-second poll cannot, and the
+same events make a clean trigger for automation (start a capture, log a listening session). The one
+limit is that it reports transport state only, so pair it with one `getPlayingContentInfo` call per
+change to learn *what* is playing.
+
 ## DLNA media server (port 60300)
 
 Advertised over SSDP as `urn:schemas-upnp-org:device:MediaServer:1`, with its own UUID
