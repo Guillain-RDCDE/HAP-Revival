@@ -1,64 +1,17 @@
 """Tests for the pre-flight validator and the library decoder.
 
 Covers the bits the README promises but that are easy to silently break:
-  - FLAC / WAV header parsing (real sample-rate, stdlib only)
   - the >192 kHz ceiling flag (the Forza PCM cap, docs/11-audio-path.md)
   - junk / unsupported / missing-cover accounting
   - the semantic diff against the HAP's SQLite catalog (the PROP-code schema)
+  - the command line around both
 """
 
 import sqlite3
-import struct
-import wave
+
+from test_hap_media import write_flac, write_wav
 
 import hap_companion as comp
-
-
-# ---------- header parsers ----------
-
-
-def _write_flac(path, sample_rate, bits=24, channels=2):
-    """Write a minimal file with a valid FLAC STREAMINFO block for the parser.
-
-    Only the 4-byte word at STREAMINFO offset 10 matters: it packs
-    sample_rate(20) | channels-1(3) | bits-1(5) | top-4-bits-of-total-samples."""
-    v = (sample_rate << 12) | ((channels - 1) << 9) | ((bits - 1) << 4) | 0
-    info = b"\x00" * 10 + struct.pack(">I", v) + b"\x00" * 20  # 34-byte STREAMINFO
-    block_header = b"\x00\x00\x00\x22"  # type 0 (STREAMINFO), length 0x22 = 34
-    path.write_bytes(b"fLaC" + block_header + info)
-
-
-def _write_wav(path, sample_rate, bits=16, channels=2):
-    with wave.open(str(path), "wb") as w:
-        w.setnchannels(channels)
-        w.setsampwidth(bits // 8)
-        w.setframerate(sample_rate)
-        w.writeframes(b"\x00" * (bits // 8) * channels)  # one frame is enough
-
-
-def test_flac_streaminfo_roundtrip(tmp_path):
-    p = tmp_path / "a.flac"
-    _write_flac(p, 96000, bits=24, channels=2)
-    assert comp.flac_streaminfo(str(p)) == (96000, 24, 2)
-
-
-def test_flac_streaminfo_dxd(tmp_path):
-    p = tmp_path / "dxd.flac"
-    _write_flac(p, 352800, bits=24, channels=2)
-    assert comp.flac_streaminfo(str(p))[0] == 352800
-
-
-def test_flac_streaminfo_rejects_non_flac(tmp_path):
-    p = tmp_path / "x.flac"
-    p.write_bytes(b"NOTFLAC" + b"\x00" * 40)
-    assert comp.flac_streaminfo(str(p)) is None
-
-
-def test_wav_info_roundtrip(tmp_path):
-    p = tmp_path / "a.wav"
-    _write_wav(p, 44100, bits=16, channels=2)
-    assert comp.wav_info(str(p)) == (44100, 16, 2)
-
 
 # ---------- scan_folder ----------
 
@@ -66,12 +19,13 @@ def test_wav_info_roundtrip(tmp_path):
 def test_scan_folder_full_accounting(tmp_path):
     a = tmp_path / "Artist" / "Album"
     a.mkdir(parents=True)
-    _write_flac(a / "01.flac", 96000)            # ok, within ceiling
-    _write_flac(a / "02.flac", 352800)           # > 192 kHz -> hi-res flag
-    _write_wav(a / "03.wav", 384000)             # > 192 kHz -> hi-res flag
+    write_flac(a / "01.flac", 96000)            # ok, within ceiling
+    write_flac(a / "02.flac", 352800)           # > 192 kHz -> hi-res flag
+    write_wav(a / "03.wav", 384000)             # > 192 kHz -> hi-res flag
     (a / "cover.jpg").write_bytes(b"img")        # has cover
     (a / "Thumbs.db").write_bytes(b"j")          # junk
     (a / "movie.mkv").write_bytes(b"v")          # unsupported
+    (a / "booklet.pdf").write_bytes(b"p")        # sidecar: neither counted nor flagged
 
     b = tmp_path / "Artist2" / "Album2"          # audio but NO cover
     b.mkdir(parents=True)
@@ -84,6 +38,7 @@ def test_scan_folder_full_accounting(tmp_path):
     assert r["n_hi"] == 2                          # the 352.8k flac + the 384k wav
     assert any("movie.mkv" in u for u in r["unsup"])
     assert any("Thumbs.db" in j for j in r["junk"])
+    assert any("352.8 kHz" in h for h in r["hires"])
     # only Artist2/Album2 lacks a cover; Artist/Album has cover.jpg
     assert len(r["no_cover"]) == 1
     assert r["no_cover"][0].endswith("Album2")
@@ -92,11 +47,36 @@ def test_scan_folder_full_accounting(tmp_path):
 def test_scan_folder_clean(tmp_path):
     a = tmp_path / "A" / "B"
     a.mkdir(parents=True)
-    _write_flac(a / "01.flac", 44100)
+    write_flac(a / "01.flac", 44100)
     (a / "cover.jpg").write_bytes(b"img")
     r = comp.scan_folder(str(tmp_path))
     assert r["n_junk"] == r["n_unsup"] == r["n_hi"] == 0
     assert r["no_cover"] == []
+
+
+def test_cmd_validate_prints_the_verdict_and_exit_code(tmp_path, capsys):
+    a = tmp_path / "A" / "B"
+    a.mkdir(parents=True)
+    write_flac(a / "01.flac", 44100)
+    (a / "cover.jpg").write_bytes(b"img")
+    assert comp.cmd_validate(str(tmp_path)) == 0
+    assert "Verdict: clean" in capsys.readouterr().out
+
+    (a / "Thumbs.db").write_bytes(b"j")
+    assert comp.cmd_validate(str(tmp_path)) == 1
+    out = capsys.readouterr().out
+    assert "[JUNK]" in out and "Thumbs.db" in out and "issues found" in out
+
+
+def test_print_section_truncates_long_lists(capsys):
+    comp.print_section("T", [f"item{i}" for i in range(30)], limit=25)
+    out = capsys.readouterr().out
+    assert "T (30):" in out and "item24" in out and "item25" not in out
+    assert "and 5 more" in out
+    comp.print_section("Empty", [])
+    assert capsys.readouterr().out == ""
+    comp.print_section("Empty", [], show_empty=True)
+    assert "Empty (0):" in capsys.readouterr().out
 
 
 # ---------- diff against the SQLite catalog ----------
@@ -140,3 +120,49 @@ def test_diff_library_matches_album_name_only(tmp_path):
     (music / "Various Artists" / "Kind of Blue").mkdir(parents=True)
     r = comp.diff_library(str(db), str(music))
     assert "Various Artists / Kind of Blue" in r["existing"]
+
+
+def test_cmd_diff_prints_both_lists(tmp_path, capsys):
+    db = tmp_path / "hdd_browse.db"
+    _build_catalog(db)
+    music = tmp_path / "music"
+    (music / "Bonobo" / "Black Sands").mkdir(parents=True)
+    assert comp.cmd_diff(str(db), str(music)) == 0
+    out = capsys.readouterr().out
+    assert "NEW — not on the HAP (1):" in out and "+ Bonobo / Black Sands" in out
+    assert "ALREADY on the HAP — skip these (0):" in out
+
+
+# ---------- wake / check / CLI ----------
+
+
+def test_cmd_wake_validates_the_mac(monkeypatch, capsys):
+    sent = []
+    monkeypatch.setattr(comp, "send_wol", lambda mac: sent.append(mac))
+    assert comp.cmd_wake("80:56:F2:85:0E:27") == 0
+    assert sent == ["80:56:F2:85:0E:27"]
+    monkeypatch.undo()  # back to the real sender, which validates before touching the network
+    assert comp.cmd_wake("nope") == 2
+    assert "12 hex digits" in capsys.readouterr().err
+
+
+def test_cmd_check_reports_each_port(monkeypatch, capsys):
+    monkeypatch.setattr(comp, "tcp_port_open", lambda ip, port, timeout=3.0: port == 60200)
+    assert comp.cmd_check("1.2.3.4") == 1
+    out = capsys.readouterr().out
+    assert "445" in out and "CLOSED" in out and "60200" in out and "[FAIL]" in out
+    monkeypatch.setattr(comp, "tcp_port_open", lambda ip, port, timeout=3.0: True)
+    assert comp.cmd_check("1.2.3.4") == 0
+    assert "[OK]" in capsys.readouterr().out
+
+
+def test_main_dispatches_subcommands(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(comp, "send_wol", lambda mac: None)
+    assert comp.main(["wake", "80:56:F2:85:0E:27"]) == 0
+    a = tmp_path / "A" / "B"
+    a.mkdir(parents=True)
+    write_flac(a / "01.flac", 44100)
+    assert comp.main(["validate", str(tmp_path)]) == 0
+    # A missing database is an error message, not a traceback.
+    assert comp.main(["diff", str(tmp_path / "nope.db"), str(tmp_path)]) == 2
+    assert "error" in capsys.readouterr().err

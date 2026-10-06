@@ -8,6 +8,50 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Changed (2026-10-05, one definition of everything)
+
+- **The tools share their knowledge of the player instead of copying it.** Four new modules hold
+  what used to exist in two to four copies each: `tools/hap_common.py` (ports, share names,
+  Wake-on-LAN, the TCP probe, the JSON cache and capture files, the Windows UTF-8 console fix),
+  `tools/hap_media.py` (playable formats, sidecars, junk patterns, the FLAC/WAV header readers,
+  the 192 kHz ceiling), `tools/hap_catalog.py` (the `hdd_browse.db` schema, codec codes, the
+  read-only connection) and `tools/hap_png.py` (the PNG encoder behind the mock's covers and the
+  PWA icons). The two lists of what the HAP plays had already drifted apart — the validator did
+  not know `.webp` or `.lrc` as sidecars — and now cannot.
+- **One JSON-RPC transport.** `hap_client.rpc_post` builds and sends the ScalarWebAPI envelope;
+  `HAP.call` interprets its reply, and `call.py`, `discover.py` and `api-fuzzer.py` use it rather
+  than three private copies. Captures are written by one `save_capture`.
+- **The web UI's page is a file.** `tools/web/index.html`, `manifest.webmanifest` and `sw.js`
+  replace the 1 350-line string inside `webui.py` and the trick that re-read the server's own
+  source to pick up edits. The rendered page is byte-identical; the server re-reads the files on
+  every request. `webui.py` itself is a route table (`GET_ROUTES`, `SIMPLE_ACTIONS`,
+  `POST_ROUTES`) around a testable `build_state()`.
+- **`hap_sync` no longer exits the process from inside a library call.** A failed SMB session
+  raises `SmbError`; the GUI shows it in a dialog and the CLI prints it. The transfer plan is made
+  of named tuples (`LocalFile`, `PlanEntry`, `Job`) rather than positional 4-tuples, and
+  `local_index` returns `(files, skipped)` instead of ending its stream with a sentinel.
+- **Every command line is `main(argv=None)` with argparse**, including `hap_companion.py` and
+  `library_browser.py`, which parsed `sys.argv` by hand; `hap_library.py`'s paging flags now work
+  on either side of the subcommand, as its docstring always claimed (a flag given before the
+  subcommand used to be silently reset to its default).
+- **Lint configuration in `pyproject.toml`** (ruff: pycodestyle, pyflakes, isort, pyupgrade,
+  bugbear and ruff's own rules, 100-column lines, Python 3.10 target), applied across the tree.
+  `smb_doctor.py` gained a `main`, `hap_screen.tool_get` takes the port it talks to, and
+  `pwa_icon_path` keeps the path-traversal guard in one testable function.
+
+### Added (2026-10-05, the suite covers what it ships)
+
+- **The suite grows from 302 to 503 tests**, with the user cache isolated from every test. Everything that
+  had none now has some: the web UI's routes against the mock device (page, state, every action,
+  the panel proxy, library, search and harvest, the "to fix" list and its localhost-only opener),
+  `smb_doctor` end to end with PowerShell and pysmb faked, the probe scripts and the shared
+  transport, `check_links`, `hap_screen`, `make_pwa_icons`, the library browser's pages and the
+  audit's text report on a catalogue built with the real table names, the `hap_sync` transfer loop
+  with a fake session (retry, failure, cancellation), and the command lines of `hap_client`,
+  `hap_library`, `hap_fixit`, `hap_companion`, `hap_notify` and `hap_intercept` (DNS hijack,
+  HTTP relay, log file).
+- **`.github/CONTRIBUTING.md`** says where each fact lives and how to run the checks locally.
+
 ### Added (2026-09-26, amplifier control and the MusicConnect purpose)
 
 - **New page [`docs/17-amp-control.md`](docs/17-amp-control.md).** How the HAP-Z1ES controls a

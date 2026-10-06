@@ -94,8 +94,9 @@ def test_load_without_caches_warns_instead_of_raising(app, monkeypatch):
 
 
 def test_load_fills_the_list_from_the_caches(app, monkeypatch):
-    import hap_fixit
     import hap_gui
+
+    import hap_fixit
 
     harvest = {
         "host": "10.0.0.1", "artists": [], "tracks": [
@@ -136,8 +137,9 @@ def test_open_and_edit_refuse_when_nothing_is_selected(app, monkeypatch):
 
 
 def test_copy_puts_the_path_on_the_clipboard(app, monkeypatch):
-    import hap_fixit
     import hap_gui
+
+    import hap_fixit
 
     app._fix_findings = [
         hap_fixit.Finding("cover", "Album", "detail", ["HAP_Internal/X/Album"], "10.0.0.1")
@@ -152,8 +154,9 @@ def test_copy_puts_the_path_on_the_clipboard(app, monkeypatch):
 
 
 def test_open_reports_an_unlocated_album_instead_of_opening_nothing(app, monkeypatch):
-    import hap_fixit
     import hap_gui
+
+    import hap_fixit
 
     told = []
     monkeypatch.setattr(hap_gui.messagebox, "showinfo", lambda *a, **k: told.append(a))
@@ -226,8 +229,9 @@ def test_the_list_marks_which_albums_have_a_local_copy(app, tmp_path):
 
 
 def test_edit_warns_when_no_tag_editor_is_installed(app, monkeypatch):
-    import hap_fixit
     import hap_gui
+
+    import hap_fixit
 
     warned = []
     monkeypatch.setattr(hap_gui.messagebox, "showwarning", lambda *a, **k: warned.append(a))

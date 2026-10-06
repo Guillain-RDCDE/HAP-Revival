@@ -18,7 +18,6 @@ import pytest
 import webui
 from webui import HAPHandler, PushWatcher
 
-
 # ---------- PushWatcher ----------
 
 

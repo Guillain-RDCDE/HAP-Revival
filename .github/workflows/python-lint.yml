@@ -3,14 +3,16 @@ name: Lint Python tools
 on:
   pull_request:
     paths:
-      - "tools/**/*.py"
-      - "tests/**/*.py"
+      - "tools/**"
+      - "tests/**"
+      - "pyproject.toml"
       - ".github/workflows/python-lint.yml"
   push:
     branches: [main]
     paths:
-      - "tools/**/*.py"
-      - "tests/**/*.py"
+      - "tools/**"
+      - "tests/**"
+      - "pyproject.toml"
       - ".github/workflows/python-lint.yml"
 
 jobs:
@@ -30,6 +32,7 @@ jobs:
         # Bump on purpose, with the cleanup in the same commit.
         run: pip install ruff==0.15.14
       - name: Run ruff
+        # Rules and exclusions live in pyproject.toml.
         run: ruff check tools/ tests/
 
   syntax-check:
@@ -55,4 +58,5 @@ jobs:
         run: pip install pytest
       - name: Run the test suite
         # Stdlib + pytest only — pure-logic + a loopback mock device. No HAP needed.
-        run: python -m pytest tests/ -q
+        # The tkinter GUI tests skip themselves on this headless runner.
+        run: python -m pytest tests/

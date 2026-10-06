@@ -62,22 +62,25 @@ from __future__ import annotations
 import argparse
 import collections
 import html
-import json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import hap_library  # noqa: E402
-import i18n  # noqa: E402
-import library_audit  # noqa: E402
-
-SHARES = ("HAP_Internal", "HAP_External")
-IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".bmp", ".gif")
-AUDIO_SUFFIXES = (".flac", ".mp3", ".wav", ".m4a", ".aiff", ".aif", ".wma", ".dsf", ".dff")
+import hap_library
+import i18n
+import library_audit
+from hap_common import (
+    SHARES,
+    SMB_DIRECT_PORT,
+    USER_CACHE_DIR,
+    force_utf8_stdio,
+    read_json,
+    safe_name,
+    write_json,
+)
+from hap_media import is_audio, is_image
 
 # How much of an album has to be in one folder before that folder is "the" one.
 MATCH_THRESHOLD = 0.5
@@ -87,7 +90,7 @@ MATCH_THRESHOLD = 0.5
 
 
 def index_path(host: str) -> Path:
-    return hap_library.CACHE_DIR / f"shares-{host.replace(':', '_')}.json"
+    return USER_CACHE_DIR / f"shares-{safe_name(host)}.json"
 
 
 def crawl_shares(host: str, progress=None) -> dict:
@@ -110,13 +113,13 @@ def crawl_shares(host: str, progress=None) -> dict:
         # per-folder error handling below swallows it. Measured — 5 931 files
         # instead of 66 716. hap_sync.py documents the same trap.
         conn = SMBConnection("", "", "hap-fixit", "HAP", use_ntlm_v2=False, is_direct_tcp=True)
-        conn.connect(host, 445, timeout=30)
+        conn.connect(host, SMB_DIRECT_PORT, timeout=30)
         files: list[list] = []
         failures = 0
         try:
             try:
                 roots = [e.filename for e in _ls(conn, share, "/") if e.isDirectory]
-            except Exception:  # noqa: BLE001 - an absent external drive is normal
+            except Exception:
                 out["shares"][share] = []
                 continue
             for i, artist in enumerate(roots, 1):
@@ -149,7 +152,7 @@ def _walk(conn, share: str, path: str, files: list, depth: int) -> int:
     """
     try:
         entries = _ls(conn, share, path)
-    except Exception:  # noqa: BLE001 - one unreadable folder must not stop the crawl
+    except Exception:
         return 1
     failures = 0
     for e in entries:
@@ -162,20 +165,12 @@ def _walk(conn, share: str, path: str, files: list, depth: int) -> int:
 
 
 def save_index(index: dict, path: Path | None = None) -> Path:
-    target = path or index_path(index["host"])
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(json.dumps(index, ensure_ascii=False).encode("utf-8"))
-    return target
+    return write_json(path or index_path(index["host"]), index)
 
 
 def load_index(host: str, path: Path | None = None) -> dict | None:
-    target = path or index_path(host)
-    if not target.is_file():
-        return None
-    try:
-        return json.loads(target.read_bytes().decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
+    data = read_json(path or index_path(host))
+    return data if isinstance(data, dict) else None
 
 
 # ------------------------------------------------------------------- the join
@@ -211,10 +206,10 @@ class Locator:
         return sorted(f for f, n in votes.items() if n == best), best
 
     def loose_images(self, folder: str) -> list[str]:
-        return [f for f in self.contents.get(folder, ()) if f.lower().endswith(IMAGE_SUFFIXES)]
+        return [f for f in self.contents.get(folder, ()) if is_image(f)]
 
     def audio_count(self, folder: str) -> int:
-        return sum(1 for f in self.contents.get(folder, ()) if f.lower().endswith(AUDIO_SUFFIXES))
+        return sum(1 for f in self.contents.get(folder, ()) if is_audio(f))
 
 
 def unc(host: str, folder: str) -> str:
@@ -233,9 +228,8 @@ def load_sync_maps(path: Path | None = None) -> dict[str, str]:
     `HAP_Internal/Superpoze/…` is the one at `D:\FLAC\Internal\Superpoze\…`.
     """
     target = path or (Path(__file__).resolve().parent / "hap_sync.json")
-    try:
-        cfg = json.loads(target.read_bytes().decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    cfg = read_json(target)
+    if not isinstance(cfg, dict):
         return {}
     maps = {}
     for entry in cfg.get("maps") or []:
@@ -255,7 +249,7 @@ def to_local(folder: str, maps: dict[str, str]) -> str:
 
 
 def local_index_path(host: str) -> Path:
-    return hap_library.CACHE_DIR / f"local-{host.replace(':', '_')}.json"
+    return USER_CACHE_DIR / f"local-{safe_name(host)}.json"
 
 
 def scan_local(roots, progress=None) -> dict:
@@ -277,7 +271,7 @@ def scan_local(roots, progress=None) -> dict:
         files: list[list] = []
         for dirpath, _dirs, names in os.walk(base):
             for name in names:
-                if name.lower().endswith(AUDIO_SUFFIXES + IMAGE_SUFFIXES):
+                if is_audio(name) or is_image(name):
                     files.append([dirpath, name, 0])
             if progress:
                 progress(str(base), len(files))
@@ -286,20 +280,12 @@ def scan_local(roots, progress=None) -> dict:
 
 
 def save_local_index(index: dict, host: str, path: Path | None = None) -> Path:
-    target = path or local_index_path(host)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(json.dumps(index, ensure_ascii=False).encode("utf-8"))
-    return target
+    return write_json(path or local_index_path(host), index)
 
 
 def load_local_index(host: str, path: Path | None = None) -> dict | None:
-    target = path or local_index_path(host)
-    if not target.is_file():
-        return None
-    try:
-        return json.loads(target.read_bytes().decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
+    data = read_json(path or local_index_path(host))
+    return data if isinstance(data, dict) else None
 
 
 def local_locator(local_index: dict | None) -> Locator | None:
@@ -490,7 +476,7 @@ def find_editor() -> str:
 def open_folder(path: str) -> None:
     """Show a folder in the system file manager."""
     if sys.platform == "win32":
-        os.startfile(path)  # noqa: S606 - a folder path, not a command line
+        os.startfile(path)
     elif sys.platform == "darwin":
         subprocess.run(["open", path], check=False)
     else:
@@ -504,7 +490,7 @@ def open_in_editor(path: str, editor: str = "") -> str:
         return ""
     # Mp3tag takes a folder as `/fp:<path>`; anything else gets it positionally.
     args = [exe, f"/fp:{path}"] if "mp3tag" in Path(exe).name.lower() else [exe, path]
-    subprocess.Popen(args)  # noqa: S603 - both parts are ours or the user's config
+    subprocess.Popen(args)
     return exe
 
 
@@ -602,7 +588,7 @@ function cp(b){{navigator.clipboard.writeText(b.dataset.p);
 # ----------------------------------------------------------------------- CLI
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Locate and act on what the audit found.")
     ap.add_argument("host", help="player IP or hostname")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -620,12 +606,12 @@ def main(argv: list[str] | None = None) -> int:
     for name in ("open", "edit"):
         p = sub.add_parser(name)
         p.add_argument("number", type=int, help="a number from `report`")
-    args = ap.parse_args(argv)
+    return ap
 
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-    except (AttributeError, ValueError):
-        pass
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    force_utf8_stdio()
 
     if args.cmd == "index":
         started = time.time()

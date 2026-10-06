@@ -32,13 +32,11 @@ import socket
 import sys
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from hap_client import HAP, _first_field  # noqa: E402
+from hap_client import HAP, _first_field
+from hap_common import API_PORT
 
 # The daemon serialises requests; a hung one poisons everything after it.
 # See docs/16-gotchas.md#3-never-issue-requests-concurrently.
@@ -65,7 +63,7 @@ class Smoke:
             detail = fn()
         except SkipCheck as exc:
             self.results.append(Result(name, True, str(exc), skipped=True))
-        except Exception as exc:  # noqa: BLE001 — a smoke test reports, never crashes
+        except Exception as exc:
             self.results.append(Result(name, False, f"{type(exc).__name__}: {exc}"))
         else:
             self.results.append(Result(name, True, detail))
@@ -98,7 +96,7 @@ def _http_get(url: str, timeout: float = 8.0) -> tuple[int, bytes]:
 def build(ip: str, include_writes: bool) -> Smoke:
     hap = HAP(ip)
     s = Smoke(ip)
-    base = f"http://{ip}:60200"
+    base = f"http://{ip}:{API_PORT}"
 
     # ---- JSON-RPC, the surface most of our tools use ----
 
@@ -280,9 +278,9 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     try:
-        socket.create_connection((args.ip, 60200), timeout=5).close()
+        socket.create_connection((args.ip, API_PORT), timeout=5).close()
     except OSError as exc:
-        print(f"cannot reach {args.ip}:60200 — {exc}", file=sys.stderr)
+        print(f"cannot reach {args.ip}:{API_PORT} — {exc}", file=sys.stderr)
         return 1
 
     smoke = build(args.ip, args.include_writes)

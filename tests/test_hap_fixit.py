@@ -138,7 +138,7 @@ def test_an_unlocatable_album_is_kept_and_flagged():
     # Losing the finding would be worse: the album still has no artwork.
     h = harvest_with("Ghost record", ["nowhere-1.flac", "nowhere-2.flac"])
     found = hap_fixit.build_findings(h, index(HAP_Internal=DUMMY))
-    cover = [f for f in found if f.kind == "cover"][0]
+    cover = next(f for f in found if f.kind == "cover")
     assert cover.folders == [] and cover.paths == []
     assert "not found" in cover.detail
 
