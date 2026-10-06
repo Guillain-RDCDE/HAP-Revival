@@ -98,7 +98,8 @@ def test_split_plan_sorts_case_insensitively():
 
 def test_describe_changed_shows_both_sizes_and_the_delta():
     entry = core.PlanEntry("x.flac", "/x", 2048, "changed")
-    assert core.describe_changed(entry, {"x.flac": 1024}) == "local 2.0 KB vs HAP 1.0 KB, Δ+1024 B"
+    assert core.describe_changed(entry, {"x.flac": 1024}) == "local 2.0 KB vs HAP 1.0 KB, Δ+1.0 KB"
+    assert core.describe_changed(entry, {"x.flac": 2100}).endswith("Δ-52 B")
     assert core.describe_changed(entry, {}) == "2.0 KB"
 
 
@@ -130,6 +131,33 @@ def test_scan_map_builds_the_plan_from_the_cache(tmp_path, capsys):
     assert statuses == {"Artist/Album/02 - b.mp3": "new", "Artist/Album/cover.jpg": "changed"}
     out = capsys.readouterr().out
     assert "CHANGED (1)" in out and "NEW (1)" in out and "Δ-96 B" in out
+
+
+def test_load_config_tolerant_never_raises(tmp_path):
+    empty = {"host": "", "mac": "", "maps": []}
+    assert core.load_config_tolerant(tmp_path / "absent.json") == empty
+    (tmp_path / "bad.json").write_bytes(b"{nope")
+    assert core.load_config_tolerant(tmp_path / "bad.json")["host"] == ""
+    path = core.save_config(tmp_path / "hap_sync.json", "1.2.3.4", "80:56:F2:85:0E:27",
+                            [{"local": "D:/x", "share": "HAP_Internal"}])
+    cfg = core.load_config_tolerant(path)
+    assert cfg["host"] == "1.2.3.4" and cfg["maps"][0]["share"] == "HAP_Internal"
+    assert core.load_config(path)["mac"] == "80:56:F2:85:0E:27", "the same file the CLI reads"
+
+
+def test_plan_file_lists_everything(tmp_path):
+    s = {"local": "D:/Music", "share": "HAP_Internal", "source": "cache",
+         "remote": {"a.flac": 5}, "new_only": True,
+         "todo": [("a.flac", "/a", 10, "changed"), ("b.flac", "/b", 20, "new")],
+         "skipped": {"junk": 0, "unsupported": 0}}
+    lines = core.plan_file_lines(s)
+    assert lines[0] == "Transfer plan   D:/Music  ->  HAP_Internal"
+    assert "would transfer: 1 (20 B)" in lines[1] and "new-only" in lines[1]
+    assert "CHANGED (1)" in lines[3] and lines[4].startswith("~ a.flac")
+    assert "NEW (1)" in lines[6] and lines[7] == "+ b.flac  (20 B)"
+    path = core.write_plan_file(s, tmp_path)
+    assert path == tmp_path / "hap_plan_HAP_Internal.txt"
+    assert path.read_text(encoding="utf-8").splitlines() == lines
 
 
 def test_scan_map_reports_a_missing_local_folder(tmp_path, capsys):

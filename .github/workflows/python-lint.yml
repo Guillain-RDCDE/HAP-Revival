@@ -58,5 +58,22 @@ jobs:
         run: pip install pytest
       - name: Run the test suite
         # Stdlib + pytest only — pure-logic + a loopback mock device. No HAP needed.
-        # The tkinter GUI tests skip themselves on this headless runner.
+        # The tkinter GUI tests skip themselves here; the job below runs them.
         run: python -m pytest tests/
+
+  gui-tests:
+    name: pytest (tkinter GUI under Xvfb)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install pytest and a virtual display
+        run: |
+          pip install pytest
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb
+      - name: Drive HAP Sync's window headlessly
+        # Builds the real App, hides it, and calls every handler with the engine faked.
+        run: xvfb-run -a python -m pytest tests/test_hap_gui_fix.py tests/test_hap_gui_app.py

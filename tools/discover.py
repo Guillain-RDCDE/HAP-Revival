@@ -17,19 +17,26 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import socket
+import subprocess
 import sys
 import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from hap_client import (
+    HAP,
+    HAPError,
     HAPTransportError,
     RpcReply,
     rpc_post,
     upnp_description,
     upnp_field,
 )
-from hap_common import API_PORT, save_capture
+from hap_common import API_PORT, normalize_mac, save_capture, tcp_port_open
 
 TOOL_NAME = "HAP-Revival/tools/discover.py"
 
@@ -113,6 +120,123 @@ def ssdp_search() -> list[dict]:
     finally:
         sock.close()
     return collect_ssdp(responses)
+
+
+# ---------------------------------------------------------------- LAN scan
+#
+# What the GUI's "Auto-detect" uses. SSDP is deliberately not: multicast is
+# unreliable on multi-homed Windows and the HAP ignored M-SEARCH in testing.
+# Instead every local /24 is probed for the API port, then each candidate is
+# asked who it is.
+
+SCAN_PROBE_TIMEOUT_SEC = 0.4
+SCAN_MAX_WORKERS = 512
+_MAC_RE = re.compile(r"([0-9A-Fa-f]{2}(?:[-:][0-9A-Fa-f]{2}){5})")
+
+
+def primary_lan_ip() -> str | None:
+    """The local IPv4 the OS would use to reach the Internet (no packet is sent)."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        sock.close()
+
+
+def local_subnet_prefixes() -> list[str]:
+    """The distinct /24 prefixes (e.g. '192.168.1.') of every local IPv4 interface.
+
+    Covers multi-homed machines; skips loopback and link-local.
+    """
+    candidates: list[str] = []
+    primary = primary_lan_ip()
+    if primary:
+        candidates.append(primary)
+    try:
+        candidates += socket.gethostbyname_ex(socket.gethostname())[2]
+    except OSError:
+        pass
+    prefixes: list[str] = []
+    for ip in candidates:
+        if ip.startswith(("127.", "169.254.")):
+            continue
+        prefix = ip.rsplit(".", 1)[0] + "."
+        if prefix not in prefixes:
+            prefixes.append(prefix)
+    return prefixes
+
+
+def scan_subnets(prefixes: list[str], port: int = API_PORT,
+                 timeout: float = SCAN_PROBE_TIMEOUT_SEC) -> list[str]:
+    """Every host in the given /24s with `port` open, probed concurrently.
+
+    High concurrency on purpose: most probes hit dead virtual/VPN subnets and
+    block for the full timeout, so width matters more than per-probe speed.
+    """
+    hosts = [p + str(i) for p in prefixes for i in range(1, 255)]
+    if not hosts:
+        return []
+    with ThreadPoolExecutor(max_workers=min(SCAN_MAX_WORKERS, len(hosts))) as ex:
+        answers = list(ex.map(lambda h: tcp_port_open(h, port, timeout), hosts))
+    return [h for h, is_open in zip(hosts, answers, strict=True) if is_open]
+
+
+def arp_mac(ip: str) -> str:
+    """`ip`'s MAC from the OS ARP table, or '' — the fallback when the API has none."""
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # keep a windowed .exe console-free
+    try:
+        out = subprocess.run(["arp", "-a", ip], capture_output=True, text=True,
+                             timeout=4, creationflags=flags).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    m = _MAC_RE.search(out)
+    return normalize_mac(m.group(1)) if m else ""
+
+
+@dataclass
+class FoundHap:
+    ip: str
+    model: str
+    mac: str  # '' when neither the API nor ARP knew it
+
+
+@dataclass
+class LanScan:
+    """What `find_hap` saw: the subnets it swept, the hosts that answered, the HAP if any."""
+
+    prefixes: list[str] = field(default_factory=list)
+    candidates: list[str] = field(default_factory=list)
+    found: FoundHap | None = None
+
+
+def identify(ip: str, port: int = API_PORT) -> FoundHap | None:
+    """Ask a host who it is; a HAP answers getSystemInformation with its model."""
+    try:
+        info = HAP(ip, port=port, timeout=5).system_info()
+    except HAPError:
+        return None
+    if "HAP" not in (info.model or "").upper():
+        return None
+    return FoundHap(ip, info.model, normalize_mac(info.mac) or arp_mac(ip))
+
+
+def find_hap(port: int = API_PORT, on_candidates: Callable[[list[str]], None] | None = None,
+             prefixes: list[str] | None = None) -> LanScan:
+    """Sweep the LAN for a HAP. Stops at the first host that confirms it is one."""
+    scan = LanScan(prefixes=local_subnet_prefixes() if prefixes is None else list(prefixes))
+    if not scan.prefixes:
+        return scan
+    scan.candidates = scan_subnets(scan.prefixes, port)
+    if on_candidates and scan.candidates:
+        on_candidates(scan.candidates)
+    for ip in scan.candidates:
+        scan.found = identify(ip, port)
+        if scan.found:
+            break
+    return scan
 
 
 def fetch_hap_xml(ip: str) -> str | None:

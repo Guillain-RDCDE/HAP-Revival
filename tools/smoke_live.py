@@ -93,10 +93,10 @@ def _http_get(url: str, timeout: float = 8.0) -> tuple[int, bytes]:
         return e.code, e.read()
 
 
-def build(ip: str, include_writes: bool) -> Smoke:
-    hap = HAP(ip)
+def build(ip: str, include_writes: bool, port: int = API_PORT) -> Smoke:
+    hap = HAP(ip, port=port)
     s = Smoke(ip)
-    base = f"http://{ip}:{API_PORT}"
+    base = f"http://{ip}:{port}"
 
     # ---- JSON-RPC, the surface most of our tools use ----
 
@@ -275,15 +275,17 @@ def main(argv: list[str] | None = None) -> int:
         help="also run idempotent writes (reads a value, writes the same value back)",
     )
     p.add_argument("--json", action="store_true", help="machine-readable output")
+    p.add_argument("--port", type=int, default=API_PORT,
+                   help=f"API port (default {API_PORT}; only the mock ever listens elsewhere)")
     args = p.parse_args(argv)
 
     try:
-        socket.create_connection((args.ip, API_PORT), timeout=5).close()
+        socket.create_connection((args.ip, args.port), timeout=5).close()
     except OSError as exc:
-        print(f"cannot reach {args.ip}:{API_PORT} — {exc}", file=sys.stderr)
+        print(f"cannot reach {args.ip}:{args.port} — {exc}", file=sys.stderr)
         return 1
 
-    smoke = build(args.ip, args.include_writes)
+    smoke = build(args.ip, args.include_writes, port=args.port)
 
     if args.json:
         print(json.dumps(

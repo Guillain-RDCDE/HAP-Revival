@@ -39,9 +39,33 @@ once we ship a versioned release.
   `smb_doctor.py` gained a `main`, `hap_screen.tool_get` takes the port it talks to, and
   `pwa_icon_path` keeps the path-traversal guard in one testable function.
 
+### Changed (2026-10-06, the second pass)
+
+- **HAP Sync speaks every language it claims to.** Seventy strings the GUI still showed in
+  English whatever the menu said — every log line, status line and dialog — now go through the
+  catalogues, in all six languages. The LAN scan behind "Auto-detect" moved to `discover.py`
+  (`find_hap`, `scan_subnets`, `identify`), the config helpers and the full plan file to
+  `hap_sync.py`, so the window is only a window and both are tested without tkinter. Two real
+  bugs came out of driving the window headlessly: the fix-access and the sync jobs read tkinter
+  variables from the worker thread, which blocks outside the main loop; both now capture what
+  they need before starting.
+- **The catalogues are files.** `tools/locales/<lang>.json`, one per language, loaded by
+  `i18n.py` (and bundled by `build_gui.ps1`). A test checks that every language has every key with
+  the same placeholders; one key was missing from five of them.
+- **The mock answers what the smoke test asks.** Push subscriptions with real UDP `NOTIFY`
+  datagrams (three per event, one `SEQ`, the player's own UUID), the contentplayer REST surface,
+  TuneIn registration and a tiny browse tree, `417` on `Expect: 100-continue` and a preflight
+  without `Allow-Headers`. `smoke_live.py` therefore passes every check against it, and the web
+  UI's `PushWatcher` is tested end to end. `HapNotifier` learned to report an OS-picked port.
+- **`hap_intercept` keeps its log in an object** (`EventLog`) instead of two module globals.
+- **CI runs the GUI tests** in their own job under Xvfb; the ruff pin is exercised locally too.
+
 ### Added (2026-10-05, the suite covers what it ships)
 
-- **The suite grows from 302 to 503 tests**, with the user cache isolated from every test. Everything that
+- **The suite grows from 302 to 503 tests** (then to 576 with the second pass: the GUI's every
+  tab, the LAN scan, the SMB session with pysmb faked, the mock's push and REST surfaces, the
+  smoke test against the mock), with the user cache isolated from every test. Coverage measured
+  under Xvfb, GUI included, is 93 percent, and no module is below 86. Everything that
   had none now has some: the web UI's routes against the mock device (page, state, every action,
   the panel proxy, library, search and harvest, the "to fix" list and its localhost-only opener),
   `smb_doctor` end to end with PowerShell and pysmb faked, the probe scripts and the shared

@@ -255,6 +255,8 @@ class HapNotifier:
         sock.bind(("0.0.0.0", self.listen_port))
         sock.settimeout(1.0)
         self._sock = sock
+        # Port 0 asks the OS for a free one; the player must be told which.
+        self.listen_port = sock.getsockname()[1]
 
         # Prime Windows' stateful UDP filtering: an outbound datagram from this
         # socket to the player makes the inbound notifications acceptable

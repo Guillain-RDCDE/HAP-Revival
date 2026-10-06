@@ -7,6 +7,8 @@
 # --windowed  : GUI app, no console window pops up behind it
 # --collect-submodules smb : bundle all of pysmb (it imports submodules dynamically, so
 #                            PyInstaller's static analysis misses them without this)
+# --add-data locales       : the translation catalogues (tools/locales/*.json) that i18n.py
+#                            reads at start-up; without them every string falls back to its key
 
 $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -17,10 +19,12 @@ if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 
 Write-Host "Building HapSync.exe..." -ForegroundColor Cyan
 $icon = Join-Path $here "HapSync.ico"
+$locales = Join-Path $here "locales"
 python -m PyInstaller --noconfirm --onefile --windowed --name HapSync `
     --collect-submodules smb `
     --icon $icon `
     --add-data "$icon;." `
+    --add-data "$locales;locales" `
     (Join-Path $here "hap_gui.py")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
 

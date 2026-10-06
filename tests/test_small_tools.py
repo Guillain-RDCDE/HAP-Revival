@@ -139,6 +139,25 @@ def test_icons_render_at_the_requested_sizes(tmp_path, capsys):
     assert "Wrote 4 icons" in capsys.readouterr().out
 
 
+def test_committed_icons_are_what_the_generator_draws():
+    """Byte-for-byte they differ (zlib versions); pixel-for-pixel they must not."""
+    import struct
+    import zlib
+
+    def pixels(png: bytes) -> bytes:
+        pos, idat = 8, b""
+        while pos < len(png):
+            n = struct.unpack(">I", png[pos:pos + 4])[0]
+            if png[pos + 4:pos + 8] == b"IDAT":
+                idat += png[pos + 8:pos + 8 + n]
+            pos += 12 + n
+        return zlib.decompress(idat)
+
+    for name, size, maskable in make_pwa_icons.TARGETS:
+        committed = (make_pwa_icons.OUT_DIR / name).read_bytes()
+        assert pixels(committed) == pixels(make_pwa_icons.render(size, maskable=maskable)), name
+
+
 def test_maskable_icon_keeps_the_disc_inside_the_safe_zone():
     # A pixel at the edge of a maskable icon must be field, not vinyl.
     plain = make_pwa_icons.render(32)
@@ -153,6 +172,26 @@ def test_maskable_icon_keeps_the_disc_inside_the_safe_zone():
 def test_mock_parser_defaults():
     args = mock_hap.build_parser().parse_args([])
     assert args.port == 60200 and args.bind == "127.0.0.1" and not args.verbose
+
+
+def test_mock_main_serves_until_interrupted(monkeypatch, capsys):
+    class Server:
+        def __init__(self, *a, **k):
+            self.closed = False
+
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            self.closed = True
+
+    made = []
+    monkeypatch.setattr(mock_hap, "make_server",
+                        lambda bind, port, quiet: made.append(Server()) or made[-1])
+    assert mock_hap.main(["--port", "61000", "--verbose"]) == 0
+    out = capsys.readouterr().out
+    assert "mock HAP-Z1ES listening on http://127.0.0.1:61000/sony/" in out and "Stopping" in out
+    assert made[0].closed
 
 
 def test_mock_serve_in_thread_answers():
