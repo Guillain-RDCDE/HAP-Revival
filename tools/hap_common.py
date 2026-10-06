@@ -34,6 +34,12 @@ SMB_DIRECT_PORT = 445
 SMB_NETBIOS_PORT = 139
 #: The two music shares the player exposes.
 SHARES = ("HAP_Internal", "HAP_External")
+#: SMB transports to try, in order: NetBIOS (139) first. The HAP's Samba 3.0.37
+#: desyncs SMB1 framing over Direct TCP (445) after a file or two ("Invalid
+#: protocol header for Direct TCP session message"), so the transport it handles
+#: cleanly comes first and 445 is the fallback.
+SMB_TRANSPORTS = ((False, SMB_NETBIOS_PORT), (True, SMB_DIRECT_PORT))
+SMB_CONNECT_TIMEOUT_SEC = 10
 #: Wake-on-LAN broadcast target (the discard port, as every WoL sender uses).
 WOL_TARGET = ("255.255.255.255", 9)
 
@@ -137,6 +143,43 @@ def send_wol(mac: str, target: tuple[str, int] = WOL_TARGET) -> None:
         sock.close()
 
 
+class SmbConnectError(RuntimeError):
+    """No SMB transport answered. `last` is the exception the final attempt raised."""
+
+    def __init__(self, host: str, last: Exception | None) -> None:
+        super().__init__(f"SMB connection to {host} failed ({last})")
+        self.host = host
+        self.last = last
+
+
+def connect_smb(
+    host: str,
+    client_name: str,
+    *,
+    transports: tuple[tuple[bool, int], ...] = SMB_TRANSPORTS,
+    timeout: float = SMB_CONNECT_TIMEOUT_SEC,
+) -> tuple[Any, int]:
+    """Open an anonymous SMB1 session to the HAP; returns (connection, port that answered).
+
+    One copy of the sequence every tool used to carry: try each (direct_tcp, port)
+    in `transports` until one connects. Raises ImportError when pysmb is not
+    installed (the caller decides how to say so) and SmbConnectError when no
+    transport answers. Anonymous because the HAP allows guest read/write.
+    """
+    from smb.SMBConnection import SMBConnection
+
+    last: Exception | None = None
+    for direct, port in transports:
+        try:
+            conn = SMBConnection("", "", client_name, "HAP", use_ntlm_v2=False,
+                                 is_direct_tcp=direct)
+            if conn.connect(host, port, timeout=timeout):
+                return conn, port
+        except Exception as exc:
+            last = exc
+    raise SmbConnectError(host, last)
+
+
 # ---------------------------------------------------------------- files
 
 
@@ -149,6 +192,12 @@ def read_json(path: Path) -> Any | None:
         return json.loads(path.read_bytes().decode("utf-8-sig"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
+
+
+def read_json_dict(path: Path) -> dict | None:
+    """`read_json`, but only an object counts; anything else is treated as absent."""
+    data = read_json(path)
+    return data if isinstance(data, dict) else None
 
 
 def write_json(path: Path, data: Any, *, indent: int | None = None, atomic: bool = False) -> Path:

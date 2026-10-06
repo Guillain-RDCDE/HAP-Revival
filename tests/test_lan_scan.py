@@ -67,6 +67,18 @@ def test_identify_confirms_a_hap_and_rejects_anything_else(monkeypatch):
     assert discover.identify("127.0.0.1", 1) is None
 
 
+def test_identify_treats_an_odd_shaped_answer_as_not_a_hap(monkeypatch):
+    class WeirdHAP:
+        def __init__(self, ip, port=0, timeout=0):
+            pass
+
+        def system_info(self):
+            raise AttributeError("'list' object has no attribute 'get'")
+
+    monkeypatch.setattr(discover, "HAP", WeirdHAP)
+    assert discover.identify("1.2.3.4") is None
+
+
 def test_identify_falls_back_to_arp_for_the_mac(monkeypatch):
     class Info:
         model, mac = "HAP-S1", ""

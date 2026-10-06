@@ -264,15 +264,15 @@ def test_fix_applies_after_confirmation(app, monkeypatch):
 
 def test_wake_sends_or_explains(app, monkeypatch):
     import hap_common
-    import hap_sync
 
+    real_send_wol = hap_common.send_wol
     sent = []
-    monkeypatch.setattr(hap_sync, "send_wol", lambda mac: sent.append(mac))
+    monkeypatch.setattr(hap_common, "send_wol", lambda mac: sent.append(mac))
     app.mac_var.set("80:56:F2:85:0E:27")
     app.on_wake()
     drain(app)
     assert sent == ["80:56:F2:85:0E:27"] and "magic packet sent" in log_text(app.transfer_log)
-    monkeypatch.setattr(hap_sync, "send_wol", hap_common.send_wol)  # the real validator
+    monkeypatch.setattr(hap_common, "send_wol", real_send_wol)  # the real validator
     app.mac_var.set("nope")
     app.on_wake()
     drain(app)

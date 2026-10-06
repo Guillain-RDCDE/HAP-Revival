@@ -216,7 +216,9 @@ def identify(ip: str, port: int = API_PORT) -> FoundHap | None:
     """Ask a host who it is; a HAP answers getSystemInformation with its model."""
     try:
         info = HAP(ip, port=port, timeout=5).system_info()
-    except HAPError:
+    except (HAPError, AttributeError, TypeError, ValueError):
+        # Not a HAP, or something on that port answering with a shape the
+        # client cannot read. Either way: keep scanning.
         return None
     if "HAP" not in (info.model or "").upper():
         return None

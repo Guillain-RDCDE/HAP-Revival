@@ -35,7 +35,6 @@ LABEL_LO = (0xe0, 0x7b, 0x39)
 SPINDLE = (0x0e, 0x0e, 0x10)
 
 
-_lerp = lerp_rgb
 
 #: Every icon the manifest and the iOS home screen need: (file name, size, maskable).
 TARGETS = (
@@ -58,7 +57,7 @@ def render(size: int, *, maskable: bool = False) -> bytes:
     px = bytearray(size * size * 4)
     for y in range(size):
         # Vertical field gradient behind the disc.
-        field = _lerp(FIELD_TOP, FIELD_BOTTOM, y / (size - 1))
+        field = lerp_rgb(FIELD_TOP, FIELD_BOTTOM, y / (size - 1))
         for x in range(size):
             dx, dy = x - cx, y - cy
             d = math.hypot(dx, dy)
@@ -68,16 +67,16 @@ def render(size: int, *, maskable: bool = False) -> bytes:
                 elif d <= label_r:
                     # Diagonal gradient label so it reads as a glossy disc.
                     t = (dx + dy) / (2 * label_r) + 0.5
-                    r, g, b = _lerp(LABEL_LO, LABEL_HI, max(0.0, min(1.0, t)))
+                    r, g, b = lerp_rgb(LABEL_LO, LABEL_HI, max(0.0, min(1.0, t)))
                 else:
                     # Grooves: faint concentric rings across the black vinyl.
                     ring = (math.sin((d - label_r) / groove_period * math.pi * 2) + 1) / 2
-                    r, g, b = _lerp(VINYL, GROOVE, ring * 0.5)
+                    r, g, b = lerp_rgb(VINYL, GROOVE, ring * 0.5)
                 # Soft top-left specular highlight.
                 hl_dist = math.hypot(dx + disc_r * 0.35, dy + disc_r * 0.35)
                 hl = max(0.0, 1.0 - hl_dist / (disc_r * 1.1))
                 if hl > 0:
-                    r, g, b = _lerp((r, g, b), (255, 255, 255), hl * 0.12)
+                    r, g, b = lerp_rgb((r, g, b), (255, 255, 255), hl * 0.12)
                 a = 255
             else:
                 r, g, b = field
@@ -85,7 +84,7 @@ def render(size: int, *, maskable: bool = False) -> bytes:
             # Anti-alias the disc edge over ~1px.
             if disc_r < d <= disc_r + 1.0:
                 edge = d - disc_r
-                vr, vg, vb = _lerp(VINYL, field, edge)
+                vr, vg, vb = lerp_rgb(VINYL, field, edge)
                 r, g, b = vr, vg, vb
             o = (y * size + x) * 4
             px[o], px[o + 1], px[o + 2], px[o + 3] = r, g, b, a

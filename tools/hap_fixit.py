@@ -73,10 +73,11 @@ import i18n
 import library_audit
 from hap_common import (
     SHARES,
-    SMB_DIRECT_PORT,
     USER_CACHE_DIR,
+    SmbConnectError,
+    connect_smb,
     force_utf8_stdio,
-    read_json,
+    read_json_dict,
     safe_name,
     write_json,
 )
@@ -100,11 +101,6 @@ def crawl_shares(host: str, progress=None) -> dict:
     which modern Windows disables, and a stale mapped drive to the same host is
     enough to make the native path prompt for a password (see smb_doctor.py).
     """
-    try:
-        from smb.SMBConnection import SMBConnection
-    except ImportError as e:  # pragma: no cover - depends on the environment
-        raise RuntimeError("pysmb is required to index the shares: pip install pysmb") from e
-
     out: dict = {"host": host, "shares": {}, "indexed_at": time.time()}
     for share in SHARES:
         # A fresh connection per share, deliberately. Reusing one across both
@@ -112,8 +108,12 @@ def crawl_shares(host: str, progress=None) -> dict:
         # desyncs pysmb's SMB1 session, after which every listPath fails and the
         # per-folder error handling below swallows it. Measured — 5 931 files
         # instead of 66 716. hap_sync.py documents the same trap.
-        conn = SMBConnection("", "", "hap-fixit", "HAP", use_ntlm_v2=False, is_direct_tcp=True)
-        conn.connect(host, SMB_DIRECT_PORT, timeout=30)
+        try:
+            conn, _port = connect_smb(host, "hap-fixit", timeout=30)
+        except ImportError as e:
+            raise RuntimeError("pysmb is required to index the shares: pip install pysmb") from e
+        except SmbConnectError as e:
+            raise RuntimeError(str(e)) from e
         files: list[list] = []
         failures = 0
         try:
@@ -169,8 +169,7 @@ def save_index(index: dict, path: Path | None = None) -> Path:
 
 
 def load_index(host: str, path: Path | None = None) -> dict | None:
-    data = read_json(path or index_path(host))
-    return data if isinstance(data, dict) else None
+    return read_json_dict(path or index_path(host))
 
 
 # ------------------------------------------------------------------- the join
@@ -228,8 +227,8 @@ def load_sync_maps(path: Path | None = None) -> dict[str, str]:
     `HAP_Internal/Superpoze/…` is the one at `D:\FLAC\Internal\Superpoze\…`.
     """
     target = path or (Path(__file__).resolve().parent / "hap_sync.json")
-    cfg = read_json(target)
-    if not isinstance(cfg, dict):
+    cfg = read_json_dict(target)
+    if cfg is None:
         return {}
     maps = {}
     for entry in cfg.get("maps") or []:
@@ -284,8 +283,7 @@ def save_local_index(index: dict, host: str, path: Path | None = None) -> Path:
 
 
 def load_local_index(host: str, path: Path | None = None) -> dict | None:
-    data = read_json(path or local_index_path(host))
-    return data if isinstance(data, dict) else None
+    return read_json_dict(path or local_index_path(host))
 
 
 def local_locator(local_index: dict | None) -> Locator | None:

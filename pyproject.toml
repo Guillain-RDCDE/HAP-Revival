@@ -26,8 +26,6 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# The translation catalogues are long strings; wrapping them helps nobody.
-"tools/i18n.py" = ["E501"]
 # One catalogue row per line reads better than a wrapped INSERT.
 "tests/test_library_offline.py" = ["E501"]
 

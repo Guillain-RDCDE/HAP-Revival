@@ -156,7 +156,7 @@ def test_constants_match_the_device():
 
 
 def test_threads_can_probe_concurrently():
-    # scan_for_hap_hosts in the GUI runs hundreds of these at once.
+    # discover.scan_subnets runs hundreds of these at once.
     results = []
     threads = [
         threading.Thread(
