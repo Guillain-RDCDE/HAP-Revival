@@ -524,7 +524,8 @@ def test_fix_html_report_is_written(app, monkeypatch, tmp_path):
     assert len(opened) == 1
 
 
-def test_main_smoke_path(monkeypatch, capsys):
+def test_main_smoke_path(_app, monkeypatch, capsys):
+    """`_app` is only here for its skip: without a display there is nothing to smoke."""
     import hap_gui
 
     monkeypatch.setenv("HAP_GUI_SMOKE", "1")
