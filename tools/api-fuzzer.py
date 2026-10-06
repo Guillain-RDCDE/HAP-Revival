@@ -150,32 +150,40 @@ def call(ip: str, port: int, service: str, method: str, version: str, params: li
     return rpc_post(ip, service, method, version, params, port=port, timeout=HTTP_TIMEOUT_SEC)
 
 
-def fuzz_method(ip: str, port: int, service: str, method: str, sleep=time.sleep) -> dict:
-    """Try every version of one method until an answer settles it."""
+def fuzz_method(ip: str, port: int, service: str, method: str, sleep=time.sleep) -> list[dict]:
+    """Try every version of one method until an answer settles it.
+
+    Every reply other than "unsupported version" is a finding worth keeping
+    (a transport error on one version is evidence too), so a method can yield
+    several rows; the first decisive one ends the search.
+    """
+    findings: list[dict] = []
     for version in VERSIONS_TO_TRY:
         reply = call(ip, port, service, method, version, [])
         klass = classify(reply)
         if klass != "UNSUPPORTED_VERSION":
             snippet = json.dumps(reply.as_dict())[:140]
             print(f"  [{klass:18s}] {service:10s} {method:35s} v{version}: {snippet}")
+            findings.append({
+                "service": service,
+                "method": method,
+                "version": version,
+                "class": klass,
+                "response": reply.as_dict(),
+            })
             if klass in DECISIVE:
-                return {
-                    "service": service,
-                    "method": method,
-                    "version": version,
-                    "class": klass,
-                    "response": reply.as_dict(),
-                }
+                return findings
         sleep(PAUSE_SEC)
     # Every version answered UNSUPPORTED_VERSION (or only transport noise).
     print(f"  [UNSUPPORTED_ALL  ] {service:10s} {method:35s} (all versions tried)")
-    return {
+    findings.append({
         "service": service,
         "method": method,
         "version": None,
         "class": "UNSUPPORTED_VERSION_ALL",
         "response": None,
-    }
+    })
+    return findings
 
 
 def fuzz(
@@ -188,7 +196,7 @@ def fuzz(
         for method in methods:
             if only_method and method != only_method:
                 continue
-            findings.append(fuzz_method(ip, port, service, method, sleep=sleep))
+            findings.extend(fuzz_method(ip, port, service, method, sleep=sleep))
     return findings
 
 

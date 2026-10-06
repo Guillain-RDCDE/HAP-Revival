@@ -236,15 +236,34 @@ def test_fuzz_stops_at_the_first_decisive_version(monkeypatch):
         return hap_client.RpcReply(200, {"result": [{"ok": 1}]})
 
     monkeypatch.setattr(fuzzer, "call", fake_call)
-    finding = fuzzer.fuzz_method("h", 1, "system", "getX", sleep=lambda s: None)
-    assert finding["class"] == "OK" and finding["version"] == "1.2"
+    findings = fuzzer.fuzz_method("h", 1, "system", "getX", sleep=lambda s: None)
+    assert [(f["class"], f["version"]) for f in findings] == [("OK", "1.2")]
     assert seen == ["1.0", "1.1", "1.2"]
+
+
+def test_fuzz_keeps_a_transport_error_next_to_the_decisive_answer(monkeypatch):
+    def fake_call(ip, port, service, method, version, params):
+        if version == "1.0":
+            return hap_client.RpcReply(0, None, "timed out")
+        if version == "1.1":
+            return hap_client.RpcReply(200, {"error": [14, "Unsupported Version"]})
+        return hap_client.RpcReply(200, {"error": [5, "illegal Request"]})
+
+    monkeypatch.setattr(fuzzer, "call", fake_call)
+    findings = fuzzer.fuzz_method("h", 1, "system", "getX", sleep=lambda s: None)
+    assert [(f["class"], f["version"]) for f in findings] == [
+        ("TRANSPORT", "1.0"), ("ILLEGAL_REQUEST", "1.2")]
+
+    monkeypatch.setattr(fuzzer, "call", lambda *a: hap_client.RpcReply(0, None, "down"))
+    findings = fuzzer.fuzz_method("h", 1, "system", "getX", sleep=lambda s: None)
+    assert [f["class"] for f in findings] == ["TRANSPORT"] * len(fuzzer.VERSIONS_TO_TRY) + [
+        "UNSUPPORTED_VERSION_ALL"]
 
 
 def test_fuzz_records_a_method_no_version_accepts(monkeypatch):
     monkeypatch.setattr(fuzzer, "call", lambda *a: hap_client.RpcReply(
         200, {"error": [14, "Unsupported Version"]}))
-    finding = fuzzer.fuzz_method("h", 1, "system", "getX", sleep=lambda s: None)
+    (finding,) = fuzzer.fuzz_method("h", 1, "system", "getX", sleep=lambda s: None)
     assert finding["class"] == "UNSUPPORTED_VERSION_ALL" and finding["version"] is None
 
 

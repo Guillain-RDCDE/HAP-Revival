@@ -55,28 +55,18 @@ from typing import Any, NamedTuple
 
 from hap_common import (
     API_PORT,
-    SMB_DIRECT_PORT,
-    SMB_NETBIOS_PORT,
+    SmbConnectError,
+    connect_smb,
     force_utf8_stdio,
     human_size,
     local_timestamp,
-    read_json,
+    read_json_dict,
     safe_name,
     send_wol,
     tcp_port_open,
     write_json,
 )
-from hap_media import classify, is_junk
-
-__all__ = [
-    "Job", "LazySmb", "LocalFile", "PlanEntry", "Smb", "SmbError",
-    "actionable", "classify", "human", "is_junk", "load_config", "local_index",
-    "remote_index", "scan_map", "send_wol", "transfer",
-]
-
-# Re-exported under the names the GUI and the tests have always used.
-human = human_size
-port_open = tcp_port_open
+from hap_media import classify
 
 #: How often the slow remote listing reports progress, in files found.
 PROGRESS_EVERY = 1000
@@ -129,8 +119,8 @@ def load_config_tolerant(path: str | os.PathLike) -> dict:
     is how a config gets *created*, so it must start from nothing.
     """
     cfg: dict = {"host": "", "mac": "", "maps": []}
-    data = read_json(Path(path))  # None on a missing or corrupt file: neither blocks startup
-    if isinstance(data, dict):
+    data = read_json_dict(Path(path))  # None on a missing or corrupt file: neither blocks startup
+    if data:
         cfg.update({k: data.get(k, cfg[k]) for k in ("host", "mac", "maps")})
     return cfg
 
@@ -148,8 +138,8 @@ def load_config(path: str | os.PathLike | None) -> dict:
             f"config not found: {target}\n"
             "Create a hap_sync.json (see the header of this file for the format)."
         )
-    cfg = read_json(target)
-    if not isinstance(cfg, dict):
+    cfg = read_json_dict(target)
+    if cfg is None:
         raise ValueError(f"config is not valid JSON: {target}")
     if not cfg.get("host") or not cfg.get("maps"):
         raise ValueError("config must contain 'host' and a non-empty 'maps' list")
@@ -178,8 +168,8 @@ def cache_file(cfg: dict, share: str) -> Path:
 
 
 def load_cache(cfg: dict, share: str) -> dict | None:
-    data = read_json(cache_file(cfg, share))
-    if not isinstance(data, dict) or not isinstance(data.get("files"), dict):
+    data = read_json_dict(cache_file(cfg, share))
+    if data is None or not isinstance(data.get("files"), dict):
         return None  # absent or corrupt: rescan
     return data
 
@@ -202,12 +192,6 @@ class Smb:
     Raises SmbError (never SystemExit) so a GUI can report the failure in a dialog.
     """
 
-    #: NetBIOS (139) first: the HAP's ancient Samba 3.0.37 desyncs SMB1 framing over
-    #: Direct TCP (445) after a file or two ("Invalid protocol header for Direct TCP
-    #: session message"), so prefer the transport it handles cleanly; 445 is the fallback.
-    TRANSPORTS = ((False, SMB_NETBIOS_PORT), (True, SMB_DIRECT_PORT))
-    CONNECT_TIMEOUT_SEC = 10
-
     def __init__(self, host: str):
         self.host = host
         self.conn: Any = None
@@ -215,20 +199,11 @@ class Smb:
 
     def open(self) -> None:
         try:
-            from smb.SMBConnection import SMBConnection
+            self.conn, _port = connect_smb(self.host, "hap-sync")
         except ImportError as exc:
             raise SmbError("pysmb is required.  Install it with:  pip install pysmb") from exc
-        last: Exception | None = None
-        for direct, port in self.TRANSPORTS:
-            try:
-                c = SMBConnection("", "", "hap-sync", "HAP",
-                                  use_ntlm_v2=False, is_direct_tcp=direct)
-                if c.connect(self.host, port, timeout=self.CONNECT_TIMEOUT_SEC):
-                    self.conn = c
-                    return
-            except Exception as e:
-                last = e
-        raise SmbError(f"SMB connection to {self.host} failed ({last})")
+        except SmbConnectError as exc:
+            raise SmbError(str(exc)) from exc
 
     def reconnect(self) -> None:
         self.close()
@@ -392,10 +367,15 @@ def scan_map(cfg: dict, lazy: LazySmb, m: dict, include_unsupported: bool, refre
     return s
 
 
+def _as_entries(todo: Iterable) -> list[PlanEntry]:
+    """Plan entries as PlanEntry objects; plain 4-tuples (older callers, tests) are wrapped."""
+    return [t if isinstance(t, PlanEntry) else PlanEntry(*t) for t in todo]
+
+
 def actionable(s: dict) -> list[PlanEntry]:
     """The todo entries that will actually transfer. With `new_only`, 'changed' files (already
     on the HAP, just different bytes) are kept as-is and skipped — only genuinely new files go."""
-    todo = [PlanEntry(*t) for t in s["todo"]]
+    todo = _as_entries(s["todo"])
     if s.get("new_only"):
         return [t for t in todo if t.status == "new"]
     return todo
@@ -403,7 +383,7 @@ def actionable(s: dict) -> list[PlanEntry]:
 
 def split_plan(todo: Iterable[PlanEntry]) -> tuple[list[PlanEntry], list[PlanEntry]]:
     """(changed, new), each sorted by path, case-insensitively."""
-    entries = [PlanEntry(*t) for t in todo]
+    entries = _as_entries(todo)
     changed = sorted((t for t in entries if t.status == "changed"), key=lambda t: t.rel.lower())
     new = sorted((t for t in entries if t.status == "new"), key=lambda t: t.rel.lower())
     return changed, new
@@ -507,7 +487,7 @@ def transfer(smb: Smb, jobs: list[Job], index_by_share: dict, on_event=None,
     total = len(jobs)
     made: set[str] = set()
     done = failed = 0
-    for i, job in enumerate((Job(*j) for j in jobs), 1):
+    for i, job in enumerate((j if isinstance(j, Job) else Job(*j) for j in jobs), 1):
         if should_cancel and should_cancel():
             on_event("cancelled", i=i, total=total)
             break

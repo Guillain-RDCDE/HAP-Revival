@@ -46,13 +46,14 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 import discover
+import hap_common
 import hap_companion as comp
 import hap_fixit
 import hap_library
 import hap_sync as core
 import i18n
 import smb_doctor
-from hap_common import API_PORT, SHARES
+from hap_common import API_PORT, SHARES, human_size
 
 
 def _set_window_icon(root: tk.Tk) -> None:
@@ -883,7 +884,7 @@ class App:
 
         def job():
             try:
-                core.send_wol(mac)
+                hap_common.send_wol(mac)
                 self._log_t("gui.log.wol_sent", mac=mac)
             except ValueError as e:
                 self._emit("error", msg=str(e))
@@ -985,7 +986,7 @@ class App:
             self._emit("progress", value=e["i"])
             self._emit("status", text=f"{e['i']}/{e['total']} — {e['share']}:/{e['rel']}")
             self._emit("log", line=f"  [{e['i']}/{e['total']}] {e['share']}:/{e['rel']}  "
-                                   f"({core.human(e['size'])})")
+                                   f"({human_size(e['size'])})")
         elif kind == "file_failed":
             self._emit("progress", value=e["i"])
             self._log_t("gui.log.file_failed", i=e["i"], total=e["total"], share=e["share"],
@@ -1053,7 +1054,7 @@ class App:
         to_go = core.actionable(s)
         self._emit("log", line="  " + self._T(
             "gui.log.scan_summary", source=s["source"], remote=len(remote), n=len(to_go),
-            size=core.human(sum(t.size for t in to_go)),
+            size=human_size(sum(t.size for t in to_go)),
             junk=s["skipped"]["junk"], unsupported=s["skipped"]["unsupported"]))
 
         changed, new = core.split_plan(todo)
@@ -1073,7 +1074,7 @@ class App:
         if new:
             self._emit("log", line="\n  " + self._T("gui.log.new_head", n=len(new)))
             for entry in new[:cap]:
-                self._emit("log", line=f"      + {entry.rel}  ({core.human(entry.size)})")
+                self._emit("log", line=f"      + {entry.rel}  ({human_size(entry.size)})")
             if len(new) > cap:
                 self._emit("log", line="      "
                            + self._T("gui.log.more_in_file", n=len(new) - cap))

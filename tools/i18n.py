@@ -76,7 +76,21 @@ def load_catalog(code: str, folder: Path = LOCALES_DIR) -> dict[str, str]:
     return {str(k): str(v) for k, v in data.items()}
 
 
-CATALOGS: dict[str, dict[str, str]] = {code: load_catalog(code) for code in LANGUAGES}
+def load_catalogs(folder: Path = LOCALES_DIR) -> dict[str, dict[str, str]]:
+    """Every language's catalogue. A malformed file is reported and skipped,
+    so one bad edit degrades that language to English instead of breaking
+    every tool at import time."""
+    catalogs: dict[str, dict[str, str]] = {}
+    for code in LANGUAGES:
+        try:
+            catalogs[code] = load_catalog(code, folder)
+        except ValueError as exc:
+            print(f"i18n: ignoring {folder / (code + '.json')}: {exc}", file=sys.stderr)
+            catalogs[code] = {}
+    return catalogs
+
+
+CATALOGS: dict[str, dict[str, str]] = load_catalogs()
 EN: dict[str, str] = CATALOGS[DEFAULT_LANG]
 
 

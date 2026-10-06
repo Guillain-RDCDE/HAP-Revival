@@ -676,7 +676,10 @@ class HAPHandler(BaseHTTPRequestHandler):
         # would make this a query-string injection.
         if key not in hap_screen.KEYS:
             raise BadRequest("unknown key")
-        hap_screen.tool_get(self.hap.ip, "keyevent", key, self.hap.port)
+        try:
+            hap_screen.tool_get(self.hap.ip, "keyevent", key, self.hap.port)
+        except (OSError, ValueError) as e:
+            raise HAPError(f"front panel unreachable: {e}") from e
         return {"pressed": key}
 
     def _post_fix_open(self, params: dict) -> dict:

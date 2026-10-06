@@ -26,7 +26,14 @@ import sys
 import tempfile
 from dataclasses import dataclass
 
-from hap_common import SMB_DIRECT_PORT, SMB_NETBIOS_PORT, force_utf8_stdio, tcp_port_open
+from hap_common import (
+    SMB_DIRECT_PORT,
+    SMB_NETBIOS_PORT,
+    SmbConnectError,
+    connect_smb,
+    force_utf8_stdio,
+    tcp_port_open,
+)
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -77,31 +84,26 @@ def probe_guest_share(host: str, timeout: int = 8) -> Finding:
     """Authoritative test: open the HAP's share anonymously over SMB1 exactly as the transfer
     does (pysmb, ports 445 then 139). Independent of every Windows SMB setting."""
     try:
-        from smb.SMBConnection import SMBConnection
+        c, port = connect_smb(host, "hap-doctor", timeout=timeout,
+                              transports=((True, SMB_DIRECT_PORT), (False, SMB_NETBIOS_PORT)))
     except ImportError:
         return Finding("pysmb", "Transfer access (anonymous SMB1)", NA,
                        "pysmb not installed — run `pip install pysmb` to enable transfers.")
-    last: Exception | None = None
-    for direct, port in ((True, SMB_DIRECT_PORT), (False, SMB_NETBIOS_PORT)):
-        try:
-            c = SMBConnection("", "", "hap-doctor", "HAP", use_ntlm_v2=False, is_direct_tcp=direct)
-            if c.connect(host, port, timeout=timeout):
-                shares: list[str] = []
-                try:
-                    shares = [s.name for s in c.listShares() if not s.isSpecial]
-                except Exception:
-                    pass
-                finally:
-                    c.close()
-                tail = f" Shares: {', '.join(shares)}." if shares else ""
-                return Finding("pysmb", "Transfer access (anonymous SMB1)", OK,
-                               f"Connected anonymously on port {port}.{tail} "
-                               "Transfers will work regardless of Windows settings.")
-        except Exception as e:
-            last = e
-    return Finding("pysmb", "Transfer access (anonymous SMB1)", PROBLEM,
-                   f"Could not open an anonymous SMB1 session ({last}). "
-                   "Make sure the HAP is awake (Wake) and on the same LAN.")
+    except SmbConnectError as e:
+        return Finding("pysmb", "Transfer access (anonymous SMB1)", PROBLEM,
+                       f"Could not open an anonymous SMB1 session ({e.last}). "
+                       "Make sure the HAP is awake (Wake) and on the same LAN.")
+    shares: list[str] = []
+    try:
+        shares = [s.name for s in c.listShares() if not s.isSpecial]
+    except Exception:
+        pass
+    finally:
+        c.close()
+    tail = f" Shares: {', '.join(shares)}." if shares else ""
+    return Finding("pysmb", "Transfer access (anonymous SMB1)", OK,
+                   f"Connected anonymously on port {port}.{tail} "
+                   "Transfers will work regardless of Windows settings.")
 
 
 # --------------------------------------------------------------------------- Windows checks

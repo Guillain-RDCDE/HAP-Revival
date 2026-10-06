@@ -55,7 +55,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from hap_common import API_PORT, USER_CACHE_DIR, read_json, safe_name, write_json
+from hap_common import API_PORT, USER_CACHE_DIR, read_json_dict, safe_name, write_json
 
 BASE_PATH = "/sony/contentdb/v100"
 
@@ -144,8 +144,7 @@ def save_harvest(harvest: dict, path: Path | None = None) -> Path:
 
 def load_harvest(host: str, path: Path | None = None) -> dict | None:
     """Read a previously saved harvest, or None if there isn't one."""
-    data = read_json(path or cache_path(host))
-    return data if isinstance(data, dict) else None
+    return read_json_dict(path or cache_path(host))
 
 
 @dataclass

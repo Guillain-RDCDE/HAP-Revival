@@ -44,6 +44,17 @@ def test_load_catalog_handles_missing_and_malformed_files(tmp_path):
     assert i18n.load_catalog("xx", tmp_path) == {"a.b": "1"}, "values are coerced to text"
 
 
+def test_load_catalogs_survives_a_broken_file(tmp_path, capsys):
+    for code in i18n.LANGUAGES:
+        (tmp_path / f"{code}.json").write_text('{"k": "v"}', encoding="utf-8")
+    (tmp_path / "fr.json").write_text("[]", encoding="utf-8")
+    catalogs = i18n.load_catalogs(tmp_path)
+    assert set(catalogs) == set(i18n.LANGUAGES)
+    assert catalogs["fr"] == {} and catalogs["en"] == {"k": "v"}
+    err = capsys.readouterr().err
+    assert "ignoring" in err and "fr.json" in err and "expected an object" in err
+
+
 def test_locales_dir_is_next_to_the_module():
     assert i18n.LOCALES_DIR.name == "locales"
     assert (i18n.LOCALES_DIR / "en.json").is_file()

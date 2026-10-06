@@ -224,6 +224,12 @@ def test_panel_screen_reports_an_unreachable_player(ui):
     assert status == 502 and "error" in json.loads(body)
 
 
+def test_panel_key_reports_an_unreachable_player(ui):
+    HAPHandler.hap = hap_client.HAP("127.0.0.1", port=1, timeout=1)
+    status, payload = post(ui, "/api/panel/key", {"key": "enter"})
+    assert status == 500 and "front panel unreachable" in payload["error"]
+
+
 # ---------- library ----------
 
 

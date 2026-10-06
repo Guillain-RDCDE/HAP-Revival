@@ -36,6 +36,7 @@ the device — read the docstrings before calling.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import re
 import sys
@@ -270,10 +271,10 @@ def rpc_post(
     except HTTPError as e:
         try:
             raw = e.read().decode("utf-8", errors="replace")
-        except OSError:
+        except (OSError, http.client.HTTPException):
             raw = ""
         return RpcReply(e.code, raw or None, f"HTTP {e.code}: {e.reason}")
-    except (URLError, TimeoutError, OSError) as e:
+    except (URLError, TimeoutError, OSError, http.client.HTTPException) as e:
         return RpcReply(0, None, str(e))
     try:
         return RpcReply(status, json.loads(raw))
