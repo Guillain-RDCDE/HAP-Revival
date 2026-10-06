@@ -44,24 +44,16 @@ import argparse
 import html
 import sqlite3
 import sys
-import urllib.parse
 
-# ---- schema decode (same PROP-codes as library_browser.py; docs/09-disk-layout.md) ----
-# Tracks  FT0002: PROP7020 title, PROP304B codec, PROP3047 dur(s), PROP3048 srate(Hz),
-#                 PROP10DE bits, PROP304C bitrate, PROPB2BB album-id, PROP7052 artist-id,
-#                 PROP7007 file-name, PROP58D3 drm, PROP10DD multichannel
-# Albums  FT000A: PROP3601 id, PROP7020 name, PROP7055 album-artist, PROP78D9 cover(BLOB)
-# Artists FT5202: PROP3601 id, PROP7020 name
+import hap_library
+from hap_catalog import codec_name, open_catalog
+from hap_common import force_utf8_stdio
+from hap_media import DSD_THRESHOLD_HZ, PCM_CEILING_HZ
 
-CODECS = {
-    49: "FLAC", 81: "MP3", 97: "AAC", 65: "ALAC",
-    129: "WMA", 17: "WAV", 33: "AIFF", 0: "?",
-}
+# The PROP-code schema is decoded once, in hap_catalog.py (docs/09-disk-layout.md).
+
 LOSSLESS = {"FLAC", "ALAC", "WAV", "AIFF", "DSD"}
 LOSSY = {"MP3", "AAC", "WMA"}
-
-HAP_PCM_CEILING_HZ = 192_000   # the HAP plays PCM up to 192 kHz; DSD up to 5.6 MHz
-DSD_THRESHOLD_HZ = 2_000_000   # DSD64 ≈ 2.8224 MHz — anything this high is DSD, not PCM
 
 
 def looks_corrupt(srate, bits, dur) -> bool:
@@ -74,11 +66,7 @@ def looks_corrupt(srate, bits, dur) -> bool:
     file is broken and almost certainly will not play.
     """
     srate = int(srate or 0)
-    return srate > HAP_PCM_CEILING_HZ and (int(bits or 0) == 0 or int(dur or 0) == 0)
-
-
-def codec_name(v) -> str:
-    return CODECS.get(int(v or 0), f"#{v}")
+    return srate > PCM_CEILING_HZ and (int(bits or 0) == 0 or int(dur or 0) == 0)
 
 
 def classify(name: str, srate: int, bits: int) -> str:
@@ -120,16 +108,18 @@ def fmt_dur_long(seconds) -> str:
 
 
 def bar(frac: float, width: int = 28) -> str:
-    filled = int(round(frac * width))
+    filled = round(frac * width)
     return "█" * filled + "·" * (width - filled)
 
 
 class Audit:
+    """The audit, read from the on-disk catalogue."""
+
+    has_drm_and_channels = True
+    source_label = "hdd_browse.db"
+
     def __init__(self, path: str):
-        uri = f"file:{urllib.parse.quote(path)}?immutable=1&mode=ro"
-        self.db = sqlite3.connect(uri, uri=True)
-        self.db.text_factory = lambda b: b.decode("utf-8", "replace")
-        self.db.row_factory = sqlite3.Row
+        self.db = open_catalog(path)
 
     def q(self, sql, args=()):
         return self.db.execute(sql, args).fetchall()
@@ -193,7 +183,7 @@ class Audit:
             "t.PROP10DE bits, t.PROP3047 dur, t.PROP304B codec "
             "FROM FT0002 t LEFT JOIN FT5202 ar ON ar.PROP3601=t.PROP7052 "
             "WHERE t.PROP3048 > ? AND t.PROP3048 < ? ORDER BY t.PROP3048 DESC",
-            (HAP_PCM_CEILING_HZ, DSD_THRESHOLD_HZ),
+            (PCM_CEILING_HZ, DSD_THRESHOLD_HZ),
         )
         return [
             {
@@ -304,7 +294,7 @@ class RestAudit:
         for t in self._tracks:
             c = t.get("codec") or {}
             srate = int(c.get("sample_rate") or 0)
-            if HAP_PCM_CEILING_HZ < srate < DSD_THRESHOLD_HZ:
+            if PCM_CEILING_HZ < srate < DSD_THRESHOLD_HZ:
                 rows.append(
                     {
                         "title": t.get("name", ""),
@@ -351,8 +341,8 @@ def build_report(a, top: int) -> dict:
         "drm": drm,
         "multich": multich,
         # The REST source cannot see either. Kept distinct from "zero found".
-        "has_drm_and_channels": getattr(a, "has_drm_and_channels", True),
-        "source": getattr(a, "source_label", "hdd_browse.db"),
+        "has_drm_and_channels": a.has_drm_and_channels,
+        "source": a.source_label,
         "lossless_pct": 100.0 * lossless_n / n,
         "hires_pct": 100.0 * (buckets["hires"] + buckets["dsd"]) / n,
         "missing_cover": a.albums_missing_cover(),
@@ -382,10 +372,12 @@ def khz(hz) -> str:
     return f"{hz / 1000:g} kHz"
 
 
-def print_report(r: dict) -> None:
+def render_text(r: dict) -> str:
+    """The console report, as one string (so it can be tested and piped)."""
     t = r["totals"]
     n = max(1, t["tracks"])
-    P = print
+    lines: list[str] = []
+    P = lines.append
     P("=" * 60)
     P("  HAP LIBRARY AUDIT")
     P("=" * 60)
@@ -470,6 +462,11 @@ def print_report(r: dict) -> None:
         if len(dup) > top:
             P(f"    … and {len(dup) - top} more")
     P("=" * 60)
+    return "\n".join(lines)
+
+
+def print_report(r: dict) -> None:
+    print(render_text(r))
 
 
 # ---------------- HTML output ----------------
@@ -499,7 +496,9 @@ def render_html(r: dict) -> str:
         if not rows:
             return f"<h2>{e(title)}</h2><p class='ok'>{e(empty)} ✓</p>"
         items = "".join(f"<li>{fmt(row)}</li>" for row in rows[: r['top']])
-        more = f"<li class='muted'>… and {len(rows) - r['top']} more</li>" if len(rows) > r["top"] else ""
+        more = ""
+        if len(rows) > r["top"]:
+            more = f"<li class='muted'>… and {len(rows) - r['top']} more</li>"
         return f"<h2>{e(title)} <span class='pill'>{len(rows)}</span></h2><ul>{items}{more}</ul>"
 
     oc = listing(
@@ -533,13 +532,16 @@ main{{max-width:840px;margin:0 auto;padding:0 20px}}
 h2{{font-size:15px;color:var(--muted);font-weight:600;text-transform:uppercase;
 letter-spacing:.05em;margin:30px 0 12px}}
 .cards{{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin:22px 0}}
-.stat{{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 20px;text-align:center;min-width:120px}}
+.stat{{background:var(--card);border:1px solid var(--line);border-radius:12px;
+padding:14px 20px;text-align:center;min-width:120px}}
 .stat .num{{font-size:22px;font-weight:700}}.stat .cap{{font-size:12px;color:var(--muted)}}
 .row{{display:flex;align-items:center;gap:12px;margin:5px 0}}
-.row .lbl{{width:120px;font-size:13px}}.row .val{{width:130px;font-size:12px;color:var(--muted);text-align:right}}
+.row .lbl{{width:120px;font-size:13px}}
+.row .val{{width:130px;font-size:12px;color:var(--muted);text-align:right}}
 .track{{flex:1;height:12px;background:#0c0d10;border-radius:6px;overflow:hidden}}
 .fill{{display:block;height:100%;background:linear-gradient(90deg,#3a7bd5,var(--accent))}}
-ul{{list-style:none;padding:0;margin:0}}li{{padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}}
+ul{{list-style:none;padding:0;margin:0}}
+li{{padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}}
 .pill{{background:#272b33;color:var(--muted);border-radius:6px;padding:1px 8px;font-size:12px}}
 .muted{{color:var(--muted)}}.ok{{color:var(--ok)}}
 b{{color:#fff;font-weight:600}}
@@ -551,8 +553,10 @@ total playtime {e(fmt_dur_long(t['playtime']))}</div></header>
 <div class="cards">
   <div class="stat"><div class="num">{fmt_int(t['tracks'])}</div><div class="cap">tracks</div></div>
   <div class="stat"><div class="num">{fmt_int(t['albums'])}</div><div class="cap">albums</div></div>
-  <div class="stat"><div class="num">{fmt_int(t['artists'])}</div><div class="cap">artists</div></div>
-  <div class="stat"><div class="num">{r['buckets']['dsd']}</div><div class="cap">DSD tracks</div></div>
+  <div class="stat"><div class="num">{fmt_int(t['artists'])}</div>
+    <div class="cap">artists</div></div>
+  <div class="stat"><div class="num">{r['buckets']['dsd']}</div>
+    <div class="cap">DSD tracks</div></div>
 </div>
 <h2>Quality mix</h2>{qmix}
 <h2>Formats</h2>{fmts}
@@ -565,7 +569,7 @@ read-only from hdd_browse.db · HAP-Revival</p>
 </main></body></html>"""
 
 
-def main(argv: list[str]) -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Audit a HAP music library — from the player over the network, "
         "or from its on-disk SQLite catalog."
@@ -579,21 +583,19 @@ def main(argv: list[str]) -> int:
     )
     ap.add_argument("--html", metavar="FILE", help="also write an HTML report to FILE")
     ap.add_argument("--top", type=int, default=20, help="max items per issue list (default 20)")
-    args = ap.parse_args(argv[1:])
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = build_parser()
+    args = ap.parse_args(argv)
 
     if bool(args.db) == bool(args.from_player):
         ap.error("give either a path to hdd_browse.db or --from-player <ip>, not both")
 
-    # The report uses box-drawing chars; make sure stdout can emit UTF-8 even on
-    # a legacy Windows code page (cp1252) console.
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-    except (AttributeError, ValueError):
-        pass
+    force_utf8_stdio()  # the report uses box-drawing characters
 
     if args.from_player:
-        import hap_library
-
         harvest = hap_library.load_harvest(args.from_player)
         if harvest is None:
             print(
@@ -624,4 +626,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    raise SystemExit(main())

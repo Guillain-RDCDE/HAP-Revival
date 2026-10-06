@@ -17,9 +17,9 @@ rings + a gradient field) that encodes cleanly with zlib. No build dependency.
 from __future__ import annotations
 
 import math
-import struct
-import zlib
 from pathlib import Path
+
+from hap_png import COLOR_RGBA, encode_png, lerp_rgb
 
 OUT_DIR = Path(__file__).resolve().parent / "pwa"
 
@@ -35,35 +35,15 @@ LABEL_LO = (0xe0, 0x7b, 0x39)
 SPINDLE = (0x0e, 0x0e, 0x10)
 
 
-def _lerp(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
-    return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))  # type: ignore[return-value]
+_lerp = lerp_rgb
 
-
-def _png(width: int, height: int, pixels: bytes) -> bytes:
-    """Encode RGBA pixel bytes (len = w*h*4) into a PNG byte string."""
-
-    def chunk(tag: bytes, data: bytes) -> bytes:
-        return (
-            struct.pack(">I", len(data))
-            + tag
-            + data
-            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-        )
-
-    # Prefix each scanline with filter byte 0 (no filtering).
-    raw = bytearray()
-    stride = width * 4
-    for y in range(height):
-        raw.append(0)
-        raw.extend(pixels[y * stride : (y + 1) * stride])
-
-    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)  # 8-bit RGBA
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", ihdr)
-        + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
-        + chunk(b"IEND", b"")
-    )
+#: Every icon the manifest and the iOS home screen need: (file name, size, maskable).
+TARGETS = (
+    ("icon-192.png", 192, False),
+    ("icon-512.png", 512, False),
+    ("icon-maskable-512.png", 512, True),
+    ("apple-touch-icon.png", 180, False),  # iOS home-screen icon
+)
 
 
 def render(size: int, *, maskable: bool = False) -> bytes:
@@ -94,7 +74,8 @@ def render(size: int, *, maskable: bool = False) -> bytes:
                     ring = (math.sin((d - label_r) / groove_period * math.pi * 2) + 1) / 2
                     r, g, b = _lerp(VINYL, GROOVE, ring * 0.5)
                 # Soft top-left specular highlight.
-                hl = max(0.0, 1.0 - math.hypot(dx + disc_r * 0.35, dy + disc_r * 0.35) / (disc_r * 1.1))
+                hl_dist = math.hypot(dx + disc_r * 0.35, dy + disc_r * 0.35)
+                hl = max(0.0, 1.0 - hl_dist / (disc_r * 1.1))
                 if hl > 0:
                     r, g, b = _lerp((r, g, b), (255, 255, 255), hl * 0.12)
                 a = 255
@@ -108,22 +89,25 @@ def render(size: int, *, maskable: bool = False) -> bytes:
                 r, g, b = vr, vg, vb
             o = (y * size + x) * 4
             px[o], px[o + 1], px[o + 2], px[o + 3] = r, g, b, a
-    return _png(size, size, bytes(px))
+    return encode_png(size, size, bytes(px), color_type=COLOR_RGBA)
+
+
+def write_icons(out_dir: Path = OUT_DIR) -> list[Path]:
+    """Render every icon in TARGETS into `out_dir`; returns the files written."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for name, size, maskable in TARGETS:
+        data = render(size, maskable=maskable)
+        target = out_dir / name
+        target.write_bytes(data)
+        written.append(target)
+        print(f"  {name:28} {size}x{size}  {len(data):>6} B")
+    print(f"Wrote {len(written)} icons to {out_dir}")
+    return written
 
 
 def main() -> int:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    targets = [
-        ("icon-192.png", 192, False),
-        ("icon-512.png", 512, False),
-        ("icon-maskable-512.png", 512, True),
-        ("apple-touch-icon.png", 180, False),  # iOS home-screen icon
-    ]
-    for name, size, maskable in targets:
-        data = render(size, maskable=maskable)
-        (OUT_DIR / name).write_bytes(data)
-        print(f"  {name:28} {size}x{size}  {len(data):>6} B")
-    print(f"Wrote {len(targets)} icons to {OUT_DIR}")
+    write_icons()
     return 0
 
 

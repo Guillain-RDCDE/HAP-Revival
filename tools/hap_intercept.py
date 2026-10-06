@@ -191,13 +191,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: object) -> None:
         """Silence the default stderr logging; we do our own."""
 
-    def do_GET(self) -> None:  # noqa: N802 - name fixed by BaseHTTPRequestHandler
+    def do_GET(self) -> None:
         self._relay("GET")
 
-    def do_HEAD(self) -> None:  # noqa: N802
+    def do_HEAD(self) -> None:
         self._relay("HEAD")
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         self._relay("POST")
 
     def _relay(self, method: str) -> None:
@@ -307,7 +307,7 @@ def local_ip_guess() -> str:
             return "127.0.0.1"
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Log what the HAP looks up, and optionally relay one host."
     )
@@ -336,7 +336,11 @@ def main(argv: list[str] | None = None) -> int:
         metavar="FILE",
         help="append every event to this file as JSON lines",
     )
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     global _log_path
     if args.log:
@@ -351,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
     DNSHandler.upstream = args.upstream
 
     try:
-        dns_server = ThreadedUDPServer(("0.0.0.0", DNS_PORT), DNSHandler)  # noqa: S104
+        dns_server = ThreadedUDPServer(("0.0.0.0", DNS_PORT), DNSHandler)
     except OSError as exc:
         print(f"cannot bind udp/{DNS_PORT}: {exc}", file=sys.stderr)
         return 1
@@ -359,7 +363,7 @@ def main(argv: list[str] | None = None) -> int:
     http_server = None
     if hijack:
         try:
-            http_server = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), ProxyHandler)  # noqa: S104, E501
+            http_server = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), ProxyHandler)
         except OSError as exc:
             dns_server.server_close()
             print(f"cannot bind tcp/{HTTP_PORT}: {exc}", file=sys.stderr)

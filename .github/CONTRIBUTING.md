@@ -67,7 +67,32 @@ Until we hit a v0.1 milestone, the workflow is intentionally light:
 
 ## Coding conventions
 
-- **Python**: PEP 8 + type hints + `ruff` for lint. Target Python 3.10+ for tooling, but anything that has to run *on the device* must work with the on-device Python 2.7 (until we replace the daemon).
+- **Python**: PEP 8 + type hints + `ruff` for lint (rules in `pyproject.toml`). Target Python 3.10+ for tooling, but anything that has to run *on the device* must work with the on-device Python 2.7 (until we replace the daemon).
+- **One definition of each fact about the player.** The port numbers, share names, playable formats, junk patterns, catalogue schema and the JSON-RPC envelope each live in exactly one module, and every tool imports them from there:
+  - `tools/hap_common.py` — ports, shares, cache locations, Wake-on-LAN, the TCP probe, JSON files, capture files, the UTF-8 console fix.
+  - `tools/hap_media.py` — what the HAP plays, what it ignores, what must never reach it; the FLAC/WAV header readers; the 192 kHz PCM ceiling.
+  - `tools/hap_catalog.py` — the `hdd_browse.db` schema, codec codes, and the read-only connection.
+  - `tools/hap_client.py` — the ScalarWebAPI transport (`rpc_post`) under the `HAP` class; `call.py`, `discover.py` and `api-fuzzer.py` use it rather than their own.
+  - `tools/hap_png.py` — the stdlib PNG encoder behind the mock's covers and the PWA icons.
+  If you find yourself copying a constant or a helper between two tools, move it into one of these instead.
+- **Scripts stay runnable as scripts.** Every tool is `python tools/<name>.py …` from any directory, with `main(argv=None)` taking an explicit argument list so tests can drive it, and no `sys.path` tricks.
+- **The web UI's page lives in `tools/web/`** (`index.html`, `manifest.webmanifest`, `sw.js`), not inside `webui.py`; it is re-read on every request, so edit it with the server running.
+
+### Running the checks
+
+Everything CI runs, locally, with nothing but `pip install ruff pytest`:
+
+```bash
+ruff check tools/ tests/          # lint, rules from pyproject.toml
+python -m compileall -q tools/    # every script still parses
+python -m pytest                  # the offline suite: pure logic + a loopback mock device
+```
+
+No test needs a HAP. The suite drives every tool against `tools/mock_hap.py` on a loopback port,
+and never touches `~/.hap-revival` (a fixture redirects the caches to a temp folder). The tkinter
+tests in `tests/test_hap_gui_fix.py` need a display; they skip themselves on a headless runner
+and run under `xvfb-run` on Linux. `tools/smoke_live.py` is the one check that needs the real
+player, and it is deliberately not part of the suite.
 - **Markdown**: prefer compact prose, tables for catalogs, ASCII diagrams where they help. Don't add a section unless it earns its place.
 - **Commits**: imperative mood ("add discovery script", not "added discovery script" or "adding"). One logical change per commit.
 - **PR titles**: short summary + scope tag if relevant: `[docs]`, `[tools]`, `[api]`, `[hw]`.

@@ -46,63 +46,96 @@ Never deletes anything on the HAP (add/update only). Requires: pip install pysmb
 """
 from __future__ import annotations
 
-import json
+import argparse
 import os
-import socket
 import sys
-import time
+from collections.abc import Callable, Iterable
+from pathlib import Path
+from typing import Any, NamedTuple
 
-# what the HAP plays, and what must never be copied (see docs/04-smb.md, tools/hap_companion.py)
-SUPPORTED_EXT = {
-    ".flac", ".wav", ".aif", ".aiff", ".alac", ".dsf", ".dff",
-    ".m4a", ".mp3", ".aac", ".wma", ".oma", ".aa3", ".at3",
-}
-SIDECAR_EXT = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".pdf", ".txt",
-               ".nfo", ".log", ".cue", ".m3u", ".m3u8", ".sfv", ".md5", ".lrc", ""}
-JUNK_SUFFIXES = (".ffs_tmp", ".ffs_lock", ".part", ".partial", ".tmp", ".crdownload")
-JUNK_NAMES = {"thumbs.db", ".ds_store", "desktop.ini"}
+from hap_common import (
+    API_PORT,
+    SMB_DIRECT_PORT,
+    SMB_NETBIOS_PORT,
+    force_utf8_stdio,
+    human_size,
+    local_timestamp,
+    read_json,
+    safe_name,
+    send_wol,
+    tcp_port_open,
+    write_json,
+)
+from hap_media import classify, is_junk
+
+__all__ = [
+    "Job", "LazySmb", "LocalFile", "PlanEntry", "Smb", "SmbError",
+    "actionable", "classify", "human", "is_junk", "load_config", "local_index",
+    "remote_index", "scan_map", "send_wol", "transfer",
+]
+
+# Re-exported under the names the GUI and the tests have always used.
+human = human_size
+port_open = tcp_port_open
+
+#: How often the slow remote listing reports progress, in files found.
+PROGRESS_EVERY = 1000
+#: `list` shows at most this many paths; the count line says how many there are.
+LIST_PREVIEW = 200
 
 
-def is_junk(name: str) -> bool:
-    low = name.lower()
-    return low in JUNK_NAMES or low.startswith("._") or low.endswith(JUNK_SUFFIXES)
+class SmbError(RuntimeError):
+    """The SMB session could not be opened, or pysmb is missing."""
 
 
-def classify(name: str) -> str:
-    """'audio' | 'sidecar' | 'junk' | 'unsupported'"""
-    if is_junk(name):
-        return "junk"
-    ext = os.path.splitext(name.lower())[1]
-    if ext in SUPPORTED_EXT:
-        return "audio"
-    if ext in SIDECAR_EXT:
-        return "sidecar"
-    return "unsupported"
+class LocalFile(NamedTuple):
+    """One file under a mapped local folder."""
+
+    rel: str   # path relative to the map root, POSIX separators (what the share sees)
+    path: str  # absolute local path
+    size: int
+    kind: str  # 'audio' | 'sidecar' | 'unsupported'
 
 
-def human(n: int) -> str:
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if n < 1024 or unit == "TB":
-            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
-        n /= 1024.0
-    return f"{n:.1f} TB"
+class PlanEntry(NamedTuple):
+    """One file the plan says should go to the HAP, and why."""
+
+    rel: str
+    path: str
+    size: int
+    status: str  # 'new' (absent on the HAP) | 'changed' (present, byte size differs)
+
+
+class Job(NamedTuple):
+    """One upload: which share, which file."""
+
+    share: str
+    rel: str
+    path: str
+    size: int
 
 
 # ---------- config ----------
 
-def load_config(path: str | None) -> dict:
-    if path is None:
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hap_sync.json")
-    if not os.path.exists(path):
+
+def default_config_path() -> Path:
+    return Path(__file__).resolve().parent / "hap_sync.json"
+
+
+def load_config(path: str | os.PathLike | None) -> dict:
+    """Read hap_sync.json. Raises FileNotFoundError / ValueError with a readable message."""
+    target = Path(path) if path else default_config_path()
+    if not target.exists():
         raise FileNotFoundError(
-            f"config not found: {path}\n"
+            f"config not found: {target}\n"
             "Create a hap_sync.json (see the header of this file for the format)."
         )
-    with open(path, encoding="utf-8-sig") as f:  # tolerate a Windows BOM
-        cfg = json.load(f)
+    cfg = read_json(target)
+    if not isinstance(cfg, dict):
+        raise ValueError(f"config is not valid JSON: {target}")
     if not cfg.get("host") or not cfg.get("maps"):
         raise ValueError("config must contain 'host' and a non-empty 'maps' list")
-    cfg["_path"] = os.path.abspath(path)
+    cfg["_path"] = str(target.resolve())
     return cfg
 
 
@@ -112,38 +145,34 @@ def load_config(path: str | None) -> dict:
 # files we just uploaded straight into the cache, so steady-state runs never re-scan.
 # Use `--refresh` (or the `refresh` command) to force a full re-listing.
 
-def cache_dir(cfg: dict) -> str:
-    d = os.path.join(os.path.dirname(cfg.get("_path", os.getcwd())), ".hap_sync_cache")
-    os.makedirs(d, exist_ok=True)
+
+def cache_dir(cfg: dict) -> Path:
+    """`.hap_sync_cache/` next to the config file (or in the cwd without one)."""
+    cfg_path = cfg.get("_path")
+    base = Path(cfg_path).parent if cfg_path else Path.cwd()
+    d = base / ".hap_sync_cache"
+    d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def cache_file(cfg: dict, share: str) -> str:
-    safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in f"{cfg['host']}__{share}")
-    return os.path.join(cache_dir(cfg), safe + ".json")
+def cache_file(cfg: dict, share: str) -> Path:
+    return cache_dir(cfg) / (safe_name(f"{cfg['host']}__{share}") + ".json")
 
 
-def load_cache(cfg: dict, share: str):
-    path = cache_file(cfg, share)
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:  # noqa: BLE001 — corrupt cache: ignore, will rescan
-        return None
+def load_cache(cfg: dict, share: str) -> dict | None:
+    data = read_json(cache_file(cfg, share))
+    if not isinstance(data, dict) or not isinstance(data.get("files"), dict):
+        return None  # absent or corrupt: rescan
+    return data
 
 
-def save_cache(cfg: dict, share: str, files: dict):
-    data = {"host": cfg["host"], "share": share,
-            "built": time.strftime("%Y-%m-%d %H:%M:%S"), "files": files}
-    tmp = cache_file(cfg, share) + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f)
-    os.replace(tmp, cache_file(cfg, share))
+def save_cache(cfg: dict, share: str, files: dict) -> None:
+    data = {"host": cfg["host"], "share": share, "built": local_timestamp(), "files": files}
+    write_json(cache_file(cfg, share), data, atomic=True)
 
 
 # ---------- SMB ----------
+
 
 class Smb:
     """Anonymous SMB1 connection to the HAP, with reconnect-on-error.
@@ -151,49 +180,74 @@ class Smb:
     A long recursive listing can desync pysmb's SMB1 session (a failed `listPath`
     can leave the socket mid-message), which then breaks the next `storeFile`. We
     reconnect on any error and use a *fresh* connection for the upload phase.
+
+    Raises SmbError (never SystemExit) so a GUI can report the failure in a dialog.
     """
 
+    #: NetBIOS (139) first: the HAP's ancient Samba 3.0.37 desyncs SMB1 framing over
+    #: Direct TCP (445) after a file or two ("Invalid protocol header for Direct TCP
+    #: session message"), so prefer the transport it handles cleanly; 445 is the fallback.
+    TRANSPORTS = ((False, SMB_NETBIOS_PORT), (True, SMB_DIRECT_PORT))
+    CONNECT_TIMEOUT_SEC = 10
+
     def __init__(self, host: str):
-        try:
-            from smb.SMBConnection import SMBConnection  # noqa: F401
-        except ImportError:
-            print("error: pysmb is required.  Install it with:  pip install pysmb", file=sys.stderr)
-            raise SystemExit(2)
         self.host = host
-        self.conn = None
+        self.conn: Any = None
         self.open()
 
-    def open(self):
-        from smb.SMBConnection import SMBConnection
-        last = None
-        # NetBIOS (139) first: the HAP's ancient Samba 3.0.37 desyncs SMB1 framing over
-        # Direct TCP (445) after a file or two ("Invalid protocol header for Direct TCP
-        # session message"), so prefer the transport it handles cleanly; 445 is the fallback.
-        for direct, port in ((False, 139), (True, 445)):
+    def open(self) -> None:
+        try:
+            from smb.SMBConnection import SMBConnection
+        except ImportError as exc:
+            raise SmbError("pysmb is required.  Install it with:  pip install pysmb") from exc
+        last: Exception | None = None
+        for direct, port in self.TRANSPORTS:
             try:
-                c = SMBConnection("", "", "hap-sync", "HAP", use_ntlm_v2=False, is_direct_tcp=direct)
-                if c.connect(self.host, port, timeout=10):
+                c = SMBConnection("", "", "hap-sync", "HAP",
+                                  use_ntlm_v2=False, is_direct_tcp=direct)
+                if c.connect(self.host, port, timeout=self.CONNECT_TIMEOUT_SEC):
                     self.conn = c
                     return
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 last = e
-        raise SystemExit(f"error: SMB connection to {self.host} failed ({last})")
+        raise SmbError(f"SMB connection to {self.host} failed ({last})")
 
-    def reconnect(self):
-        try:
-            self.conn.close()
-        except Exception:  # noqa: BLE001
-            pass
+    def reconnect(self) -> None:
+        self.close()
         self.open()
 
-    def close(self):
+    def close(self) -> None:
+        if self.conn is None:
+            return
         try:
             self.conn.close()
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
+        self.conn = None
 
 
-def remote_index(smb: "Smb", share: str, on_progress=None):
+class LazySmb:
+    """Open the SMB connection only when a live scan/upload actually needs it."""
+
+    def __init__(self, host: str):
+        self.host = host
+        self._smb: Smb | None = None
+
+    @property
+    def smb(self) -> Smb:
+        if self._smb is None:
+            self._smb = Smb(self.host)
+        return self._smb
+
+    def close(self) -> None:
+        if self._smb is not None:
+            self._smb.close()
+            self._smb = None
+
+
+def remote_index(
+    smb: Smb, share: str, on_progress: Callable[[int], None] | None = None
+) -> tuple[dict[str, int], int]:
     """(map of remote 'relative/path' -> size, number of dirs we couldn't read).
 
     Listing a 60-70k-file SMB1 share takes minutes, so `on_progress(file_count)` fires
@@ -207,11 +261,11 @@ def remote_index(smb: "Smb", share: str, on_progress=None):
         d = stack.pop()
         try:
             entries = smb.conn.listPath(share, d)
-        except Exception:  # noqa: BLE001 — reconnect (the session may be desynced) and retry once
+        except Exception:
             smb.reconnect()
             try:
                 entries = smb.conn.listPath(share, d)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 skipped += 1
                 continue
         for f in entries:
@@ -222,7 +276,7 @@ def remote_index(smb: "Smb", share: str, on_progress=None):
                 stack.append(p)
             else:
                 out[p.lstrip("/")] = f.file_size
-        if on_progress and len(out) - last_reported >= 1000:
+        if on_progress and len(out) - last_reported >= PROGRESS_EVERY:
             last_reported = len(out)
             on_progress(len(out))
     if on_progress:
@@ -230,11 +284,15 @@ def remote_index(smb: "Smb", share: str, on_progress=None):
     return out, skipped
 
 
-def local_index(root: str, include_unsupported: bool):
-    """Yield (relpath_posix, abspath, size, kind) for files worth transferring."""
+def local_index(root: str, include_unsupported: bool) -> tuple[list[LocalFile], dict[str, int]]:
+    """Every file under `root` worth transferring, plus how many were skipped and why.
+
+    Junk is always left out; unsupported formats only when `include_unsupported`.
+    """
+    files: list[LocalFile] = []
     skipped = {"junk": 0, "unsupported": 0}
-    for dirpath, _dirs, files in os.walk(root):
-        for fn in files:
+    for dirpath, _dirs, names in os.walk(root):
+        for fn in names:
             kind = classify(fn)
             if kind == "junk":
                 skipped["junk"] += 1
@@ -248,45 +306,31 @@ def local_index(root: str, include_unsupported: bool):
                 size = os.path.getsize(ap)
             except OSError:
                 continue
-            yield rel, ap, size, kind
-    yield ("__skipped__", skipped, 0, "")  # sentinel, last
+            files.append(LocalFile(rel, ap, size, kind))
+    return files, skipped
 
 
-def ensure_dirs(smb: "Smb", share: str, rel: str, made: set):
+def ensure_dirs(smb: Smb, share: str, rel: str, made: set[str]) -> None:
+    """Create every parent folder of `rel` on the share (once per session)."""
     parts = rel.split("/")[:-1]
     cur = ""
     for p in parts:
-        cur = f"{cur}/{p}" if cur else f"/{p}"
+        cur = f"{cur}/{p}"
         if cur in made:
             continue
         try:
             smb.conn.createDirectory(share, cur)
-        except Exception:  # noqa: BLE001 — already exists
+        except Exception:
             pass
         made.add(cur)
 
 
-# ---------- commands ----------
-
-class LazySmb:
-    """Open the SMB connection only when a live scan/upload actually needs it."""
-
-    def __init__(self, host: str):
-        self.host = host
-        self._smb = None
-
-    @property
-    def smb(self) -> "Smb":
-        if self._smb is None:
-            self._smb = Smb(self.host)
-        return self._smb
-
-    def close(self):
-        if self._smb is not None:
-            self._smb.close()
+# ---------- planning ----------
 
 
-def get_remote(cfg: dict, lazy: LazySmb, share: str, refresh: bool, on_progress=None):
+def get_remote(
+    cfg: dict, lazy: LazySmb, share: str, refresh: bool, on_progress=None
+) -> tuple[dict[str, int], str]:
     """Return (index dict, source label). Uses the cache unless refresh; rebuilds + saves on miss.
     `on_progress(file_count)` is forwarded to the live SMB listing (no-op on a cache hit)."""
     if not refresh:
@@ -299,8 +343,20 @@ def get_remote(cfg: dict, lazy: LazySmb, share: str, refresh: bool, on_progress=
     return idx, src
 
 
+def plan_entries(local: Iterable[LocalFile], remote: dict[str, int]) -> list[PlanEntry]:
+    """Which local files are absent from the HAP, or present with a different size."""
+    todo: list[PlanEntry] = []
+    for f in local:
+        rsize = remote.get(f.rel)
+        if rsize is None:
+            todo.append(PlanEntry(f.rel, f.path, f.size, "new"))
+        elif rsize != f.size:
+            todo.append(PlanEntry(f.rel, f.path, f.size, "changed"))
+    return todo
+
+
 def scan_map(cfg: dict, lazy: LazySmb, m: dict, include_unsupported: bool, refresh: bool,
-             on_scan=None, on_progress=None, new_only: bool = False):
+             on_scan=None, on_progress=None, new_only: bool = False) -> dict | None:
     """Build the transfer plan for one map. `on_scan(s)` reports the result (defaults to
     printing it for the CLI; the GUI passes its own callback). `on_progress(file_count)` is
     forwarded to the remote listing so a GUI can show progress during the slow SMB1 scan.
@@ -311,76 +367,84 @@ def scan_map(cfg: dict, lazy: LazySmb, m: dict, include_unsupported: bool, refre
         print(f"  ! local folder not found: {local_root}")
         return None
     remote, source = get_remote(cfg, lazy, share, refresh, on_progress=on_progress)
-    todo, skipped = [], {"junk": 0, "unsupported": 0}
-    for rel, ap, size, _kind in local_index(local_root, include_unsupported):
-        if rel == "__skipped__":
-            skipped = ap
-            continue
-        rsize = remote.get(rel)
-        if rsize is None or rsize != size:
-            todo.append((rel, ap, size, "new" if rsize is None else "changed"))
-    s = {"local": local_root, "share": share, "remote": remote,
-         "source": source, "todo": todo, "skipped": skipped, "new_only": new_only}
+    files, skipped = local_index(local_root, include_unsupported)
+    s = {"local": local_root, "share": share, "remote": remote, "source": source,
+         "todo": plan_entries(files, remote), "skipped": skipped, "new_only": new_only}
     (on_scan or print_scan)(s)
     return s
 
 
-def actionable(s: dict) -> list:
+def actionable(s: dict) -> list[PlanEntry]:
     """The todo entries that will actually transfer. With `new_only`, 'changed' files (already
     on the HAP, just different bytes) are kept as-is and skipped — only genuinely new files go."""
+    todo = [PlanEntry(*t) for t in s["todo"]]
     if s.get("new_only"):
-        return [t for t in s["todo"] if t[3] == "new"]
-    return list(s["todo"])
+        return [t for t in todo if t.status == "new"]
+    return todo
 
 
-def print_scan(s: dict):
+def split_plan(todo: Iterable[PlanEntry]) -> tuple[list[PlanEntry], list[PlanEntry]]:
+    """(changed, new), each sorted by path, case-insensitively."""
+    entries = [PlanEntry(*t) for t in todo]
+    changed = sorted((t for t in entries if t.status == "changed"), key=lambda t: t.rel.lower())
+    new = sorted((t for t in entries if t.status == "new"), key=lambda t: t.rel.lower())
+    return changed, new
+
+
+def describe_changed(entry: PlanEntry, remote: dict[str, int]) -> str:
+    """`local 5.1 MB vs HAP 5.0 MB, Δ+1234 B` — so a re-tag and a re-rip look different."""
+    rsize = remote.get(entry.rel)
+    if rsize is None:
+        return human_size(entry.size)
+    return f"local {human_size(entry.size)} vs HAP {human_size(rsize)}, Δ{entry.size - rsize:+d} B"
+
+
+def print_scan(s: dict) -> None:
     todo, remote = s["todo"], s["remote"]
-    tot = sum(x[2] for x in todo)
+    tot = sum(t[2] for t in todo)
     print(f"  {s['local']}  ->  {s['share']}   [{s['source']}]")
-    print(f"    remote has {len(remote)} files; to transfer: {len(todo)} ({human(tot)})"
+    print(f"    remote has {len(remote)} files; to transfer: {len(todo)} ({human_size(tot)})"
           f"   [skipped junk={s['skipped']['junk']}, unsupported={s['skipped']['unsupported']}]")
-    changed = sorted((t for t in todo if t[3] == "changed"), key=lambda t: t[0].lower())
-    new = sorted((t for t in todo if t[3] == "new"), key=lambda t: t[0].lower())
+    changed, new = split_plan(todo)
     # CHANGED = path already on the HAP but the byte size differs (usually a re-tag). Show both
     # sizes + the delta so it's obvious whether the audio really changed or it's just metadata.
     if changed:
         tag = ("SKIPPED, kept as-is on the HAP (--new-only)" if s.get("new_only")
                else "already on the HAP, bytes differ")
         print(f"    CHANGED ({len(changed)}) — {tag}:")
-        for rel, _ap, size, _why in changed:
-            rsize = remote.get(rel)
-            extra = (f"local {human(size)} vs HAP {human(rsize)}, Δ{size - rsize:+d} B"
-                     if rsize is not None else f"{human(size)}")
-            print(f"      ~ {rel}  ({extra})")
+        for entry in changed:
+            print(f"      ~ {entry.rel}  ({describe_changed(entry, remote)})")
     if new:
         print(f"    NEW ({len(new)}):")
-        for rel, _ap, size, _why in new:
-            print(f"      + {rel}  ({human(size)})")
+        for entry in new:
+            print(f"      + {entry.rel}  ({human_size(entry.size)})")
 
 
-def _selected_maps(cfg, args):
-    for m in cfg["maps"]:
-        if not (getattr(args, "only", None) and m["share"] != args.only):
-            yield m
+def selected_maps(cfg: dict, only: str | None) -> list[dict]:
+    """The maps to act on: all of them, or just the one feeding `only`."""
+    return [m for m in cfg["maps"] if not only or m["share"] == only]
 
 
-def cmd_plan(cfg, args):
-    lazy = LazySmb(cfg["host"])
+def scan_all(cfg: dict, lazy: LazySmb, args: argparse.Namespace) -> list[dict]:
     new_only = getattr(args, "new_only", False)
-    try:
-        total = sum(len(actionable(s)) for m in _selected_maps(cfg, args)
-                    if (s := scan_map(cfg, lazy, m, args.all, args.refresh,
-                                      new_only=new_only)) is not None)
-        print(f"\nPlan: {total} file(s) would transfer. Run `sync` to do it."
-              + ("  (--new-only: 'changed' files are kept as-is on the HAP)" if new_only else "")
-              + "\n(remote index came from the on-disk cache where shown; use --refresh to re-scan)")
-    finally:
-        lazy.close()
-    return 0
+    scans = []
+    for m in selected_maps(cfg, getattr(args, "only", None)):
+        s = scan_map(cfg, lazy, m, args.all, args.refresh, new_only=new_only)
+        if s is not None:
+            scans.append(s)
+    return scans
 
 
-def transfer(smb: "Smb", jobs: list, index_by_share: dict, on_event=None, should_cancel=None):
-    """Upload `jobs` (list of (share, rel, abspath, size)) over a fresh SMB1 session.
+def jobs_for(scans: Iterable[dict]) -> list[Job]:
+    return [Job(s["share"], t.rel, t.path, t.size) for s in scans for t in actionable(s)]
+
+
+# ---------- transfer ----------
+
+
+def transfer(smb: Smb, jobs: list[Job], index_by_share: dict, on_event=None,
+             should_cancel=None) -> tuple[int, int]:
+    """Upload `jobs` over a fresh SMB1 session.
 
     Each successful upload is folded into `index_by_share[share]` (the cache map) so the
     caller can persist it and skip these files next run. `on_event(kind, **data)` fires for
@@ -390,9 +454,9 @@ def transfer(smb: "Smb", jobs: list, index_by_share: dict, on_event=None, should
     """
     on_event = on_event or (lambda *a, **k: None)
     total = len(jobs)
-    made: set = set()
+    made: set[str] = set()
     done = failed = 0
-    for i, (share, rel, ap, size) in enumerate(jobs, 1):
+    for i, job in enumerate((Job(*j) for j in jobs), 1):
         if should_cancel and should_cancel():
             on_event("cancelled", i=i, total=total)
             break
@@ -400,37 +464,52 @@ def transfer(smb: "Smb", jobs: list, index_by_share: dict, on_event=None, should
         # reused across many stores, so we never let it live long enough to drift.
         smb.reconnect()
         made.clear()
-        ensure_dirs(smb, share, rel, made)
+        ensure_dirs(smb, job.share, job.rel, made)
         ok = False
         for attempt in (1, 2):  # retry once on a fresh connection
             try:
-                with open(ap, "rb") as fp:
-                    smb.conn.storeFile(share, "/" + rel, fp)
+                with open(job.path, "rb") as fp:
+                    smb.conn.storeFile(job.share, "/" + job.rel, fp)
                 ok = True
                 break
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 if attempt == 1:
                     smb.reconnect()
                     made.clear()
-                    ensure_dirs(smb, share, rel, made)
+                    ensure_dirs(smb, job.share, job.rel, made)
                 else:
                     failed += 1
-                    on_event("file_failed", i=i, total=total, share=share, rel=rel, error=str(e))
+                    on_event("file_failed", i=i, total=total, share=job.share, rel=job.rel,
+                             error=str(e))
         if ok:
             done += 1
-            index_by_share[share][rel] = size  # fold into the cache
-            on_event("file_done", i=i, total=total, share=share, rel=rel, size=size)
+            index_by_share[job.share][job.rel] = job.size  # fold into the cache
+            on_event("file_done", i=i, total=total, share=job.share, rel=job.rel, size=job.size)
     return done, failed
 
 
-def cmd_sync(cfg, args):
+# ---------- commands ----------
+
+
+def cmd_plan(cfg: dict, args: argparse.Namespace) -> int:
+    lazy = LazySmb(cfg["host"])
+    new_only = getattr(args, "new_only", False)
+    try:
+        total = len(jobs_for(scan_all(cfg, lazy, args)))
+        print(f"\nPlan: {total} file(s) would transfer. Run `sync` to do it."
+              + ("  (--new-only: 'changed' files are kept as-is on the HAP)" if new_only else "")
+              + "\n(remote index came from the on-disk cache where shown; "
+              "use --refresh to re-scan)")
+    finally:
+        lazy.close()
+    return 0
+
+
+def cmd_sync(cfg: dict, args: argparse.Namespace) -> int:
     lazy = LazySmb(cfg["host"])
     try:
-        new_only = getattr(args, "new_only", False)
-        scans = [s for m in _selected_maps(cfg, args)
-                 if (s := scan_map(cfg, lazy, m, args.all, args.refresh,
-                                   new_only=new_only)) is not None]
-        jobs = [(s["share"], rel, ap, size) for s in scans for rel, ap, size, _ in actionable(s)]
+        scans = scan_all(cfg, lazy, args)
+        jobs = jobs_for(scans)
         if not jobs:
             print("\nNothing to transfer — already in sync.")
             return 0
@@ -442,9 +521,10 @@ def cmd_sync(cfg, args):
         print(f"\nTransferring {len(jobs)} file(s)…")
         index_by_share = {s["share"]: s["remote"] for s in scans}
 
-        def on_event(kind, **d):
+        def on_event(kind: str, **d) -> None:
             if kind == "file_done":
-                print(f"  [{d['i']}/{d['total']}] {d['share']}:/{d['rel']}  ({human(d['size'])})")
+                print(f"  [{d['i']}/{d['total']}] {d['share']}:/{d['rel']}  "
+                      f"({human_size(d['size'])})")
             elif kind == "file_failed":
                 print(f"  [{d['i']}/{d['total']}] FAILED {d['share']}:/{d['rel']} — {d['error']}")
 
@@ -458,22 +538,22 @@ def cmd_sync(cfg, args):
         lazy.close()
 
 
-def cmd_list(cfg, args):
+def cmd_list(cfg: dict, args: argparse.Namespace) -> int:
     lazy = LazySmb(cfg["host"])
     try:
         idx, source = get_remote(cfg, lazy, args.share, args.refresh)
-        for p in sorted(idx)[:200]:
-            print(f"  {human(idx[p]):>9}  {p}")
+        for p in sorted(idx)[:LIST_PREVIEW]:
+            print(f"  {human_size(idx[p]):>9}  {p}")
         print(f"\n{len(idx)} files on {args.share}.  [{source}]")
     finally:
         lazy.close()
     return 0
 
 
-def cmd_refresh(cfg, args):
+def cmd_refresh(cfg: dict, args: argparse.Namespace) -> int:
     lazy = LazySmb(cfg["host"])
     try:
-        shares = {args.only} if getattr(args, "only", None) else {m["share"] for m in cfg["maps"]}
+        shares = {m["share"] for m in selected_maps(cfg, getattr(args, "only", None))}
         for share in sorted(shares):
             _idx, source = get_remote(cfg, lazy, share, refresh=True)
             print(f"  {share}: {source}  -> cached")
@@ -482,32 +562,7 @@ def cmd_refresh(cfg, args):
     return 0
 
 
-def send_wol(mac: str) -> None:
-    """Broadcast a Wake-on-LAN magic packet to `mac`. Raises ValueError on a bad MAC.
-    The HAP sleeps in network standby; this is how the CLI and the GUI both wake it."""
-    hexmac = mac.replace(":", "").replace("-", "").strip()
-    if len(hexmac) != 12:
-        raise ValueError("MAC must be 12 hex digits (e.g. 80:56:F2:85:0E:27)")
-    pkt = b"\xff" * 6 + bytes.fromhex(hexmac) * 16
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    try:
-        s.sendto(pkt, ("255.255.255.255", 9))
-    finally:
-        s.close()
-
-
-def port_open(host: str, port: int, timeout: float = 3) -> bool:
-    """True if a TCP connect to host:port succeeds within `timeout` seconds."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(timeout)
-    try:
-        return s.connect_ex((host, port)) == 0
-    finally:
-        s.close()
-
-
-def cmd_wake(cfg, _args):
+def cmd_wake(cfg: dict, _args: argparse.Namespace) -> int:
     try:
         send_wol(cfg.get("mac", ""))
     except ValueError:
@@ -517,17 +572,18 @@ def cmd_wake(cfg, _args):
     return 0
 
 
-def cmd_check(cfg, args):
+def cmd_check(cfg: dict, args: argparse.Namespace) -> int:
     """Full SMB access diagnosis via smb_doctor: the authoritative pysmb transfer probe plus,
     on Windows, the native-path SMB-hardening checks. `--fix` applies any remediations."""
-    host = cfg["host"]
     import smb_doctor
 
+    host = cfg["host"]
     findings = smb_doctor.diagnose(host)
     print("\n".join(smb_doctor.format_report(findings)))
 
     # Bonus line: the ScalarWebAPI port the control app uses (not part of the SMB picture).
-    print(f"{'✓' if port_open(host, 60200) else '·'} ScalarWebAPI (control app) port 60200")
+    mark = "✓" if tcp_port_open(host, API_PORT) else "·"
+    print(f"{mark} ScalarWebAPI (control app) port {API_PORT}")
 
     s = smb_doctor.summary(findings)
     print()
@@ -543,13 +599,19 @@ def cmd_check(cfg, args):
     return 0 if s["transfer_ok"] else 1
 
 
-def main(argv: list[str]) -> int:
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:  # noqa: BLE001
-        pass
-    import argparse
-    ap = argparse.ArgumentParser(prog="hap_sync", description="HAP-aware music sync (replaces FreeFileSync for the HAP).")
+COMMANDS: dict[str, Callable[[dict, argparse.Namespace], int]] = {
+    "plan": cmd_plan,
+    "sync": cmd_sync,
+    "list": cmd_list,
+    "refresh": cmd_refresh,
+    "wake": cmd_wake,
+    "check": cmd_check,
+}
+
+
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog="hap_sync", description="HAP-aware music sync (replaces FreeFileSync for the HAP).")
     ap.add_argument("--config", help="path to hap_sync.json")
     sub = ap.add_subparsers(dest="cmd")
     for name in ("plan", "sync"):
@@ -572,7 +634,13 @@ def main(argv: list[str]) -> int:
     pc = sub.add_parser("check", help="diagnose SMB access (and optionally fix Windows issues)")
     pc.add_argument("--fix", action="store_true",
                     help="apply fixes for any native-Windows SMB problems (asks for admin)")
-    args = ap.parse_args(argv[1:])
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    force_utf8_stdio()
+    ap = build_parser()
+    args = ap.parse_args(argv)
     if not args.cmd:
         ap.print_help()
         return 2
@@ -581,15 +649,12 @@ def main(argv: list[str]) -> int:
     except (FileNotFoundError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
-    return {
-        "plan": lambda: cmd_plan(cfg, args),
-        "sync": lambda: cmd_sync(cfg, args),
-        "list": lambda: cmd_list(cfg, args),
-        "refresh": lambda: cmd_refresh(cfg, args),
-        "wake": lambda: cmd_wake(cfg, args),
-        "check": lambda: cmd_check(cfg, args),
-    }[args.cmd]()
+    try:
+        return COMMANDS[args.cmd](cfg, args)
+    except SmbError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    raise SystemExit(main())

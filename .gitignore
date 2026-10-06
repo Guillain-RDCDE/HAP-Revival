@@ -83,3 +83,10 @@ site/
 # markdownlint leaves *.md.tmp.<pid>.<hash> files on disk after fixing — never commit those
 *.md.tmp.*
 *.tmp.*
+
+# Tool caches (pytest, ruff, coverage)
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/

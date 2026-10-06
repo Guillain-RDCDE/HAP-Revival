@@ -10,17 +10,21 @@ Usage:
 
 Examples:
     # Now playing
-    python tools/call.py --target 192.168.1.28 --service avContent --method getPlayingContentInfo --version 1.2 --params '[]'
+    python tools/call.py --target 192.168.1.28 --service avContent \\
+        --method getPlayingContentInfo --version 1.2 --params '[]'
 
     # System information
-    python tools/call.py --target 192.168.1.28 --service system --method getSystemInformation --version 1.4 --params '[]'
+    python tools/call.py --target 192.168.1.28 --service system \\
+        --method getSystemInformation --version 1.4 --params '[]'
 
     # Play an HDD track by id (use getContentList on netService for browsing; HDD browse
     # is via the DB, see docs/09-disk-layout.md)
-    python tools/call.py --target 192.168.1.28 --service avContent --method createPlayingListAndQuickPlay --version 1.0 --params '[{"uri":"audio:track?id=1"}]'
+    python tools/call.py --target 192.168.1.28 --service avContent \\
+        --method createPlayingListAndQuickPlay --version 1.0 --params '[{"uri":"audio:track?id=1"}]'
 
     # Pause/resume (this method is a TOGGLE, params are [{}])
-    python tools/call.py --target 192.168.1.28 --service avContent --method pausePlayingContent --version 1.1 --params '[{}]'
+    python tools/call.py --target 192.168.1.28 --service avContent \\
+        --method pausePlayingContent --version 1.1 --params '[{}]'
 
 Read-only by default in terms of what this tool DOES (it just POSTs whatever
 you give it) — but obviously the call itself may change device state. Don't
@@ -31,57 +35,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import socket
 import sys
-from datetime import datetime, timezone
-from pathlib import Path
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
+
+from hap_client import DEFAULT_TIMEOUT_SEC, RpcReply, rpc_post, rpc_url
+from hap_common import API_PORT, save_capture
+
+TOOL_NAME = "HAP-Revival/tools/call.py"
 
 
-def call(
-    ip: str,
-    port: int,
-    service: str,
-    method: str,
-    version: str,
-    params: list,
-    timeout: int,
-) -> tuple[int, dict | str]:
-    url = f"http://{ip}:{port}/sony/{service}"
-    body = json.dumps(
-        {"method": method, "id": 1, "params": params, "version": version}
-    ).encode("utf-8")
-    req = Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
-    try:
-        with urlopen(req, timeout=timeout) as r:
-            raw = r.read().decode("utf-8", errors="replace")
-            try:
-                return r.status, json.loads(raw)
-            except json.JSONDecodeError:
-                return r.status, raw
-    except HTTPError as e:
-        try:
-            err_body = e.read().decode("utf-8", errors="replace")
-        except Exception:
-            err_body = ""
-        return e.code, {"_http_error": str(e), "_body": err_body}
-    except (URLError, socket.timeout) as e:
-        return -1, {"_transport_error": str(e)}
-
-
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--target", required=True)
-    parser.add_argument("--port", type=int, default=60200)
+    parser.add_argument("--target", required=True, help="HAP IP address")
+    parser.add_argument("--port", type=int, default=API_PORT)
     parser.add_argument("--service", required=True)
     parser.add_argument("--method", required=True)
     parser.add_argument("--version", required=True)
@@ -90,14 +55,35 @@ def main() -> int:
         default="[]",
         help='JSON for the params array. Example: \'[{"uri":"audio:album","stIdx":0,"cnt":5}]\'',
     )
-    # 90 s: slow enough for a cold contentdb call, which needs up to 57 s.
-    parser.add_argument("--timeout", type=int, default=90)
+    parser.add_argument(
+        "--timeout", type=float, default=DEFAULT_TIMEOUT_SEC,
+        help="seconds to wait; a cold contentdb call needs up to 57 s",
+    )
     parser.add_argument(
         "--save",
         action="store_true",
         help="Save request+response to research/captures/.",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def capture_record(args: argparse.Namespace, params: list, reply: RpcReply) -> dict:
+    """The capture payload: the request as sent and the reply as received."""
+    return {
+        "target": args.target,
+        "port": args.port,
+        "request": {
+            "service": args.service,
+            "method": args.method,
+            "version": args.version,
+            "params": params,
+        },
+        "response": reply.as_dict(),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     try:
         params = json.loads(args.params)
@@ -105,58 +91,32 @@ def main() -> int:
         print(f"--params is not valid JSON: {e}", file=sys.stderr)
         return 2
 
-    print(
-        f"POST http://{args.target}:{args.port}/sony/{args.service}",
-        file=sys.stderr,
-    )
-    print(
-        f'  body: {{"method":"{args.method}","id":1,"params":{json.dumps(params)},"version":"{args.version}"}}',
-        file=sys.stderr,
+    envelope = {"method": args.method, "id": 1, "params": params, "version": args.version}
+    print(f"POST {rpc_url(args.target, args.service, args.port)}", file=sys.stderr)
+    print(f"  body: {json.dumps(envelope, ensure_ascii=False)}", file=sys.stderr)
+
+    reply = rpc_post(
+        args.target, args.service, args.method, args.version, params,
+        port=args.port, timeout=args.timeout,
     )
 
-    status, resp = call(
-        args.target,
-        args.port,
-        args.service,
-        args.method,
-        args.version,
-        params,
-        args.timeout,
-    )
-
-    print(f"\nHTTP {status}", file=sys.stderr)
-    if isinstance(resp, dict):
-        print(json.dumps(resp, indent=2, ensure_ascii=False))
-    else:
-        print(resp)
+    print(f"\nHTTP {reply.status}", file=sys.stderr)
+    if reply.error is not None:
+        print(reply.error, file=sys.stderr)
+    if isinstance(reply.body, (dict, list)):
+        print(json.dumps(reply.body, indent=2, ensure_ascii=False))
+    elif reply.body is not None:
+        print(reply.body)
 
     if args.save:
-        out_dir = Path(__file__).resolve().parent.parent / "research" / "captures"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        out = out_dir / f"call-{args.service}-{args.method}-v{args.version}-{ts}.json"
-        with out.open("w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "tool": "HAP-Revival/tools/call.py",
-                    "target": args.target,
-                    "port": args.port,
-                    "request": {
-                        "service": args.service,
-                        "method": args.method,
-                        "version": args.version,
-                        "params": params,
-                    },
-                    "response": {"status": status, "body": resp},
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                },
-                f,
-                indent=2,
-                ensure_ascii=False,
-            )
+        out = save_capture(
+            f"call-{args.service}-{args.method}-v{args.version}",
+            capture_record(args, params, reply),
+            tool=TOOL_NAME,
+        )
         print(f"\nSaved: {out}", file=sys.stderr)
 
-    return 0 if status == 200 else 1
+    return 0 if reply.status == 200 else 1
 
 
 if __name__ == "__main__":

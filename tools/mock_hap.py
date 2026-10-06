@@ -41,26 +41,19 @@ from __future__ import annotations
 
 import argparse
 import json
-import struct
 import threading
 import time
 import urllib.parse
-import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-# ---------------------------------------------------------------------------
-# Tiny PNG encoder (so cover art needs no Pillow)
-# ---------------------------------------------------------------------------
+from hap_common import API_PORT
+from hap_png import COLOR_RGB, encode_png, lerp_rgb
+from hap_screen import KEYS as KEYEVENTS
 
-
-def _png_chunk(tag: bytes, data: bytes) -> bytes:
-    return (
-        struct.pack(">I", len(data))
-        + tag
-        + data
-        + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-    )
+# ---------------------------------------------------------------------------
+# Cover art (the shared stdlib PNG encoder, so no Pillow)
+# ---------------------------------------------------------------------------
 
 
 def gradient_png(top: tuple[int, int, int], bottom: tuple[int, int, int], size: int = 320,
@@ -74,21 +67,10 @@ def gradient_png(top: tuple[int, int, int], bottom: tuple[int, int, int], size: 
     Enough to make the now-playing cover and the ambient background look like a
     real album, with zero image dependencies."""
     height = size if height is None else height
-    rows = bytearray()
+    pixels = bytearray()
     for y in range(height):
-        f = y / max(1, height - 1)
-        r = round(top[0] + (bottom[0] - top[0]) * f)
-        g = round(top[1] + (bottom[1] - top[1]) * f)
-        b = round(top[2] + (bottom[2] - top[2]) * f)
-        rows.append(0)  # PNG filter type 0 (none) for this scanline
-        rows.extend((r, g, b) * size)
-    ihdr = struct.pack(">IIBBBBB", size, height, 8, 2, 0, 0, 0)  # 8-bit, color type 2 (RGB)
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + _png_chunk(b"IHDR", ihdr)
-        + _png_chunk(b"IDAT", zlib.compress(bytes(rows), 9))
-        + _png_chunk(b"IEND", b"")
-    )
+        pixels.extend(lerp_rgb(top, bottom, y / max(1, height - 1)) * size)
+    return encode_png(size, height, bytes(pixels), color_type=COLOR_RGB)
 
 
 # ---------------------------------------------------------------------------
@@ -140,12 +122,8 @@ class Track:
 
 
 CONTENTDB_BASE = "/sony/contentdb/v100"
-
-# Eleven keys: the nine the player's own /haplib.js wires up, plus `next` and
-# `prev`, which the real handler accepts although no page mentions them
-# (docs/03-network-api.md). Kept in step with hap_screen.KEYS.
-KEYEVENTS = ("home", "up", "down", "left", "right", "enter", "back", "option", "play",
-             "next", "prev")
+# The front-panel keys the mock accepts are exactly the ones hap_screen knows
+# (the nine from the player's own /haplib.js plus `next` and `prev`).
 
 
 DEMO_TRACKS: list[Track] = [
@@ -570,7 +548,8 @@ def sleep_timer() -> dict:
 
 def volume_information() -> dict:
     # HAP-Z1ES has no internal amp: the device forces these sentinel values.
-    return {"target": "speaker", "volume": -1, "mute": "toggle", "maxVolume": -1, "minVolume": -1, "step": 1}
+    return {"target": "speaker", "volume": -1, "mute": "toggle",
+            "maxVolume": -1, "minVolume": -1, "step": 1}
 
 
 def storage_list() -> list[dict]:
@@ -721,7 +700,8 @@ class MockHandler(BaseHTTPRequestHandler):
             super().log_message(fmt, *args)
 
     def _host(self) -> str:
-        return self.headers.get("Host") or f"{self.server.server_address[0]}:{self.server.server_address[1]}"
+        host, port = self.server.server_address[:2]
+        return self.headers.get("Host") or f"{host}:{port}"
 
     def _send(self, status: int, content_type: str, body: bytes) -> None:
         self.send_response(status)
@@ -788,7 +768,7 @@ class MockHandler(BaseHTTPRequestHandler):
             banner = (
                 "mock_hap — a fake Sony HAP-Z1ES. POST JSON-RPC to "
                 "/sony/<service>. See tools/mock_hap.py.\n"
-            ).encode("utf-8")
+            ).encode()
             self._send(200, "text/plain; charset=utf-8", banner)
             return
         self.send_error(404)
@@ -818,7 +798,7 @@ class MockHandler(BaseHTTPRequestHandler):
             body = json.dumps({"id": rid, "error": [12, "No Such Method"]}).encode("utf-8")
             self._send(200, "application/json", body)
             return
-        except Exception as e:  # noqa: BLE001 — a mock should never 500 the client
+        except Exception as e:
             body = json.dumps({"id": rid, "error": [1, f"mock error: {e}"]}).encode("utf-8")
             self._send(200, "application/json", body)
             return
@@ -828,24 +808,31 @@ class MockHandler(BaseHTTPRequestHandler):
         self._send(200, "application/json", body)
 
 
-def make_server(bind: str = "127.0.0.1", port: int = 60200, quiet: bool = True) -> ThreadingHTTPServer:
+def make_server(
+    bind: str = "127.0.0.1", port: int = API_PORT, quiet: bool = True
+) -> ThreadingHTTPServer:
     MockHandler.quiet = quiet
     return ThreadingHTTPServer((bind, port), MockHandler)
 
 
-def serve_in_thread(bind: str = "127.0.0.1", port: int = 60200) -> ThreadingHTTPServer:
+def serve_in_thread(bind: str = "127.0.0.1", port: int = API_PORT) -> ThreadingHTTPServer:
     """Start the mock on a daemon thread and return the server (for `webui --demo`)."""
     server = make_server(bind, port, quiet=True)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--port", type=int, default=60200, help="Listen port (default 60200, the real HAP port)")
+    parser.add_argument("--port", type=int, default=API_PORT,
+                        help=f"Listen port (default {API_PORT}, the real HAP port)")
     parser.add_argument("--bind", default="127.0.0.1", help="Bind address (default 127.0.0.1)")
     parser.add_argument("--verbose", action="store_true", help="Log each request")
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     server = make_server(args.bind, args.port, quiet=not args.verbose)
     print(f"mock HAP-Z1ES listening on http://{args.bind}:{args.port}/sony/")
@@ -857,6 +844,8 @@ def main() -> int:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopping.")
+    finally:
+        server.server_close()
     return 0
 
 

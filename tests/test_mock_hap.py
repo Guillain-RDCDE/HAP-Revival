@@ -12,7 +12,6 @@ import pytest
 
 import mock_hap
 
-
 HOST = "127.0.0.1:60200"
 
 
@@ -115,7 +114,8 @@ def test_favorite_roundtrip():
     tid = mock_hap.DEMO_TRACKS[0].id
     _call("avContent", "editContentInfo", [{
         "method": "editTrackInfo",
-        "target": [{"uri": f"audio:track?id={tid}", "tagUri": "meta:favorite", "value": "favorite"}],
+        "target": [{"uri": f"audio:track?id={tid}", "tagUri": "meta:favorite",
+                    "value": "favorite"}],
     }])
     assert mock_hap.DEMO_TRACKS[0].favorite_type == "favorite"
     assert _call("avContent", "getPlayingContentInfo")["favoriteType"] == "favorite"

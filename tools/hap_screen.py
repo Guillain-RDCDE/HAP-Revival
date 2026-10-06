@@ -35,7 +35,8 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
-TOOL_PORT = 60200
+from hap_common import API_PORT
+
 HTTP_TIMEOUT_SEC = 20
 
 # The nine keys the player's own page wires up, plus two the page never mentions.
@@ -60,17 +61,17 @@ KEYS_UNVERIFIED = ("prev",)
 KEY_SETTLE_SEC = 1.0
 
 
-def tool_url(host: str, target: str, cmd: str) -> str:
+def tool_url(host: str, target: str, cmd: str, port: int = API_PORT) -> str:
     """Build a /sony/hap URL, cache-busted the way the player's own pages are."""
     query = urllib.parse.urlencode(
         {"target": target, "cmd": cmd, "nocache": str(int(time.time() * 1000))}
     )
-    return f"http://{host}:{TOOL_PORT}/sony/hap?{query}"
+    return f"http://{host}:{port}/sony/hap?{query}"
 
 
-def tool_get(host: str, target: str, cmd: str) -> tuple[bytes, str]:
+def tool_get(host: str, target: str, cmd: str, port: int = API_PORT) -> tuple[bytes, str]:
     """GET one tool command. Returns (body, content-type)."""
-    with urlopen(tool_url(host, target, cmd), timeout=HTTP_TIMEOUT_SEC) as resp:
+    with urlopen(tool_url(host, target, cmd, port), timeout=HTTP_TIMEOUT_SEC) as resp:
         return resp.read(), resp.headers.get("Content-Type", "")
 
 
@@ -112,7 +113,7 @@ def cmd_capture(host: str) -> int:
     return 0
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Mirror the HAP front panel and press its keys."
     )
@@ -128,8 +129,11 @@ def main() -> int:
     p_key.add_argument("keys", nargs="+", metavar="KEY", help=f"one of: {', '.join(KEYS)}")
 
     sub.add_parser("capture", help="make the player write a PNG to its own share")
+    return parser
 
-    args = parser.parse_args()
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     try:
         if args.action == "show":

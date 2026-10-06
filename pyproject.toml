@@ -1,0 +1,44 @@
+# Tool configuration only. HAP-Revival is a set of standalone scripts under
+# tools/, not an installable package: each one runs as `python tools/<name>.py`
+# and imports its siblings from the same folder.
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = ["research", "docs"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade: modern syntax for the 3.10+ target
+    "B",    # bugbear: likely bugs and design problems
+    "RUF",  # ruff's own checks
+]
+ignore = [
+    # The documentation and the user-facing strings use typographic characters
+    # (— … · ×) on purpose; they are not confusable identifiers.
+    "RUF001", "RUF002", "RUF003",
+    # Mutable class attributes are how http.server handlers take their config.
+    "RUF012",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The translation catalogues are long strings; wrapping them helps nobody.
+"tools/i18n.py" = ["E501"]
+# One catalogue row per line reads better than a wrapped INSERT.
+"tests/test_library_offline.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "hap_catalog", "hap_client", "hap_common", "hap_companion", "hap_fixit",
+    "hap_library", "hap_media", "hap_notify", "hap_png", "hap_screen", "hap_sync",
+    "i18n", "library_audit", "library_browser", "mock_hap", "smb_doctor", "webui",
+    "check_links", "discover", "call", "make_pwa_icons", "smoke_live", "hap_intercept",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

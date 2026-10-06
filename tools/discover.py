@@ -3,7 +3,7 @@
 Discover Sony HAP-Z1ES / HAP-S1 devices on the local network and probe their
 ScalarWebAPI surface.
 
-No write operations. Outputs to research/captures/discover-<timestamp>.txt.
+No write operations. Outputs to research/captures/discover-<timestamp>.json.
 
 Usage:
     python tools/discover.py                 # default: full sweep
@@ -21,11 +21,17 @@ import socket
 import sys
 import time
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
+from hap_client import (
+    HAPTransportError,
+    RpcReply,
+    rpc_post,
+    upnp_description,
+    upnp_field,
+)
+from hap_common import API_PORT, save_capture
+
+TOOL_NAME = "HAP-Revival/tools/discover.py"
 
 SSDP_MULTICAST = ("239.255.255.250", 1900)
 SSDP_TIMEOUT_SEC = 4
@@ -49,10 +55,13 @@ KNOWN_METHODS: list[tuple[str, str, str, list]] = [
     ("avContent", "getSchemeList", "1.0", []),
 ]
 
+# The fields worth lifting out of hap.xml into the report.
+UPNP_FIELDS = ("modelName", "friendlyName", "X_HAP_Version")
 
-def ssdp_search() -> list[dict]:
-    """Send SSDP M-SEARCH and collect responses. Returns one dict per HAP device."""
-    msg = (
+
+def ssdp_message() -> bytes:
+    """The M-SEARCH datagram, asking every device on the LAN to answer."""
+    return (
         "M-SEARCH * HTTP/1.1\r\n"
         f"HOST: {SSDP_MULTICAST[0]}:{SSDP_MULTICAST[1]}\r\n"
         'MAN: "ssdp:discover"\r\n'
@@ -60,32 +69,9 @@ def ssdp_search() -> list[dict]:
         "ST: ssdp:all\r\n\r\n"
     ).encode("ascii")
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
-    sock.settimeout(SSDP_TIMEOUT_SEC)
-    sock.sendto(msg, SSDP_MULTICAST)
 
-    seen_ips: dict[str, dict] = {}
-    deadline = time.time() + SSDP_TIMEOUT_SEC
-    while time.time() < deadline:
-        try:
-            data, (ip, _port) = sock.recvfrom(4096)
-        except socket.timeout:
-            break
-        text = data.decode("ascii", errors="replace")
-        if "Sony-HAP" not in text:
-            continue
-        headers = _parse_ssdp_headers(text)
-        if ip not in seen_ips:
-            seen_ips[ip] = {"ip": ip, "headers": headers, "services": []}
-        st = headers.get("st", "")
-        if st and st not in seen_ips[ip]["services"]:
-            seen_ips[ip]["services"].append(st)
-    sock.close()
-    return list(seen_ips.values())
-
-
-def _parse_ssdp_headers(text: str) -> dict[str, str]:
+def parse_ssdp_headers(text: str) -> dict[str, str]:
+    """Lower-cased header map from one SSDP response."""
     out: dict[str, str] = {}
     for line in text.splitlines():
         if ":" in line:
@@ -94,12 +80,45 @@ def _parse_ssdp_headers(text: str) -> dict[str, str]:
     return out
 
 
-def fetch_hap_xml(ip: str, port: int = 60100) -> Optional[str]:
-    url = f"http://{ip}:{port}/hap.xml"
+def collect_ssdp(responses: list[tuple[str, bytes]]) -> list[dict]:
+    """Fold raw (ip, datagram) pairs into one record per HAP device."""
+    seen_ips: dict[str, dict] = {}
+    for ip, data in responses:
+        text = data.decode("ascii", errors="replace")
+        if "Sony-HAP" not in text:
+            continue
+        headers = parse_ssdp_headers(text)
+        device = seen_ips.setdefault(ip, {"ip": ip, "headers": headers, "services": []})
+        st = headers.get("st", "")
+        if st and st not in device["services"]:
+            device["services"].append(st)
+    return list(seen_ips.values())
+
+
+def ssdp_search() -> list[dict]:
+    """Send SSDP M-SEARCH and collect responses. Returns one dict per HAP device."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+    sock.settimeout(SSDP_TIMEOUT_SEC)
+    responses: list[tuple[str, bytes]] = []
     try:
-        with urlopen(url, timeout=HTTP_TIMEOUT_SEC) as r:
-            return r.read().decode("utf-8", errors="replace")
-    except (HTTPError, URLError, socket.timeout) as e:
+        sock.sendto(ssdp_message(), SSDP_MULTICAST)
+        deadline = time.time() + SSDP_TIMEOUT_SEC
+        while time.time() < deadline:
+            try:
+                data, (ip, _port) = sock.recvfrom(4096)
+            except TimeoutError:
+                break
+            responses.append((ip, data))
+    finally:
+        sock.close()
+    return collect_ssdp(responses)
+
+
+def fetch_hap_xml(ip: str) -> str | None:
+    try:
+        return upnp_description(ip, timeout=HTTP_TIMEOUT_SEC)
+    except HAPTransportError as e:
         print(f"  [hap.xml] error: {e}", file=sys.stderr)
         return None
 
@@ -110,34 +129,10 @@ def jsonrpc_call(
     method: str,
     version: str,
     params: list,
-    port: int = 60200,
-) -> dict:
-    """POST a JSON-RPC call. Returns the parsed JSON response or {'_error': ...}."""
-    url = f"http://{ip}:{port}/sony/{service}"
-    body = json.dumps(
-        {"method": method, "id": 1, "params": params, "version": version}
-    ).encode("utf-8")
-    req = Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            # Critical: do NOT send Expect: 100-continue (HAP returns 417).
-        },
-    )
-    try:
-        with urlopen(req, timeout=HTTP_TIMEOUT_SEC) as r:
-            raw = r.read().decode("utf-8", errors="replace")
-            try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return {"_raw": raw}
-    except HTTPError as e:
-        return {"_error": f"HTTP {e.code}: {e.reason}"}
-    except (URLError, socket.timeout) as e:
-        return {"_error": str(e)}
+    port: int = API_PORT,
+) -> RpcReply:
+    """POST one JSON-RPC call with discovery's short timeout."""
+    return rpc_post(ip, service, method, version, params, port=port, timeout=HTTP_TIMEOUT_SEC)
 
 
 def probe_device(ip: str) -> dict:
@@ -149,59 +144,33 @@ def probe_device(ip: str) -> dict:
     result["hap_xml"] = hap_xml
 
     if hap_xml:
-        for key in ("modelName", "friendlyName", "X_HAP_Version"):
-            tag_open = f"<{key}>"
-            ns_match = None
-            for tag in (tag_open, f"<av:{key}>"):
-                if tag in hap_xml:
-                    start = hap_xml.find(tag) + len(tag)
-                    end = hap_xml.find("<", start)
-                    ns_match = hap_xml[start:end].strip()
-                    break
-            if ns_match:
-                result[key] = ns_match
+        for key in UPNP_FIELDS:
+            value = upnp_field(hap_xml, key)
+            if value:
+                result[key] = value
 
     print(f"[{ip}] Probing JSON-RPC methods ...")
     api_results: list[dict] = []
     for service, method, version, params in KNOWN_METHODS:
-        resp = jsonrpc_call(ip, service, method, version, params)
-        entry = {
-            "service": service,
-            "method": method,
-            "version": version,
-            "params": params,
-            "response": resp,
-        }
-        api_results.append(entry)
-        ok = "_error" not in resp and "error" not in resp
-        marker = "OK " if ok else "ERR"
-        snippet = json.dumps(resp)[:120]
+        reply = jsonrpc_call(ip, service, method, version, params)
+        api_results.append(
+            {
+                "service": service,
+                "method": method,
+                "version": version,
+                "params": params,
+                "response": reply.as_dict(),
+            }
+        )
+        marker = "OK " if reply.ok else "ERR"
+        snippet = json.dumps(reply.body if reply.error is None else reply.error)[:120]
         print(f"  [{marker}] {service}.{method} v{version} -> {snippet}")
     result["api_probe"] = api_results
 
     return result
 
 
-def save_report(devices: list[dict]) -> Path:
-    out_dir = Path(__file__).resolve().parent.parent / "research" / "captures"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out_path = out_dir / f"discover-{ts}.json"
-    with out_path.open("w", encoding="utf-8") as f:
-        json.dump(
-            {
-                "tool": "HAP-Revival/tools/discover.py",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "devices": devices,
-            },
-            f,
-            indent=2,
-            ensure_ascii=False,
-        )
-    return out_path
-
-
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--target",
@@ -212,7 +181,11 @@ def main() -> int:
         action="store_true",
         help="SSDP only, no JSON-RPC probe.",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     devices: list[dict] = []
 
@@ -220,7 +193,7 @@ def main() -> int:
         print(f"Probing direct target {args.target} ...")
         devices.append(probe_device(args.target))
     else:
-        print("Sending SSDP M-SEARCH (4s window) ...")
+        print(f"Sending SSDP M-SEARCH ({SSDP_TIMEOUT_SEC}s window) ...")
         found = ssdp_search()
         if not found:
             print(
@@ -237,7 +210,7 @@ def main() -> int:
             else:
                 devices.append(probe_device(d["ip"]))
 
-    out = save_report(devices)
+    out = save_capture("discover", {"devices": devices}, tool=TOOL_NAME)
     print(f"\nReport saved: {out}")
     return 0
 

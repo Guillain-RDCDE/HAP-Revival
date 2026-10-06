@@ -404,6 +404,13 @@ Stdlib-only Python, no accounts, no telemetry.
 - [**API fuzzer**](../tools/api-fuzzer.py) and [**call**](../tools/call.py) — probe the API by hand.
 - [**Link checker**](../tools/check_links.py) — every relative link and heading anchor. Runs in CI.
 
+### Shared by the tools above
+
+- [**hap_common**](../tools/hap_common.py) — ports, share names, Wake-on-LAN, cache and capture files.
+- [**hap_media**](../tools/hap_media.py) — the formats the player accepts, the junk it must never see.
+- [**hap_catalog**](../tools/hap_catalog.py) — the on-disk catalogue's schema and codec codes.
+- [**hap_png**](../tools/hap_png.py) — a stdlib PNG encoder for the mock's covers and the icons.
+
 </details>
 
 <br>

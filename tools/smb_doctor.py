@@ -18,11 +18,15 @@ Nothing here imports tkinter or argparse — it is a pure engine shared by the G
 """
 from __future__ import annotations
 
+import argparse
 import json
-import socket
+import os
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
+
+from hap_common import SMB_DIRECT_PORT, SMB_NETBIOS_PORT, force_utf8_stdio, tcp_port_open
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -34,6 +38,7 @@ _GLYPH = {OK: "✓", PROBLEM: "✗", WARN: "!", NA: "·"}
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 _LANMAN_PARAMS = r"HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters"
+_ENABLE_SMB1 = "Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Client -NoRestart"
 
 
 @dataclass
@@ -53,17 +58,6 @@ class Finding:
 
 # --------------------------------------------------------------------------- helpers
 
-def _tcp_open(host: str, port: int, timeout: float = 3.0) -> bool:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(timeout)
-    try:
-        return s.connect_ex((host, port)) == 0
-    except OSError:
-        return False
-    finally:
-        s.close()
-
-
 def _ps(script: str, timeout: int = 20) -> tuple[int, str]:
     """Run a PowerShell snippet (no profile, non-interactive); return (rc, stdout-stripped).
     Returns (1, 'error: …') on any launch failure. Windows only — callers guard on IS_WINDOWS."""
@@ -73,7 +67,7 @@ def _ps(script: str, timeout: int = 20) -> tuple[int, str]:
             capture_output=True, text=True, timeout=timeout, creationflags=_NO_WINDOW,
         )
         return p.returncode, (p.stdout or "").strip()
-    except Exception as e:  # noqa: BLE001 — a missing/blocked powershell must not crash the app
+    except Exception as e:
         return 1, f"error: {e}"
 
 
@@ -88,14 +82,14 @@ def probe_guest_share(host: str, timeout: int = 8) -> Finding:
         return Finding("pysmb", "Transfer access (anonymous SMB1)", NA,
                        "pysmb not installed — run `pip install pysmb` to enable transfers.")
     last: Exception | None = None
-    for direct, port in ((True, 445), (False, 139)):
+    for direct, port in ((True, SMB_DIRECT_PORT), (False, SMB_NETBIOS_PORT)):
         try:
             c = SMBConnection("", "", "hap-doctor", "HAP", use_ntlm_v2=False, is_direct_tcp=direct)
             if c.connect(host, port, timeout=timeout):
                 shares: list[str] = []
                 try:
                     shares = [s.name for s in c.listShares() if not s.isSpecial]
-                except Exception:  # noqa: BLE001 — share enum is a bonus; connecting is the test
+                except Exception:
                     pass
                 finally:
                     c.close()
@@ -103,7 +97,7 @@ def probe_guest_share(host: str, timeout: int = 8) -> Finding:
                 return Finding("pysmb", "Transfer access (anonymous SMB1)", OK,
                                f"Connected anonymously on port {port}.{tail} "
                                "Transfers will work regardless of Windows settings.")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             last = e
     return Finding("pysmb", "Transfer access (anonymous SMB1)", PROBLEM,
                    f"Could not open an anonymous SMB1 session ({last}). "
@@ -176,7 +170,7 @@ def windows_smb1_feature() -> Finding:
         return Finding(
             "smb1", "SMB1 client feature is not installed", PROBLEM,
             "Explorer and HAP Music Transfer can't reach an SMB1-only device without it.",
-            fix_cmd="Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Client -NoRestart",
+            fix_cmd=_ENABLE_SMB1,
             needs_admin=True, native_only=True)
     except OSError as e:
         return Finding("smb1", "SMB1 client feature", WARN,
@@ -185,7 +179,7 @@ def windows_smb1_feature() -> Finding:
         return Finding(
             "smb1", "SMB1 client is disabled", PROBLEM,
             "The mrxsmb10 driver start type is Disabled.",
-            fix_cmd="Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Client -NoRestart",
+            fix_cmd=_ENABLE_SMB1,
             needs_admin=True, native_only=True)
     return Finding("smb1", "SMB1 client enabled", OK, "mrxsmb10 driver active.", native_only=True)
 
@@ -239,10 +233,11 @@ def diagnose(host: str) -> list[Finding]:
     then the Windows-native client checks where applicable."""
     findings: list[Finding] = []
 
-    p445, p139 = _tcp_open(host, 445), _tcp_open(host, 139)
+    p445 = tcp_port_open(host, SMB_DIRECT_PORT)
+    p139 = tcp_port_open(host, SMB_NETBIOS_PORT)
     if p445 or p139:
         findings.append(Finding("reach", "HAP reachable on the network", OK,
-                                f"SMB port {'445' if p445 else '139'} open."))
+                                f"SMB port {SMB_DIRECT_PORT if p445 else SMB_NETBIOS_PORT} open."))
         findings.append(probe_guest_share(host))
     else:
         findings.append(Finding(
@@ -293,6 +288,16 @@ def format_report(findings: list[Finding]) -> list[str]:
 
 # --------------------------------------------------------------------------- applying fixes
 
+def _elevation_launcher(script_path: str, wait: bool) -> str:
+    """The PowerShell one-liner that runs `script_path` elevated (one UAC prompt)."""
+    wait_flag = "-Wait " if wait else ""
+    return (
+        "Start-Process powershell "
+        f"-Verb RunAs {wait_flag}"
+        f"-ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','\"{script_path}\"'"
+    )
+
+
 def _build_admin_script(admin_fixes: list[Finding]) -> str:
     body = ["$ErrorActionPreference = 'Continue'"]
     for f in admin_fixes:
@@ -330,33 +335,25 @@ def apply_fixes(findings: list[Finding], on_log=None, wait: bool = True) -> tupl
 
     # 2) Admin fixes via a single self-elevating PowerShell (one UAC prompt for all of them).
     if admin:
-        import os
-        import tempfile
         fd, path = tempfile.mkstemp(suffix=".ps1", text=True)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(_build_admin_script(admin) + "\r\n")
             log(f">> Requesting admin to apply {len(admin)} system fix(es) (UAC)…")
-            wait_flag = "-Wait " if wait else ""
-            launcher = (
-                "Start-Process powershell "
-                f"-Verb RunAs {wait_flag}"
-                f"-ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','\"{path}\"'"
-            )
-            rc, out = _ps(launcher, timeout=300)
+            rc, out = _ps(_elevation_launcher(path, wait), timeout=300)
             if rc != 0:
                 msg = "Elevation was declined or failed — system fixes were not applied."
                 log(f"   {msg}")
                 return changed, msg
             changed = True
         finally:
-            try:
-                if not wait:  # if we waited, the script has run and the temp file can go
-                    pass
-                else:
+            # With -Wait the script has finished and its file can go. Without it the
+            # elevated PowerShell may still be reading the file, so it has to stay.
+            if wait:
+                try:
                     os.unlink(path)
-            except OSError:
-                pass
+                except OSError:
+                    pass
 
     return changed, ("Fixes applied. Reconnect to the HAP "
                      "(stale mappings were cleared; reopen \\\\<hap-ip>).")
@@ -364,19 +361,19 @@ def apply_fixes(findings: list[Finding], on_log=None, wait: bool = True) -> tupl
 
 # --------------------------------------------------------------------------- standalone CLI
 
-def _main(argv: list[str]) -> int:
-    import argparse
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:  # noqa: BLE001
-        pass
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="smb_doctor",
         description="Diagnose (and optionally fix) SMB access to the HAP.")
     ap.add_argument("host", help="HAP IP address, e.g. 192.168.1.28")
     ap.add_argument("--fix", action="store_true",
                     help="apply the fixes for any problems found (Windows asks for admin)")
-    args = ap.parse_args(argv[1:])
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    force_utf8_stdio()
+    args = build_parser().parse_args(argv)
 
     findings = diagnose(args.host)
     print("\n".join(format_report(findings)))
@@ -395,4 +392,4 @@ def _main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(_main(sys.argv))
+    raise SystemExit(main())

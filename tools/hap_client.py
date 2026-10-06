@@ -38,12 +38,14 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import socket
 import sys
+import time
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+from hap_common import API_PORT, UPNP_PORT, force_utf8_stdio
 
 try:  # local sibling module; keep the client importable even if it's absent
     import i18n
@@ -171,6 +173,132 @@ class HAPTransportError(HAPError):
 
 DEFAULT_CLIENT_ID = "HAP-Revival:0.1:python_client"
 
+# Deliberately large: cold `/sony/contentdb/v100/…` requests take 5–57 s, and
+# the 6 s this used to default to is why that API was recorded as dead for
+# months (see docs/16-gotchas.md §7).
+DEFAULT_TIMEOUT_SEC = 90.0
+
+
+@dataclass(frozen=True)
+class RpcReply:
+    """What one raw JSON-RPC POST came back with, before any interpretation.
+
+    `status` is the HTTP status, or 0 when the request never completed (then
+    `error` says why). `body` is the parsed JSON when the device sent JSON,
+    the raw text when it did not, and None when nothing came back.
+    """
+
+    status: int
+    body: Any
+    error: str | None = None
+
+    @property
+    def rpc_error(self) -> list | None:
+        """The device's `[code, message]` error tuple, if the reply carries one."""
+        if isinstance(self.body, dict):
+            err = self.body.get("error")
+            if isinstance(err, list):
+                return err
+            if err is not None:
+                return [-1, str(err)]
+        return None
+
+    @property
+    def ok(self) -> bool:
+        """True when the call completed, answered 200, and carried no `error`."""
+        return self.error is None and self.status == 200 and self.rpc_error is None
+
+    def as_dict(self) -> dict:
+        """A JSON-serialisable record, for capture files."""
+        out: dict[str, Any] = {"status": self.status, "body": self.body}
+        if self.error is not None:
+            out["error"] = self.error
+        return out
+
+
+def rpc_url(ip: str, service: str, port: int = API_PORT) -> str:
+    """`http://<ip>:<port>/sony/<service>`, the endpoint for one service."""
+    return f"http://{ip}:{port}/sony/{service}"
+
+
+def rpc_request(
+    url: str,
+    method: str,
+    version: str,
+    params: list | None = None,
+    *,
+    client_id: str | None = None,
+) -> Request:
+    """Build the POST for one ScalarWebAPI call.
+
+    The envelope is always `{"method", "id": 1, "params", "version"}`. The
+    `x-hap-device-id` header is sent only when `client_id` is given: it is
+    required by some database methods but makes `getContentList` on a
+    `netService:` URI fail (docs/16-gotchas.md). `Expect: 100-continue` must
+    never be sent — the player answers 417.
+    """
+    envelope = {"method": method, "id": 1, "params": params or [], "version": version}
+    body = json.dumps(envelope).encode("utf-8")
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    if client_id:
+        headers["x-hap-device-id"] = client_id
+    return Request(url, data=body, method="POST", headers=headers)
+
+
+def rpc_post(
+    ip: str,
+    service: str,
+    method: str,
+    version: str,
+    params: list | None = None,
+    *,
+    port: int = API_PORT,
+    timeout: float = DEFAULT_TIMEOUT_SEC,
+    client_id: str | None = None,
+) -> RpcReply:
+    """POST one call and report what came back, raising nothing.
+
+    This is the transport every probe script shares. `HAP.call` sits on top of
+    it and turns the reply into exceptions and an unwrapped result.
+    """
+    url = rpc_url(ip, service, port)
+    req = rpc_request(url, method, version, params, client_id=client_id)
+    try:
+        with urlopen(req, timeout=timeout) as r:
+            status = r.status
+            raw = r.read().decode("utf-8", errors="replace")
+    except HTTPError as e:
+        try:
+            raw = e.read().decode("utf-8", errors="replace")
+        except OSError:
+            raw = ""
+        return RpcReply(e.code, raw or None, f"HTTP {e.code}: {e.reason}")
+    except (URLError, TimeoutError, OSError) as e:
+        return RpcReply(0, None, str(e))
+    try:
+        return RpcReply(status, json.loads(raw))
+    except json.JSONDecodeError:
+        return RpcReply(status, raw)
+
+
+def upnp_description(ip: str, port: int = UPNP_PORT, timeout: float = DEFAULT_TIMEOUT_SEC) -> str:
+    """The UPnP device description (`/hap.xml`) as text.
+
+    Raises HAPTransportError when the player does not answer.
+    """
+    url = f"http://{ip}:{port}/hap.xml"
+    try:
+        with urlopen(url, timeout=timeout) as r:
+            return r.read().decode("utf-8", errors="replace")
+    except (HTTPError, URLError, TimeoutError, OSError) as e:
+        raise HAPTransportError(f"could not fetch UPnP description: {e}") from e
+
+
+def upnp_field(xml: str, tag: str) -> str | None:
+    """`<tag>` or `<av:tag>` text out of a device description, or None."""
+    m = re.search(rf"<(?:av:)?{re.escape(tag)}>\s*(.*?)\s*</(?:av:)?{re.escape(tag)}>", xml, re.S)
+    return m.group(1) if m else None
+
 
 def _first_field(reply: Any, key: str, default: Any = None) -> Any:
     """Read `key` out of whatever shape a call came back in.
@@ -197,18 +325,16 @@ class HAP:
     def __init__(
         self,
         ip: str,
-        port: int = 60200,
-        timeout: float = 90.0,
+        port: int = API_PORT,
+        timeout: float = DEFAULT_TIMEOUT_SEC,
         client_id: str = DEFAULT_CLIENT_ID,
     ):
         """
         Args:
             ip: device IP address on the local network
             port: ScalarWebAPI port (always 60200 on HAP-Z1ES firmware 19404R)
-            timeout: per-request HTTP timeout in seconds. Deliberately large:
-                cold `/sony/contentdb/v100/…` requests take 5–57 s, and the 6 s
-                this used to default to is why that API was recorded as dead
-                for months (see docs/16-gotchas.md §7).
+            timeout: per-request HTTP timeout in seconds; see DEFAULT_TIMEOUT_SEC
+                for why the default is as large as it is.
             client_id: value sent in the `x-hap-device-id` header. Sony's
                 Android client format is `Android:<os>:<app_ver>:<yyyymmddHHMMSS>_<mac>`
                 — we send a stable identifier instead. Optional on most calls
@@ -220,7 +346,6 @@ class HAP:
         self.port = port
         self.timeout = timeout
         self.client_id = client_id
-        self._base = f"http://{ip}:{port}/sony"
 
     # ---- Raw JSON-RPC ----
 
@@ -244,41 +369,24 @@ class HAP:
         makes `getContentList` on a `netService:` URI fail with `[1, "Any"]` —
         see docs/16-gotchas.md.
         """
-        params = params if params is not None else []
-        url = f"{self._base}/{service}"
-        body = json.dumps(
-            {"method": method, "id": 1, "params": params, "version": version}
-        ).encode("utf-8")
-        req = Request(
-            url,
-            data=body,
-            method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                **({"x-hap-device-id": self.client_id} if send_client_id else {}),
-            },
+        url = rpc_url(self.ip, service, self.port)
+        reply = rpc_post(
+            self.ip, service, method, version, params,
+            port=self.port, timeout=self.timeout,
+            client_id=self.client_id if send_client_id else None,
         )
-        try:
-            with urlopen(req, timeout=self.timeout) as r:
-                raw = r.read().decode("utf-8", errors="replace")
-        except HTTPError as e:
-            raise HAPTransportError(f"HTTP {e.code}: {e.reason} on {url}") from e
-        except (URLError, socket.timeout) as e:
-            raise HAPTransportError(f"{e} on {url}") from e
+        if reply.error is not None:
+            raise HAPTransportError(f"{reply.error} on {url}")
+        if not isinstance(reply.body, dict):
+            raise HAPTransportError(f"non-JSON response from {url}: {str(reply.body)[:200]}")
 
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as e:
-            raise HAPTransportError(f"non-JSON response from {url}: {raw[:200]}") from e
-
-        if "error" in data:
-            err = data["error"]
-            if isinstance(err, list) and len(err) >= 2:
+        err = reply.rpc_error
+        if err is not None:
+            if len(err) >= 2:
                 raise HAPMethodError(err[0], err[1], method, version)
             raise HAPMethodError(-1, str(err), method, version)
 
-        result = data.get("result", [])
+        result = reply.body.get("result", [])
         if isinstance(result, list) and len(result) == 1:
             return result[0]
         return result
@@ -627,9 +735,7 @@ class HAP:
         The player needs a few seconds to resolve a stream, so this waits
         before believing a negative.
         """
-        import time as _time
-
-        _time.sleep(settle_sec)
+        time.sleep(settle_sec)
         try:
             np = self.now_playing()
         except HAPError:
@@ -667,7 +773,10 @@ class HAP:
         return self.call("avContent", "getRepeatType", "1.0", [{"target": target}])
 
     def shuffle_type(self, target: str = "track") -> dict:
-        """Get shuffle mode. target: 'track' (HDD/USB; 'audio' also accepted) or '' (Spotify). See repeat_type."""
+        """Get shuffle mode.
+
+        target: 'track' (HDD/USB; 'audio' also accepted) or '' (Spotify). See repeat_type.
+        """
         return self.call("avContent", "getShuffleType", "1.0", [{"target": target}])
 
     # ---- setters (state-changing) ----
@@ -689,16 +798,27 @@ class HAP:
             [{"settings": [{"target": target, "value": value}]}],
         )
 
-    def set_repeat(self, target: str = "track", type: str = "off") -> None:
-        """Set repeat mode. type: 'off', 'one', 'all', 'track'. target: 'track' (HDD/USB; 'audio' also accepted) or '' (Spotify)."""
-        self.call("avContent", "setRepeatType", "1.0", [{"target": target, "type": type}])
+    def set_repeat(self, target: str = "track", mode: str = "off") -> None:
+        """Set repeat mode.
 
-    def set_shuffle(self, target: str = "track", type: str = "off") -> None:
-        """Set shuffle mode. type: 'off', 'track', 'album', 'folder'. target: 'track' (HDD/USB; 'audio' also accepted) or '' (Spotify)."""
-        self.call("avContent", "setShuffleType", "1.0", [{"target": target, "type": type}])
+        mode: 'off', 'one', 'all', 'track'.
+        target: 'track' (HDD/USB; 'audio' also accepted) or '' (Spotify).
+        """
+        self.call("avContent", "setRepeatType", "1.0", [{"target": target, "type": mode}])
+
+    def set_shuffle(self, target: str = "track", mode: str = "off") -> None:
+        """Set shuffle mode.
+
+        mode: 'off', 'track', 'album', 'folder'.
+        target: 'track' (HDD/USB; 'audio' also accepted) or '' (Spotify).
+        """
+        self.call("avContent", "setShuffleType", "1.0", [{"target": target, "type": mode}])
 
     def set_buffer_time(self, buffer_sec: int) -> None:
-        """Set audio playback buffer length. Must be one of getBufferTime's candidate values (15, 30, 60, 180)."""
+        """Set audio playback buffer length.
+
+        Must be one of getBufferTime's candidate values (15, 30, 60, 180).
+        """
         self.call("avContent", "setBufferTime", "1.0", [{"bufferTimeSec": int(buffer_sec)}])
 
     def set_sleep_timer(self, status: str = "off", sleep_sec: int = 0) -> None:
@@ -712,11 +832,18 @@ class HAP:
         )
 
     def set_volume(self, volume: int) -> None:
-        """Set audio volume. On HAP-Z1ES this is a no-op (no internal amp); on HAP-S1 it actually sets the volume."""
+        """Set audio volume.
+
+        On HAP-Z1ES this is a no-op (no internal amp); on HAP-S1 it sets the volume.
+        """
         self.call("audio", "setAudioVolume", "1.0", [{"volume": str(int(volume))}])
 
     def mute_toggle(self) -> None:
-        """Toggle mute. On HAP-Z1ES, Sony's code forces 'toggle' regardless of intent — there is no stateful mute."""
+        """Toggle mute.
+
+        On HAP-Z1ES, Sony's code forces 'toggle' regardless of intent — there
+        is no stateful mute.
+        """
         self.call("audio", "setAudioMute", "1.1", [{"mute": "toggle"}])
 
     def set_favorite(self, track_id: int, status: str = "favorite") -> None:
@@ -767,22 +894,14 @@ class HAP:
         return self.call("database", "checkSameDatabase", "1.0", [{"uri": uri}])
 
     def _device_uuid_short(self) -> str:
-        """Get the UDN minus the 'uuid:' prefix (for database URIs).
-        Fetched from the UPnP description on port 60100."""
-        url = f"http://{self.ip}:60100/hap.xml"
-        try:
-            with urlopen(url, timeout=self.timeout) as r:
-                xml = r.read().decode("utf-8", errors="replace")
-        except (HTTPError, URLError, socket.timeout) as e:
-            raise HAPTransportError(f"could not fetch UPnP description: {e}") from e
-        start = xml.find("<UDN>")
-        if start < 0:
+        """The UDN minus its 'uuid:' prefix (for database URIs).
+
+        Fetched from the UPnP description on port 60100.
+        """
+        udn = upnp_field(upnp_description(self.ip, timeout=self.timeout), "UDN")
+        if udn is None:
             raise HAPError("no <UDN> in UPnP description")
-        end = xml.find("</UDN>", start)
-        udn = xml[start + len("<UDN>") : end].strip()
-        if udn.startswith("uuid:"):
-            return udn[5:]
-        return udn
+        return udn.removeprefix("uuid:")
 
 
 # ---------- CLI ----------
@@ -904,7 +1023,12 @@ def _cli_radio_browse(hap: HAP, args) -> None:
         print("nothing at that path")
         return
     for it in items:
-        kind = "station" if it.get("isPlayable") else ("folder " if it.get("isBrowsable") else "       ")
+        if it.get("isPlayable"):
+            kind = "station"
+        elif it.get("isBrowsable"):
+            kind = "folder "
+        else:
+            kind = "       "
         print(f"  [{kind}] {it.get('path','?'):12} {it.get('title','')}")
     print()
     print(f"{len(items)} item(s). Descend with `radio-browse <path>`, play with")
@@ -952,15 +1076,7 @@ def _cli_sleep_timer(hap: HAP, _args) -> None:
     _row(_t("cli.sleep.options"), t.candidate_sec)
 
 
-def main() -> int:
-    # Windows consoles default to cp1252 and choke on accents / CJK; force UTF-8
-    # so translated output (Français, 日本語, …) renders without PYTHONUTF8=1.
-    for _stream in (sys.stdout, sys.stderr):
-        try:
-            _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
-        except (AttributeError, ValueError):
-            pass
-
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ip", help="HAP device IP address")
     parser.add_argument(
@@ -1004,8 +1120,13 @@ def main() -> int:
     p = sub.add_parser("play-track")
     p.add_argument("track_id", type=int, help="Track ID")
     p.set_defaults(func=_cli_play_track)
+    return parser
 
-    args = parser.parse_args()
+
+def main(argv: list[str] | None = None) -> int:
+    # Translated output (Français, 日本語, …) must render on a cp1252 console too.
+    force_utf8_stdio()
+    args = build_parser().parse_args(argv)
     global _LANG
     if i18n is not None:
         _LANG = i18n.detect_lang(override=args.lang)

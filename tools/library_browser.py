@@ -26,31 +26,16 @@ is ever written. Your library data never leaves your machine.
 """
 from __future__ import annotations
 
+import argparse
 import html
-import sqlite3
-import sys
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-# ---- schema decode (from hdd_browse.db; see docs/09-disk-layout.md) ----
-# Tables: FT5202 artists, FT000A albums, FT0002 tracks, FT4502 genres, FT0000 folders.
-# Columns are Sony PROP-codes; the ones we use:
-#   artist/album/genre: PROP3601 id, PROP7020 name, PROP7065 sort, PROP7221 initial
-#   album extra:        PROP7055 album-artist, PROP6844 year, PROP78D9 cover thumb (BLOB)
-#   track:              PROP7020 title, PROP304B codec, PROP3047 duration(s),
-#                       PROP3048 sample-rate, PROP10DE bit-depth, PROP304C bitrate,
-#                       PROP2053 track-no, PROP10A3 disc-no, PROP7052 artist-id,
-#                       PROP7045 genre-id, PROPB2BB album-id, PROP7007 file-name,
-#                       PROP58D3 drm-flag, PROP10DD multichannel-flag
+from hap_catalog import codec_name, open_catalog
 
-CODECS = {
-    49: "FLAC", 81: "MP3", 97: "AAC", 65: "ALAC",
-    129: "WMA", 17: "WAV", 33: "AIFF", 0: "?",
-}
+# The PROP-code schema is decoded once, in hap_catalog.py (docs/09-disk-layout.md).
 
-
-def codec_name(v: int) -> str:
-    return CODECS.get(int(v or 0), f"#{v}")
+DEFAULT_PORT = 8090
 
 
 def fmt_dur(seconds: int) -> str:
@@ -69,13 +54,10 @@ def fmt_quality(srate: int, bits: int) -> str:
 
 
 class Library:
+    """Read-only queries over the catalogue, shared by every request thread."""
+
     def __init__(self, path: str):
-        # immutable = read-only, no -wal/-journal, safe on a copy
-        uri = f"file:{urllib.parse.quote(path)}?immutable=1&mode=ro"
-        self.db = sqlite3.connect(uri, uri=True, check_same_thread=False)
-        # the on-device DB mixes UTF-8 with some latin-1 text (e.g. "Zé Roberto") — be tolerant
-        self.db.text_factory = lambda b: b.decode("utf-8", "replace")
-        self.db.row_factory = sqlite3.Row
+        self.db = open_catalog(path, check_same_thread=False)
 
     def q(self, sql: str, args=()):
         return self.db.execute(sql, args).fetchall()
@@ -161,24 +143,32 @@ CSS = """
 font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif}
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 header{position:sticky;top:0;background:#0f1115ee;backdrop-filter:blur(8px);
-border-bottom:1px solid var(--line);padding:12px 20px;display:flex;gap:18px;align-items:center;z-index:5}
+border-bottom:1px solid var(--line);padding:12px 20px;display:flex;gap:18px;
+align-items:center;z-index:5}
 header .brand{font-weight:700}header nav a{margin-right:14px;color:var(--muted)}
 header form{margin-left:auto}input[type=search]{background:var(--card);border:1px solid var(--line);
 color:var(--fg);padding:7px 12px;border-radius:8px;width:260px}
 main{max-width:1100px;margin:22px auto;padding:0 20px}
-h1{font-size:22px;margin:0 0 16px}h2{font-size:16px;color:var(--muted);font-weight:600;margin:24px 0 10px}
+h1{font-size:22px;margin:0 0 16px}
+h2{font-size:16px;color:var(--muted);font-weight:600;margin:24px 0 10px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:18px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.card a{color:var(--fg)}.cover{aspect-ratio:1;background:#0c0d10 center/cover no-repeat;display:block}
+.card a{color:var(--fg)}
+.cover{aspect-ratio:1;background:#0c0d10 center/cover no-repeat;display:block}
 .card .meta{padding:9px 11px}.card .t{font-weight:600;font-size:14px;
-white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.card .s{color:var(--muted);font-size:12px}
-table{width:100%;border-collapse:collapse}td,th{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left}
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .s{color:var(--muted);font-size:12px}
+table{width:100%;border-collapse:collapse}
+td,th{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left}
 th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 td.n{color:var(--muted);width:48px;text-align:right}td.q{color:var(--muted);font-size:13px;white-space:nowrap}
-.albumhead{display:flex;gap:22px;margin-bottom:18px}.albumhead .cover{width:200px;height:200px;border-radius:12px;flex:0 0 auto}
-.pill{display:inline-block;background:#272b33;color:var(--muted);border-radius:6px;padding:1px 7px;font-size:12px;margin-left:6px}
+.albumhead{display:flex;gap:22px;margin-bottom:18px}
+.albumhead .cover{width:200px;height:200px;border-radius:12px;flex:0 0 auto}
+.pill{display:inline-block;background:#272b33;color:var(--muted);border-radius:6px;
+padding:1px 7px;font-size:12px;margin-left:6px}
 .alpha a{display:inline-block;margin:0 6px 6px 0;color:var(--muted)}
-ul.rows{list-style:none;padding:0;margin:0}ul.rows li{padding:8px 0;border-bottom:1px solid var(--line)}
+ul.rows{list-style:none;padding:0;margin:0}
+ul.rows li{padding:8px 0;border-bottom:1px solid var(--line)}
 .muted{color:var(--muted)}
 """
 
@@ -192,7 +182,8 @@ def page(title: str, body: str) -> bytes:
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)} · HAP Library</title><style>{CSS}</style></head><body>
 <header><span class="brand">🎵 HAP Library</span><nav>{nav}</nav>
-<form action="/search"><input type="search" name="q" placeholder="Search artists, albums, tracks…"></form>
+<form action="/search">
+<input type="search" name="q" placeholder="Search artists, albums, tracks…"></form>
 </header><main>{body}</main></body></html>"""
     return doc.encode("utf-8")
 
@@ -215,7 +206,7 @@ def album_card(al) -> str:
 
 
 class Handler(BaseHTTPRequestHandler):
-    lib: Library = None  # set on the server
+    lib: Library | None = None  # set before serving
 
     def log_message(self, *a):  # quiet
         pass
@@ -246,8 +237,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.cover_response(int(parts[1]))
             if parts[0] == "search":
                 return self._send(self.search_page(qs.get("q", [""])[0]))
-        except Exception as e:  # noqa: BLE001
-            return self._send(page("Error", f"<h1>Error</h1><pre>{html.escape(str(e))}</pre>"), code=500)
+        except Exception as e:
+            body = f"<h1>Error</h1><pre>{html.escape(str(e))}</pre>"
+            return self._send(page("Error", body), code=500)
         return self._send(page("Not found", "<h1>404</h1>"), code=404)
 
     # ---- pages ----
@@ -300,7 +292,8 @@ class Handler(BaseHTTPRequestHandler):
     def albums_page(self) -> bytes:
         albums = self.lib.albums()
         cards = "".join(album_card(a) for a in albums)
-        body = f'<h1>Albums <span class="pill">{len(albums)} shown</span></h1><div class="grid">{cards}</div>'
+        body = (f'<h1>Albums <span class="pill">{len(albums)} shown</span></h1>'
+                f'<div class="grid">{cards}</div>')
         return page("Albums", body)
 
     def album_page(self, alid: int) -> bytes:
@@ -331,14 +324,16 @@ class Handler(BaseHTTPRequestHandler):
             f'<p class="muted">{html.escape(album["album_artist"] or "")}{yr} · '
             f'{len(tracks)} tracks · {fmt_dur(total)}</p></div></div>'
             f'<table><thead><tr><th class="n">#</th><th>Title</th><th>Codec</th>'
-            f'<th>Quality</th><th class="n">Time</th></tr></thead><tbody>{"".join(rows)}</tbody></table>'
+            f'<th>Quality</th><th class="n">Time</th></tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table>'
         )
         return page(album["name"] or "Album", body)
 
     def search_page(self, term: str) -> bytes:
         term = term.strip()
         if not term:
-            return page("Search", "<h1>Search</h1><p class='muted'>Type something in the box above.</p>")
+            return page("Search",
+                        "<h1>Search</h1><p class='muted'>Type something in the box above.</p>")
         artists = self.lib.artists(term)[:50]
         albums = self.lib.albums(term, limit=60)
         tracks = self.lib.search_tracks(term)
@@ -356,7 +351,8 @@ class Handler(BaseHTTPRequestHandler):
             out.append(f'<h2>Tracks ({len(tracks)})</h2><ul class="rows">')
             out += [f'<li><a href="/album/{t["album_id"]}">{html.escape(t["title"] or "—")}</a> '
                     f'<span class="muted">· {html.escape(t["artist"] or "")} · '
-                    f'{html.escape(t["album"] or "")} · {codec_name(t["codec"])}</span></li>' for t in tracks]
+                    f'{html.escape(t["album"] or "")} · {codec_name(t["codec"])}</span></li>'
+                    for t in tracks]
             out.append("</ul>")
         if not (artists or albums or tracks):
             out.append("<p class='muted'>No matches.</p>")
@@ -376,23 +372,29 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-def main(argv: list[str]) -> int:
-    if len(argv) < 2:
-        print(__doc__)
-        print("error: pass the path to hdd_browse.db", file=sys.stderr)
-        return 2
-    port = int(argv[2]) if len(argv) > 2 else 8090
-    Handler.lib = Library(argv[1])
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description="Browse a HAP's hdd_browse.db in your web browser.")
+    ap.add_argument("db", help="path to hdd_browse.db")
+    ap.add_argument("port", nargs="?", type=int, default=DEFAULT_PORT,
+                    help=f"local HTTP port (default {DEFAULT_PORT})")
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    Handler.lib = Library(args.db)
     s = Handler.lib.stats()
     print(f"Loaded {s['tracks']:,} tracks / {s['albums']:,} albums / {s['artists']:,} artists")
-    print(f"Browse at http://localhost:{port}  (Ctrl-C to stop)")
-    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    print(f"Browse at http://localhost:{args.port}  (Ctrl-C to stop)")
+    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         print("\nbye")
+    finally:
+        srv.server_close()
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    raise SystemExit(main())
