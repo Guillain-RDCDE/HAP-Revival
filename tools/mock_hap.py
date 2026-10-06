@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import socket
 import threading
 import time
 import urllib.parse
@@ -399,6 +400,12 @@ class DeviceState:
         self.repeat = {"track": "off", "": "off"}
         self.shuffle = {"track": "off", "": "off"}
         self.buffer_sec = 30
+        # UDP push subscribers: (ip, port) -> expiry. The real player keeps a
+        # subscription for `timeout` seconds and sends every event three times.
+        self.subscribers: dict[tuple[str, int], float] = {}
+        self.seq = 0
+        # TuneIn account link. Stations play either way; this only ever synced favourites.
+        self.radio_registered = False
 
     # ---- playback clock ----
 
@@ -452,6 +459,100 @@ class DeviceState:
 
 
 STATE = DeviceState()
+
+# ---------------------------------------------------------------------------
+# Push notifications (/sony/notification/status + NOTIFY datagrams)
+# ---------------------------------------------------------------------------
+#
+# Shapes from a real 19404R capture (research/notes/2026-08-20-crestron-module-
+# teardown.md): a POST subscribes a (client ip, port) for `timeout` seconds, then
+# every change goes out as a pseudo-HTTP datagram, three times under one SEQ.
+
+NOTIFY_TIMEOUT_SEC = 300
+NOTIFY_REPEATS = 3
+HOST_UUID = "uuid:00000000-0000-1010-8000-104FA86F4B84"
+CONTENTPLAYER_BASE = "/sony/contentplayer/v100"
+
+#: Which event a state-changing JSON-RPC method produces, and where to read back.
+EVENT_FOR_METHOD = {
+    "pausePlayingContent": ("playinginfoChanged", "playinginfo"),
+    "setPlayContent": ("playinginfoChanged", "playinginfo"),
+    "setPlayNextContent": ("playingtrackChanged", "playinginfo"),
+    "setPlayPreviousContent": ("playingtrackChanged", "playinginfo"),
+    "createPlayingListAndQuickPlay": ("playqueueChanged", "playqueue"),
+    "setPowerStatus": ("powerstateChanged", "powerstate"),
+    "setAudioVolume": ("volumeChanged", "volumelevel"),
+    "setAudioMute": ("volumeChanged", "volumelevel"),
+}
+
+
+def subscribe(ip: str, port: int) -> dict:
+    """Arm (or re-arm) a subscriber. Returns the reply the player sends."""
+    with STATE.lock:
+        STATE.subscribers[(ip, int(port))] = time.monotonic() + NOTIFY_TIMEOUT_SEC
+    return {"timeout": NOTIFY_TIMEOUT_SEC, "port": int(port)}
+
+
+def notify_datagram(event: str, readback: str, host: str, seq: int) -> bytes:
+    body = json.dumps({"event": event, "url": f"http://{host}{CONTENTPLAYER_BASE}/{readback}"})
+    head = (
+        "NOTIFY * HTTP/1.1\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Content-Type: application/json\r\n"
+        f"SEQ: {seq}\r\n"
+        f"X-ContentServiceHostUUID: {HOST_UUID}\r\n\r\n"
+    )
+    return head.encode("utf-8") + body.encode("utf-8")
+
+
+def push_event(method: str, host: str) -> int:
+    """Send the event `method` causes to every live subscriber. Returns the SEQ used, or 0."""
+    hit = EVENT_FOR_METHOD.get(method)
+    if hit is None:
+        return 0
+    event, readback = hit
+    now = time.monotonic()
+    with STATE.lock:
+        STATE.subscribers = {k: v for k, v in STATE.subscribers.items() if v > now}
+        targets = list(STATE.subscribers)
+        if not targets:
+            return 0
+        STATE.seq += 1
+        seq = STATE.seq
+    datagram = notify_datagram(event, readback, host, seq)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        for target in targets:
+            for _ in range(NOTIFY_REPEATS):
+                try:
+                    sock.sendto(datagram, target)
+                except OSError:
+                    break
+    finally:
+        sock.close()
+    return seq
+
+
+def contentplayer_get(path: str) -> tuple[int, dict]:
+    """The small REST surface the push events point at. (status, body)."""
+    parts = [p for p in path.split("/") if p]
+    with STATE.lock:
+        if parts == ["powerstate"]:
+            return 200, {"power_state": "on" if STATE.power == "active" else "standby"}
+        if parts == ["playinginfo"]:
+            info = now_playing("mock")
+            return 200, {"state": info.get("state"), "title": info.get("title", ""),
+                         "artist": info.get("artist", ""),
+                         "position_sec": info.get("positionSec", 0)}
+        if parts == ["playqueue"]:
+            return 200, {"queue": [{"trackid": t.id, "name": t.title} for t in DEMO_TRACKS],
+                         "index": STATE.index}
+        if parts == ["volumelevel"]:
+            # A Z1ES has no volume stage: the real one answers 500 here.
+            return 500, {"error_code": 500, "description": "Internal Server Error"}
+        if len(parts) == 3 and parts[:2] == ["settings", "sound"] and parts[2] in STATE.sound:
+            return 200, {"setting": {"target": parts[2], "value": STATE.sound[parts[2]]}}
+    return 404, {"error_code": 404, "description": "Not Found"}
 
 
 # ---------------------------------------------------------------------------
@@ -582,6 +683,36 @@ def content_info(track_id: int, host: str) -> dict:
 # shape for state-changing setters).
 EMPTY: object = object()
 
+# ---------------------------------------------------------------------------
+# Internet radio (TuneIn): registration state and a two-level browse tree
+# ---------------------------------------------------------------------------
+#
+# Shapes from research/api-method-catalog.md. The tree is deliberately tiny and
+# locale-free; the real one depends on the player's region, which is the whole
+# point of `radio_browse` returning ready-made uris.
+
+TUNEIN_URI = "netService:audio?serviceName=tunein"
+RADIO_PIN = "SW94LN"
+RADIO_TREE: dict[str, list[dict]] = {
+    "/": [
+        {"path": "/1", "title": "Local Radio", "isBrowsable": True, "isPlayable": False},
+        {"path": "/2", "title": "Music", "isBrowsable": True, "isPlayable": False},
+    ],
+    "/1": [
+        {"path": "/1/1", "title": "FIP", "isBrowsable": False, "isPlayable": True,
+         "uri": f"{TUNEIN_URI}&path=/1/1&id=s50706"},
+        {"path": "/1/2", "title": "Radio Paradise", "isBrowsable": False, "isPlayable": True,
+         "uri": f"{TUNEIN_URI}&path=/1/2&id=s13606"},
+    ],
+    "/2": [],
+}
+
+
+def radio_browse(uri: str) -> list[list[dict]]:
+    """getContentList on a netService uri: the items, wrapped once more like the device."""
+    path = urllib.parse.parse_qs(uri.partition("?")[2]).get("path", ["/"])[0] or "/"
+    return [RADIO_TREE.get(path, [])]
+
 
 def dispatch(service: str, method: str, version: str, params: list, host: str) -> Any:
     """Map (service, method) → the *unwrapped* result value. The handler wraps
@@ -670,6 +801,21 @@ def dispatch(service: str, method: str, version: str, params: list, host: str) -
             tgt = p0.get("target", "track")
             STATE.shuffle["track" if tgt in ("track", "audio") else ""] = p0.get("type", "off")
             return EMPTY
+        if service == "avContent" and method == "registerDevice":
+            how = p0.get("method", "check")
+            if how == "check":
+                return {"isRegistered": STATE.radio_registered}
+            if how == "getPin":
+                return {"pinCode": RADIO_PIN}
+            if how == "unregister":
+                STATE.radio_registered = False
+                return EMPTY
+            raise KeyError(f"registerDevice/{how}")
+        if service == "avContent" and method == "getContentList":
+            uri = p0.get("uri", "")
+            if not uri.startswith("netService:"):
+                raise KeyError("getContentList is netService-only on this player")
+            return radio_browse(uri)
         if service == "avContent" and method == "editContentInfo":
             for target in p0.get("target", []):
                 uri = target.get("uri", "")
@@ -693,6 +839,9 @@ def dispatch(service: str, method: str, version: str, params: list, host: str) -
 
 
 class MockHandler(BaseHTTPRequestHandler):
+    # HTTP/1.1, like the player: it is what makes `Expect: 100-continue` reach
+    # handle_expect_100 at all (http.server ignores it on HTTP/1.0).
+    protocol_version = "HTTP/1.1"
     quiet: bool = True
 
     def log_message(self, fmt: str, *args: Any) -> None:
@@ -703,18 +852,46 @@ class MockHandler(BaseHTTPRequestHandler):
         host, port = self.server.server_address[:2]
         return self.headers.get("Host") or f"{host}:{port}"
 
-    def _send(self, status: int, content_type: str, body: bytes) -> None:
+    def _send(self, status: int, content_type: str, body: bytes,
+              extra: dict[str, str] | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for key, value in (extra or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         try:
             self.wfile.write(body)
         except (BrokenPipeError, ConnectionResetError):
             pass
 
+    def _send_json(self, status: int, payload: Any) -> None:
+        self._send(status, "application/json", json.dumps(payload, ensure_ascii=False).encode())
+
+    def handle_expect_100(self) -> bool:
+        # Gotcha 2 (docs/16-gotchas.md): the player answers 417 to
+        # `Expect: 100-continue` instead of continuing. So does this.
+        self.send_error(417, "Expectation Failed")
+        return False
+
+    def do_OPTIONS(self) -> None:
+        # Gotcha 1: the preflight echoes the Origin but never sends
+        # Access-Control-Allow-Headers, so a browser cannot add Content-Type.
+        extra = {"Access-Control-Allow-Methods": "GET, POST, OPTIONS"}
+        origin = self.headers.get("Origin")
+        if origin:
+            extra["Access-Control-Allow-Origin"] = origin
+        self._send(200, "text/plain", b"", extra)
+
     def do_GET(self) -> None:
+        # The push readback surface: /sony/contentplayer/v100/...
+        if self.path.startswith(CONTENTPLAYER_BASE):
+            rest = self.path[len(CONTENTPLAYER_BASE):].partition("?")[0]
+            status, payload = contentplayer_get(rest)
+            self._send_json(status, payload)
+            return
+
         # The front panel: /sony/hap?target=…&cmd=…
         if self.path.startswith("/sony/hap"):
             query = urllib.parse.parse_qs(self.path.partition("?")[2])
@@ -786,6 +963,24 @@ class MockHandler(BaseHTTPRequestHandler):
             self._send(400, "application/json", b'{"error":[3,"Illegal JSON"]}')
             return
 
+        # Push subscription: not JSON-RPC, a plain {"status": "enable", "port": N}.
+        if service == "notification/status":
+            if not isinstance(req, dict) or req.get("status") != "enable":
+                self._send_json(400, {"error_code": 400, "description": "Bad Request"})
+                return
+            try:
+                port = int(req.get("port", 0))
+            except (TypeError, ValueError):
+                port = 0
+            if not 0 < port < 65536:
+                self._send_json(400, {"error_code": 400, "description": "Bad Request"})
+                return
+            self._send_json(200, subscribe(self.client_address[0], port))
+            return
+        if not isinstance(req, dict):
+            self._send(400, "application/json", b'{"error":[3,"Illegal JSON"]}')
+            return
+
         method = req.get("method", "")
         version = req.get("version", "1.0")
         rid = req.get("id", 1)
@@ -806,6 +1001,7 @@ class MockHandler(BaseHTTPRequestHandler):
         result = [] if value is EMPTY else [value]
         body = json.dumps({"id": rid, "result": result}, ensure_ascii=False).encode("utf-8")
         self._send(200, "application/json", body)
+        push_event(method, self._host())
 
 
 def make_server(

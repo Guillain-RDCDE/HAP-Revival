@@ -327,6 +327,71 @@ def test_fix_open_is_refused_from_another_machine(ui, monkeypatch):
 # ---------- CLI ----------
 
 
+def test_main_wires_the_handler_and_serves(monkeypatch, capsys, device):
+    host, port = device
+
+    class Server:
+        def __init__(self, address, handler):
+            self.address, self.closed = address, False
+
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            self.closed = True
+
+    servers = []
+    def fake_server(address, handler):
+        servers.append(Server(address, handler))
+        return servers[-1]
+
+    monkeypatch.setattr(webui, "ThreadingHTTPServer", fake_server)
+    monkeypatch.setattr(webui.hap_library, "load_harvest", lambda h: {"counts": {"tracks": 3}})
+    started = []
+    monkeypatch.setattr(webui.PushWatcher, "start", lambda self: started.append(self.ip))
+    # The mock lives on an ephemeral port; point both client classes at it.
+    real, real_lib = hap_client.HAP, hap_library.Library
+    monkeypatch.setattr(webui, "HAP", lambda ip: real(ip, port=port, timeout=10))
+    monkeypatch.setattr(webui.hap_library, "Library",
+                        lambda ip: real_lib(ip, port=port, timeout=10))
+
+    assert webui.main([host, "--port", "0", "--notify-port", "0"]) == 0
+    out = capsys.readouterr().out
+    assert "Connected: HAP-Z1ES firmware 0019404R" in out and "Stopping" in out
+    assert "Library search index loaded from cache" in out
+    assert started == [host] and servers[0].closed and servers[0].address == ("127.0.0.1", 0)
+
+    assert webui.main([host, "--port", "0", "--no-push"]) == 0
+    assert "Push notifications disabled" in capsys.readouterr().out
+    assert len(started) == 1
+
+    monkeypatch.setattr(webui, "HAP", lambda ip: real(ip, port=1, timeout=1))
+    assert webui.main(["127.0.0.1", "--port", "0", "--no-push"]) == 0
+    assert "could not connect" in capsys.readouterr().err
+
+
+def test_main_demo_starts_the_mock(monkeypatch, capsys):
+    class Server:
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr(webui, "ThreadingHTTPServer", lambda address, handler: Server())
+    import mock_hap
+
+    spawned = []
+    monkeypatch.setattr(mock_hap, "serve_in_thread",
+                        lambda bind, port: spawned.append((bind, port)))
+    monkeypatch.setattr(webui, "HAP", lambda ip: hap_client.HAP(ip, port=1, timeout=1))
+    assert webui.main(["--demo", "--no-push"]) == 0
+    assert spawned == [("127.0.0.1", 60200)]
+    assert "Demo mode" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        webui.main(["--no-push"])  # neither an ip nor --demo
+
+
 def test_parser_defaults():
     args = webui.build_parser().parse_args(["--demo"])
     assert args.port == webui.DEFAULT_HTTP_PORT and args.ip is None and args.demo

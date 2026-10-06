@@ -122,6 +122,24 @@ def default_config_path() -> Path:
     return Path(__file__).resolve().parent / "hap_sync.json"
 
 
+def load_config_tolerant(path: str | os.PathLike) -> dict:
+    """Read hap_sync.json if present, else an empty skeleton.
+
+    Unlike `load_config` this never raises on a missing or partial file: the GUI
+    is how a config gets *created*, so it must start from nothing.
+    """
+    cfg: dict = {"host": "", "mac": "", "maps": []}
+    data = read_json(Path(path))  # None on a missing or corrupt file: neither blocks startup
+    if isinstance(data, dict):
+        cfg.update({k: data.get(k, cfg[k]) for k in ("host", "mac", "maps")})
+    return cfg
+
+
+def save_config(path: str | os.PathLike, host: str, mac: str, maps: list[dict]) -> Path:
+    """Write hap_sync.json in the shape `load_config` reads."""
+    return write_json(Path(path), {"host": host, "mac": mac, "maps": maps}, indent=2)
+
+
 def load_config(path: str | os.PathLike | None) -> dict:
     """Read hap_sync.json. Raises FileNotFoundError / ValueError with a readable message."""
     target = Path(path) if path else default_config_path()
@@ -392,11 +410,14 @@ def split_plan(todo: Iterable[PlanEntry]) -> tuple[list[PlanEntry], list[PlanEnt
 
 
 def describe_changed(entry: PlanEntry, remote: dict[str, int]) -> str:
-    """`local 5.1 MB vs HAP 5.0 MB, Δ+1234 B` — so a re-tag and a re-rip look different."""
+    """`local 5.1 MB vs HAP 5.0 MB, Δ+12.0 KB` — so a re-tag and a re-rip look different."""
     rsize = remote.get(entry.rel)
     if rsize is None:
         return human_size(entry.size)
-    return f"local {human_size(entry.size)} vs HAP {human_size(rsize)}, Δ{entry.size - rsize:+d} B"
+    delta = entry.size - rsize
+    sign = "+" if delta >= 0 else "-"
+    return (f"local {human_size(entry.size)} vs HAP {human_size(rsize)}, "
+            f"Δ{sign}{human_size(abs(delta))}")
 
 
 def print_scan(s: dict) -> None:
@@ -418,6 +439,36 @@ def print_scan(s: dict) -> None:
         print(f"    NEW ({len(new)}):")
         for entry in new:
             print(f"      + {entry.rel}  ({human_size(entry.size)})")
+
+
+def plan_file_lines(s: dict) -> list[str]:
+    """The complete plan for one map, as text: nothing hidden behind a display cap."""
+    todo, remote = s["todo"], s["remote"]
+    actionable_entries = actionable(s)
+    xfer = sum(t.size for t in actionable_entries)
+    changed, new = split_plan(todo)
+    lines = [
+        f"Transfer plan   {s['local']}  ->  {s['share']}",
+        f"remote library: {len(remote)} files | would transfer: "
+        f"{len(actionable_entries)} ({human_size(xfer)})"
+        + ("  [new-only: changed files listed below are skipped]" if s.get("new_only") else ""),
+        "",
+    ]
+    if changed:
+        lines.append(f"CHANGED ({len(changed)}) — already on the HAP, bytes differ:")
+        lines += [f"~ {e.rel}  ({describe_changed(e, remote)})" for e in changed]
+        lines.append("")
+    if new:
+        lines.append(f"NEW ({len(new)}):")
+        lines += [f"+ {e.rel}  ({human_size(e.size)})" for e in new]
+    return lines
+
+
+def write_plan_file(s: dict, folder: str | os.PathLike) -> Path:
+    """Save `plan_file_lines(s)` as `hap_plan_<share>.txt` in `folder`; returns the path."""
+    path = Path(folder) / f"hap_plan_{s['share']}.txt"
+    path.write_text("\n".join(plan_file_lines(s)) + "\n", encoding="utf-8")
+    return path
 
 
 def selected_maps(cfg: dict, only: str | None) -> list[dict]:

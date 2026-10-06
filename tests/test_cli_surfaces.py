@@ -97,21 +97,31 @@ def test_client_cli_stopped_player(client_on_mock, capsys):
     assert capsys.readouterr().out.strip() == "STOPPED"
 
 
+def test_client_cli_radio_against_the_mock(client_on_mock, capsys):
+    host = client_on_mock
+    assert hap_client.main([host, "radio-status"]) == 0
+    out = capsys.readouterr().out
+    assert "TuneIn registered:    no" in out and mock_hap.RADIO_PIN in out
+    assert hap_client.main([host, "radio-browse", "/1", "--uris"]) == 0
+    out = capsys.readouterr().out
+    assert "[station] /1/1" in out and "id=s50706" in out
+
+
 def test_client_cli_error_codes(client_on_mock, capsys, monkeypatch):
     host = client_on_mock
-    # The mock has no registerDevice: a JSON-RPC error → exit 1.
-    assert hap_client.main([host, "radio-status"]) == 1
-    assert "API error" in capsys.readouterr().err or capsys.readouterr().err == ""
-    monkeypatch.setattr(hap_client, "HAP", lambda ip: hap_client.HAP.__wrapped__(ip)
-                        if hasattr(hap_client.HAP, "__wrapped__") else _dead())
+    # A method the device does not have: a JSON-RPC error → exit 1.
+    def unsupported():
+        raise KeyError("x")
+
+    monkeypatch.setattr(mock_hap, "system_information", unsupported)
+    assert hap_client.main([host, "system"]) == 1
+    assert capsys.readouterr().err
+    # A dead host → exit 2.
+    monkeypatch.undo()
+    monkeypatch.setattr(hap_client, "HAP",
+                        lambda ip, *a, **k: hap_client.HAP.__init__ and _DeadHAP())
     assert hap_client.main(["127.0.0.1", "system"]) == 2
-
-
-def _dead():
-    import importlib
-
-    return importlib.import_module("hap_client").HAP.__mro__[0]("127.0.0.1", port=1, timeout=1) \
-        if False else _DeadHAP()
+    assert capsys.readouterr().err
 
 
 class _DeadHAP:
@@ -527,7 +537,7 @@ def test_notify_subscribe_errors():
 
 def test_intercept_record_logs_json_lines(tmp_path, capsys, monkeypatch):
     log = tmp_path / "events.jsonl"
-    monkeypatch.setattr(hap_intercept, "_log_path", log)
+    monkeypatch.setattr(hap_intercept.LOG, "path", log)
     hap_intercept.record("dns", client="1.2.3.4", name="x.example", type="A", action="forward")
     out = capsys.readouterr().out
     assert out.startswith("[dns] at=") and "name=x.example" in out
@@ -743,4 +753,4 @@ def test_intercept_main_runs_until_interrupted(monkeypatch, capsys, tmp_path):
     assert "HTTP relaying on 10.0.0.1:80 for: info.update.sony.net" in out
     assert "Logging to" in out and "stopping" in out
     assert log.parent.is_dir()
-    hap_intercept._log_path = None
+    hap_intercept.LOG.path = None

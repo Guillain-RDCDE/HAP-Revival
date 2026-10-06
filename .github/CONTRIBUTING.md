@@ -77,6 +77,9 @@ Until we hit a v0.1 milestone, the workflow is intentionally light:
   If you find yourself copying a constant or a helper between two tools, move it into one of these instead.
 - **Scripts stay runnable as scripts.** Every tool is `python tools/<name>.py …` from any directory, with `main(argv=None)` taking an explicit argument list so tests can drive it, and no `sys.path` tricks.
 - **The web UI's page lives in `tools/web/`** (`index.html`, `manifest.webmanifest`, `sw.js`), not inside `webui.py`; it is re-read on every request, so edit it with the server running.
+- **Every user-facing string goes through `i18n.t()`**, and the catalogues are `tools/locales/<lang>.json` — one file per language, same keys in each (a test enforces it, placeholders included). Adding a string means adding its key to all six files; adding a language means one new file plus one line in `i18n.LANGUAGES`. The GUI's log lines and dialogs are no exception.
+- **tkinter is touched from the main thread only.** A worker job gets everything it needs as arguments captured before it starts and reports back through the queue (`_emit`); reading a `tk.Variable` from the worker blocks outside the main loop, and the GUI tests run without one.
+- **The mock device is the test bench.** `tools/mock_hap.py` answers the JSON-RPC surface, the contentdb and contentplayer REST surfaces, the front panel, TuneIn browsing, push subscriptions (with real UDP `NOTIFY` datagrams, three per event like the player) and the two documented gotchas (417 on `Expect`, no `Allow-Headers` on preflight). When you find a new behaviour on the real player, teach it to the mock in the same change.
 
 ### Running the checks
 
@@ -90,9 +93,15 @@ python -m pytest                  # the offline suite: pure logic + a loopback m
 
 No test needs a HAP. The suite drives every tool against `tools/mock_hap.py` on a loopback port,
 and never touches `~/.hap-revival` (a fixture redirects the caches to a temp folder). The tkinter
-tests in `tests/test_hap_gui_fix.py` need a display; they skip themselves on a headless runner
-and run under `xvfb-run` on Linux. `tools/smoke_live.py` is the one check that needs the real
-player, and it is deliberately not part of the suite.
+tests (`tests/test_hap_gui_fix.py`, `tests/test_hap_gui_app.py`) need a display; they skip
+themselves on a headless runner and CI runs them in their own job under `xvfb-run`:
+
+```bash
+xvfb-run -a python -m pytest tests/test_hap_gui_fix.py tests/test_hap_gui_app.py
+```
+
+`tools/smoke_live.py` is the check to run against your own player; the suite runs it against the
+mock too (`--port`), so a regression in the checks themselves shows up without hardware.
 - **Markdown**: prefer compact prose, tables for catalogs, ASCII diagrams where they help. Don't add a section unless it earns its place.
 - **Commits**: imperative mood ("add discovery script", not "added discovery script" or "adding"). One logical change per commit.
 - **PR titles**: short summary + scope tag if relevant: `[docs]`, `[tools]`, `[api]`, `[hw]`.

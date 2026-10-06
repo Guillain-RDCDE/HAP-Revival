@@ -410,6 +410,7 @@ Stdlib-only Python, no accounts, no telemetry.
 - [**hap_media**](../tools/hap_media.py) — the formats the player accepts, the junk it must never see.
 - [**hap_catalog**](../tools/hap_catalog.py) — the on-disk catalogue's schema and codec codes.
 - [**hap_png**](../tools/hap_png.py) — a stdlib PNG encoder for the mock's covers and the icons.
+- [**i18n**](../tools/i18n.py) and [`tools/locales/`](../tools/locales/) — the six catalogues every surface reads.
 
 </details>
 
