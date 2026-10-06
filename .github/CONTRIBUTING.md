@@ -102,6 +102,7 @@ xvfb-run -a python -m pytest tests/test_hap_gui_fix.py tests/test_hap_gui_app.py
 
 `tools/smoke_live.py` is the check to run against your own player; the suite runs it against the
 mock too (`--port`), so a regression in the checks themselves shows up without hardware.
+
 - **Markdown**: prefer compact prose, tables for catalogs, ASCII diagrams where they help. Don't add a section unless it earns its place.
 - **Commits**: imperative mood ("add discovery script", not "added discovery script" or "adding"). One logical change per commit.
 - **PR titles**: short summary + scope tag if relevant: `[docs]`, `[tools]`, `[api]`, `[hw]`.
