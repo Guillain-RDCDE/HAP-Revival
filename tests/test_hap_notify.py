@@ -19,7 +19,6 @@ import pytest
 import hap_notify
 from hap_notify import HapNotifier, SeqTracker, parse_notify
 
-
 # Captured verbatim from 192.168.1.28 on 2026-08-20, firmware 19404R.
 # 263 bytes, CRLF line endings, escaped slashes in the URL exactly as sent.
 REAL_DATAGRAM = (
@@ -45,7 +44,7 @@ def _datagram(event="playingtrackChanged", seq=1, uuid="uuid:aaa", url=None):
         f"X-ContentServiceHostUUID: {uuid}\r\n"
         "\r\n"
         f"{body}"
-    ).encode("utf-8")
+    ).encode()
 
 
 # ---------- parser ----------
@@ -247,7 +246,7 @@ def test_close_while_iterating_ends_cleanly(notifier):
     def listen():
         try:
             collected.extend(notifier.events(duration=30))
-        except Exception as exc:            # noqa: BLE001 — that's the point
+        except Exception as exc:
             errors.append(exc)
 
     thread = threading.Thread(target=listen, daemon=True)

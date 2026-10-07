@@ -64,24 +64,44 @@ QTYPE_NAMES = {1: "A", 2: "NS", 5: "CNAME", 12: "PTR", 16: "TXT", 28: "AAAA"}
 QTYPE_A = 1
 QTYPE_AAAA = 28
 
-_log_lock = threading.Lock()
-_log_path: Path | None = None
-
-
 def now_iso() -> str:
     """Timestamp for the log, UTC, second resolution."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+class EventLog:
+    """Where every observed event goes: the console, and optionally a JSON-lines file.
+
+    Both the DNS and the HTTP handlers run on their own threads, so writes are
+    serialised. `path` is None until `--log` names a file.
+    """
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path
+        self._lock = threading.Lock()
+
+    def open(self, path: Path) -> None:
+        """Start appending to `path`, creating its folder if needed."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = path
+
+    def record(self, kind: str, **fields: object) -> None:
+        """Print one event and, if a log file was given, append it as JSON."""
+        event = {"at": now_iso(), "kind": kind, **fields}
+        line = "  ".join(f"{k}={v}" for k, v in event.items() if k != "kind")
+        with self._lock:
+            print(f"[{kind}] {line}", flush=True)
+            if self.path is not None:
+                with self.path.open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
+#: The one log both servers write to.
+LOG = EventLog()
+
+
 def record(kind: str, **fields: object) -> None:
-    """Print one event and, if a log file was given, append it as JSON."""
-    event = {"at": now_iso(), "kind": kind, **fields}
-    line = "  ".join(f"{k}={v}" for k, v in event.items() if k != "kind")
-    with _log_lock:
-        print(f"[{kind}] {line}", flush=True)
-        if _log_path is not None:
-            with _log_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+    LOG.record(kind, **fields)
 
 
 def parse_question(packet: bytes) -> tuple[str, int] | None:
@@ -191,13 +211,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: object) -> None:
         """Silence the default stderr logging; we do our own."""
 
-    def do_GET(self) -> None:  # noqa: N802 - name fixed by BaseHTTPRequestHandler
+    def do_GET(self) -> None:
         self._relay("GET")
 
-    def do_HEAD(self) -> None:  # noqa: N802
+    def do_HEAD(self) -> None:
         self._relay("HEAD")
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         self._relay("POST")
 
     def _relay(self, method: str) -> None:
@@ -307,7 +327,7 @@ def local_ip_guess() -> str:
             return "127.0.0.1"
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Log what the HAP looks up, and optionally relay one host."
     )
@@ -336,12 +356,14 @@ def main(argv: list[str] | None = None) -> int:
         metavar="FILE",
         help="append every event to this file as JSON lines",
     )
-    args = parser.parse_args(argv)
+    return parser
 
-    global _log_path
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
     if args.log:
-        _log_path = Path(args.log)
-        _log_path.parent.mkdir(parents=True, exist_ok=True)
+        LOG.open(Path(args.log))
 
     our_ip = args.ip or local_ip_guess()
     hijack = {h.lower() for h in args.hijack}
@@ -351,7 +373,7 @@ def main(argv: list[str] | None = None) -> int:
     DNSHandler.upstream = args.upstream
 
     try:
-        dns_server = ThreadedUDPServer(("0.0.0.0", DNS_PORT), DNSHandler)  # noqa: S104
+        dns_server = ThreadedUDPServer(("0.0.0.0", DNS_PORT), DNSHandler)
     except OSError as exc:
         print(f"cannot bind udp/{DNS_PORT}: {exc}", file=sys.stderr)
         return 1
@@ -359,7 +381,7 @@ def main(argv: list[str] | None = None) -> int:
     http_server = None
     if hijack:
         try:
-            http_server = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), ProxyHandler)  # noqa: S104, E501
+            http_server = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), ProxyHandler)
         except OSError as exc:
             dns_server.server_close()
             print(f"cannot bind tcp/{HTTP_PORT}: {exc}", file=sys.stderr)
@@ -371,8 +393,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("HTTP relay off (no --hijack given): observing names only")
     print(f"Set the player's DNS server to {our_ip}, then drive it. Ctrl-C to stop.")
-    if _log_path is not None:
-        print(f"Logging to {_log_path}")
+    if LOG.path is not None:
+        print(f"Logging to {LOG.path}")
 
     threading.Thread(target=dns_server.serve_forever, daemon=True).start()
     if http_server is not None:

@@ -32,13 +32,11 @@ import socket
 import sys
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from hap_client import HAP, _first_field  # noqa: E402
+from hap_client import HAP, _first_field
+from hap_common import API_PORT
 
 # The daemon serialises requests; a hung one poisons everything after it.
 # See docs/16-gotchas.md#3-never-issue-requests-concurrently.
@@ -65,7 +63,7 @@ class Smoke:
             detail = fn()
         except SkipCheck as exc:
             self.results.append(Result(name, True, str(exc), skipped=True))
-        except Exception as exc:  # noqa: BLE001 — a smoke test reports, never crashes
+        except Exception as exc:
             self.results.append(Result(name, False, f"{type(exc).__name__}: {exc}"))
         else:
             self.results.append(Result(name, True, detail))
@@ -95,10 +93,10 @@ def _http_get(url: str, timeout: float = 8.0) -> tuple[int, bytes]:
         return e.code, e.read()
 
 
-def build(ip: str, include_writes: bool) -> Smoke:
-    hap = HAP(ip)
+def build(ip: str, include_writes: bool, port: int = API_PORT) -> Smoke:
+    hap = HAP(ip, port=port)
     s = Smoke(ip)
-    base = f"http://{ip}:60200"
+    base = f"http://{ip}:{port}"
 
     # ---- JSON-RPC, the surface most of our tools use ----
 
@@ -277,15 +275,17 @@ def main(argv: list[str] | None = None) -> int:
         help="also run idempotent writes (reads a value, writes the same value back)",
     )
     p.add_argument("--json", action="store_true", help="machine-readable output")
+    p.add_argument("--port", type=int, default=API_PORT,
+                   help=f"API port (default {API_PORT}; only the mock ever listens elsewhere)")
     args = p.parse_args(argv)
 
     try:
-        socket.create_connection((args.ip, 60200), timeout=5).close()
+        socket.create_connection((args.ip, args.port), timeout=5).close()
     except OSError as exc:
-        print(f"cannot reach {args.ip}:60200 — {exc}", file=sys.stderr)
+        print(f"cannot reach {args.ip}:{args.port} — {exc}", file=sys.stderr)
         return 1
 
-    smoke = build(args.ip, args.include_writes)
+    smoke = build(args.ip, args.include_writes, port=args.port)
 
     if args.json:
         print(json.dumps(

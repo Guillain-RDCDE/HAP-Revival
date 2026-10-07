@@ -10,8 +10,10 @@ folder, hit a button, watch the progress bar.
 Three tabs:
   - Transfer        : map local folders -> HAP shares, Analyze (dry-run) then Sync, with a
                       live progress bar and a cancel button.
-  - Validate        : scan a folder *before* transfer for junk / unsupported / >192 kHz / missing cover.
-  - Compare library : semantic diff of a local <Artist>/<Album>/ tree against the HAP's SQLite catalog.
+  - Validate        : scan a folder *before* transfer for junk / unsupported / >192 kHz /
+                      missing cover.
+  - Compare library : semantic diff of a local <Artist>/<Album>/ tree against the HAP's
+                      SQLite catalog.
 
 The connection bar (IP / MAC, Auto-detect, Check, Wake, Save config) is shared by every tab.
 "Auto-detect" scans the local subnet for the HAP (port 60200) and reads its IP + MAC from the
@@ -25,10 +27,8 @@ Run from source:
     python tools/hap_gui.py
 
 Build a standalone HapSync.exe (no Python needed on the target machine):
-    pip install pyinstaller pysmb
-    pyinstaller --onefile --windowed --name HapSync ^
-        --collect-submodules smb tools/hap_gui.py
-    # -> dist/HapSync.exe   (see tools/build_gui.ps1 for a one-liner)
+    powershell -ExecutionPolicy Bypass -File tools\build_gui.ps1
+    # -> dist/HapSync.exe  (bundles pysmb, the icon and tools/locales/)
 
 tkinter is stdlib (no extra dependency for the UI itself). All blocking work (SMB listing,
 uploads, folder walks, the subnet scan) runs on a worker thread and reports back through a
@@ -38,25 +38,25 @@ from __future__ import annotations
 
 import os
 import queue
-import socket
 import sys
 import threading
+import tkinter as tk
 import webbrowser
 from pathlib import Path
-
-import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-# Allow `python tools/hap_gui.py` from anywhere — import the engine modules next to us.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import hap_sync as core      # noqa: E402
-import hap_companion as comp  # noqa: E402
-import smb_doctor             # noqa: E402
-import i18n                   # noqa: E402
-import hap_library            # noqa: E402
-import hap_fixit              # noqa: E402
+import discover
+import hap_common
+import hap_companion as comp
+import hap_fixit
+import hap_library
+import hap_sync as core
+import i18n
+import smb_doctor
+from hap_common import API_PORT, SHARES, human_size
 
-def _set_window_icon(root: "tk.Tk") -> None:
+
+def _set_window_icon(root: tk.Tk) -> None:
     """Apply the HapSync vinyl icon to the window/taskbar, silently if missing.
 
     The .ico lives next to this script in source, and PyInstaller bundles it
@@ -79,105 +79,8 @@ def _set_window_icon(root: "tk.Tk") -> None:
 _APP_DIR = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
             else Path(__file__).resolve().parent)
 CONFIG_PATH = _APP_DIR / "hap_sync.json"
-SHARES = ("HAP_Internal", "HAP_External")
 POLL_MS = 80          # how often the UI drains the worker->UI queue
-API_PORT = 60200      # ScalarWebAPI — the port we scan for to find the HAP
 GITHUB_URL = "https://github.com/Guillain-RDCDE/HAP-Revival"
-
-
-def load_config_tolerant(path: Path) -> dict:
-    """Read hap_sync.json if present, else return an empty skeleton. Unlike core.load_config
-    this never raises on a missing/partial file — the GUI is how you *create* the config."""
-    cfg = {"host": "", "mac": "", "maps": []}
-    if path.exists():
-        try:
-            import json
-            with open(path, encoding="utf-8-sig") as f:
-                data = json.load(f)
-            cfg.update({k: data.get(k, cfg[k]) for k in ("host", "mac", "maps")})
-        except Exception:  # noqa: BLE001 — a corrupt file shouldn't block startup
-            pass
-    return cfg
-
-
-def save_config(path: Path, host: str, mac: str, maps: list) -> None:
-    import json
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump({"host": host, "mac": mac, "maps": maps}, f, indent=2, ensure_ascii=False)
-
-
-def _norm_mac(mac: str) -> str:
-    """Normalise a MAC to the uppercase colon form used in hap_sync.json (80:56:F2:…)."""
-    return mac.strip().upper().replace("-", ":")
-
-
-def arp_mac(ip: str) -> str:
-    """Look up `ip`'s MAC in the Windows ARP table (fallback when the API is unreachable).
-    Returns '' if not found. Runs `arp` without flashing a console window."""
-    import re
-    import subprocess
-    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # keep the windowed .exe console-free
-    try:
-        out = subprocess.run(["arp", "-a", ip], capture_output=True, text=True,
-                             timeout=4, creationflags=flags).stdout
-    except Exception:  # noqa: BLE001
-        return ""
-    m = re.search(r"([0-9A-Fa-f]{2}(?:[-:][0-9A-Fa-f]{2}){5})", out)
-    return _norm_mac(m.group(1)) if m else ""
-
-
-def _primary_lan_ip() -> str | None:
-    """The local IPv4 the OS would use to reach the LAN (no packet actually sent)."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
-    except Exception:  # noqa: BLE001
-        return None
-    finally:
-        s.close()
-
-
-def local_subnet_prefixes() -> list[str]:
-    """Return the distinct /24 prefixes (e.g. '192.168.1.') of every local IPv4 interface.
-    Covers multi-homed machines; skips loopback and link-local."""
-    candidates: list[str] = []
-    pip = _primary_lan_ip()
-    if pip:
-        candidates.append(pip)
-    try:
-        candidates += socket.gethostbyname_ex(socket.gethostname())[2]
-    except Exception:  # noqa: BLE001
-        pass
-    prefixes: list[str] = []
-    for ip in candidates:
-        if ip.startswith(("127.", "169.254.")):
-            continue
-        prefix = ip.rsplit(".", 1)[0] + "."
-        if prefix not in prefixes:
-            prefixes.append(prefix)
-    return prefixes
-
-
-def scan_for_hap_hosts(port: int = API_PORT, timeout: float = 0.4) -> list[str]:
-    """Scan every local /24 for hosts with `port` open (concurrently). Reliable where SSDP
-    multicast isn't — these are the HAP candidates the caller then confirms via the API."""
-    from concurrent.futures import ThreadPoolExecutor
-    hosts = [p + str(i) for p in local_subnet_prefixes() for i in range(1, 255)]
-
-    def probe(h: str):
-        s = socket.socket()
-        s.settimeout(timeout)
-        try:
-            return h if s.connect_ex((h, port)) == 0 else None
-        finally:
-            s.close()
-
-    # High concurrency: most probes hit dead virtual/VPN subnets and block for the full
-    # timeout, so width matters more than per-probe speed. One worker per host is fine —
-    # they're short-lived socket connects, and it keeps a multi-subnet sweep around ~2 s.
-    with ThreadPoolExecutor(max_workers=min(512, len(hosts) or 1)) as ex:
-        return [h for h in ex.map(probe, hosts) if h]
 
 
 class App:
@@ -200,7 +103,7 @@ class App:
         self._findings: list = []        # last SMB-doctor result (for the Fix button)
         self._has_fixes = False          # are there pending Windows fixes to apply?
 
-        cfg = load_config_tolerant(CONFIG_PATH)
+        cfg = core.load_config_tolerant(CONFIG_PATH)
         self.host_var = tk.StringVar(value=cfg["host"])
         self.mac_var = tk.StringVar(value=cfg["mac"])
         self.unsupported_var = tk.BooleanVar(value=False)
@@ -239,7 +142,7 @@ class App:
         self._i18n.append((lambda s: widget.configure(text=s), key))
         widget.configure(text=self._T(key))
 
-    def _reg_tab(self, nb: "ttk.Notebook", tab, key: str) -> None:
+    def _reg_tab(self, nb: ttk.Notebook, tab, key: str) -> None:
         """Register a Notebook tab's title for retranslation."""
         self._i18n.append((lambda s: nb.tab(tab, text=s), key))
         nb.tab(tab, text=self._T(key))
@@ -288,11 +191,13 @@ class App:
         ip_lbl = ttk.Label(bar)
         ip_lbl.grid(row=0, column=0, padx=(8, 4), pady=6, sticky="w")
         self._reg(ip_lbl, "gui.lbl.ip")
-        ttk.Entry(bar, textvariable=self.host_var, width=18).grid(row=0, column=1, pady=6, sticky="w")
+        ttk.Entry(bar, textvariable=self.host_var, width=18).grid(
+            row=0, column=1, pady=6, sticky="w")
         mac_lbl = ttk.Label(bar)
         mac_lbl.grid(row=0, column=2, padx=(12, 4), pady=6, sticky="w")
         self._reg(mac_lbl, "gui.lbl.mac")
-        ttk.Entry(bar, textvariable=self.mac_var, width=20).grid(row=0, column=3, pady=6, sticky="w")
+        ttk.Entry(bar, textvariable=self.mac_var, width=20).grid(
+            row=0, column=3, pady=6, sticky="w")
 
         btns = ttk.Frame(bar)
         btns.grid(row=0, column=4, padx=8, sticky="e")
@@ -385,7 +290,8 @@ class App:
         folder_lbl = ttk.Label(row)
         self._reg(folder_lbl, "gui.lbl.folder")
         folder_lbl.pack(side="left")
-        ttk.Entry(row, textvariable=self.validate_dir).pack(side="left", fill="x", expand=True, padx=6)
+        ttk.Entry(row, textvariable=self.validate_dir).pack(
+            side="left", fill="x", expand=True, padx=6)
         b_browse = ttk.Button(row, command=lambda: self._pick_dir(self.validate_dir))
         self._reg(b_browse, "gui.btn.browse")
         b_val = ttk.Button(row, command=self.on_validate)
@@ -519,7 +425,7 @@ class App:
         """The finding under the cursor, or None (with a message) if there isn't one."""
         sel = self.fix_list.curselection()
         if not sel or not self._fix_findings:
-            messagebox.showinfo("HAP Sync", self._T("gui.fix.pick_one"))
+            self._info("gui.fix.pick_one")
             return None
         return self._fix_findings[sel[0]]
 
@@ -535,10 +441,8 @@ class App:
             where = "▪" if f.is_local else " "
             self.fix_list.insert("end", f"{mark}{where} {f.title[:50]:<50} {f.detail[:58]}")
         located = sum(1 for f in self._fix_findings if f.folders)
-        self._log(self.fix_log, self._T("gui.fix.summary")
-                  .replace("{n}", str(len(self._fix_findings)))
-                  .replace("{kind}", self._T(f"gui.fix.kind.{kind}"))
-                  .replace("{located}", str(located)))
+        self._log(self.fix_log, self._T("gui.fix.summary", n=len(self._fix_findings),
+                                        kind=self._T(f"gui.fix.kind.{kind}"), located=located))
 
     def _fix_load_data(self):
         """Load the two caches. Returns (harvest, index) or (None, None)."""
@@ -548,12 +452,10 @@ class App:
         if harvest is None or index is None:
             missing = []
             if harvest is None:
-                missing.append("library harvest")
+                missing.append(self._T("gui.fix.what.harvest"))
             if index is None:
-                missing.append("share index")
-            messagebox.showwarning(
-                "HAP Sync",
-                self._T("gui.fix.need_scan").replace("{what}", ", ".join(missing)))
+                missing.append(self._T("gui.fix.what.index"))
+            self._warn("gui.fix.need_scan", what=", ".join(missing))
             return None, None
         return harvest, index
 
@@ -569,20 +471,21 @@ class App:
         much slower, so it is not triggered from here."""
         ip = self.host_var.get().strip()
         if not ip:
-            messagebox.showwarning("HAP Sync", self._T("gui.warn.enter_ip"))
+            self._warn("gui.warn.enter_ip")
             return
 
         def job():
-            self._emit("log", line=f"Indexing the shares on {ip}… (a few minutes)")
+            self._log_t("gui.log.indexing_shares", ip=ip)
 
             def note(share, i, total, files):
                 if i % 100 == 0 or i == total:
-                    self._emit("log", line=f"  {share} {i}/{total} folders, {files} files")
+                    self._log_t("gui.log.index_progress", share=share, i=i, total=total,
+                                files=files)
 
             index = hap_fixit.crawl_shares(ip, progress=note)
             hap_fixit.save_index(index)
             counts = {s: len(f) for s, f in index["shares"].items()}
-            self._emit("log", line=f"done: {counts}")
+            self._log_t("gui.log.index_done", counts=counts)
 
         self._run_async(job, self.fix_log, use_progress=True)
 
@@ -602,8 +505,7 @@ class App:
             roots = [picked]
 
         def job():
-            self._emit("log", line=self._T("gui.fix.scanning_local")
-                       .replace("{what}", ", ".join(roots)))
+            self._log_t("gui.fix.scanning_local", what=", ".join(roots))
             index = hap_fixit.scan_local(roots)
             counts = {r: len(f) for r, f in index["roots"].items()}
             if not any(counts.values()):
@@ -625,7 +527,7 @@ class App:
         if f is None:
             return
         if not f.folders:
-            messagebox.showinfo("HAP Sync", self._T("gui.fix.not_located"))
+            self._info("gui.fix.not_located")
             return
         hap_fixit.open_folder(f.best_path)
         self._log(self.fix_log, self._fix_where(f))
@@ -635,11 +537,11 @@ class App:
         if f is None:
             return
         if not f.folders:
-            messagebox.showinfo("HAP Sync", self._T("gui.fix.not_located"))
+            self._info("gui.fix.not_located")
             return
         used = hap_fixit.open_in_editor(f.best_path)
         if not used:
-            messagebox.showwarning("HAP Sync", self._T("gui.fix.no_editor"))
+            self._warn("gui.fix.no_editor")
             return
         self._log(self.fix_log, f"{used}\n  {self._fix_where(f)}")
 
@@ -669,7 +571,7 @@ class App:
         findings = hap_fixit.build_findings(harvest, index)
         with open(target, "wb") as fh:
             fh.write(hap_fixit.render_html(findings, self.host_var.get().strip()).encode("utf-8"))
-        self._log(self.fix_log, f"wrote {target}")
+        self._log(self.fix_log, self._T("gui.log.report_written", path=target))
         hap_fixit.open_folder(os.path.dirname(target) or ".")
 
     def _make_log(self, parent: tk.Widget) -> tk.Text:
@@ -757,15 +659,15 @@ class App:
             # SMB listing never looks frozen. progmax later flips it to a real gauge.
             self.progress.configure(mode="indeterminate")
             self.progress.start(60)
-            self.status_var.set("Working…")
+            self.status_var.set(self._T("gui.status.working"))
         self._set_busy(True)
 
         def runner():
             try:
                 target()
-            except SystemExit as e:  # core.Smb raises SystemExit on connection failure
-                self._emit("error", msg=str(e) or "SMB connection failed")
-            except Exception as e:  # noqa: BLE001
+            except core.SmbError as e:
+                self._emit("error", msg=str(e))
+            except Exception as e:
                 self._emit("error", msg=f"{type(e).__name__}: {e}")
             finally:
                 self._emit("finished")
@@ -808,7 +710,7 @@ class App:
         elif tag == "error":
             if self._active_log is not None:
                 self._log(self._active_log, f"⚠ {d['msg']}")
-            messagebox.showerror("HAP Sync", d["msg"])
+            messagebox.showerror(self._T("gui.app_title"), d["msg"])
         elif tag == "finished":
             self.busy = False
             self._set_busy(False)
@@ -830,7 +732,7 @@ class App:
 
     def _need_host(self) -> bool:
         if not self.host_var.get().strip():
-            messagebox.showwarning("HAP Sync", self._T("gui.warn.enter_ip"))
+            self._warn("gui.warn.enter_ip")
             return False
         return True
 
@@ -839,26 +741,38 @@ class App:
             import smb  # noqa: F401
             return True
         except ImportError:
-            messagebox.showerror(
-                "HAP Sync",
-                "Transferring needs the pysmb library.\n\nInstall it with:\n    pip install pysmb")
+            messagebox.showerror(self._T("gui.app_title"), self._T("gui.msg.pysmb_needed"))
             return False
 
     def _need_maps(self) -> bool:
         if not self._collect_maps():
-            messagebox.showwarning("HAP Sync", self._T("gui.warn.add_folder"))
+            self._warn("gui.warn.add_folder")
             return False
         return True
+
+    def _warn(self, key: str, **kwargs) -> None:
+        messagebox.showwarning(self._T("gui.app_title"), self._T(key, **kwargs))
+
+    def _info(self, key: str, **kwargs) -> None:
+        messagebox.showinfo(self._T("gui.app_title"), self._T(key, **kwargs))
+
+    def _log_t(self, key: str, **kwargs) -> None:
+        """Emit one translated line to the active log (worker-thread safe)."""
+        self._emit("log", line=self._T(key, **kwargs))
+
+    def _status_t(self, key: str, **kwargs) -> None:
+        self._emit("status", text=self._T(key, **kwargs))
 
     # ---------- button handlers ----------
 
     def on_save_config(self) -> None:
         try:
-            save_config(CONFIG_PATH, self.host_var.get().strip(),
-                        self.mac_var.get().strip(), self._collect_maps())
-            messagebox.showinfo("HAP Sync", f"Configuration saved:\n{CONFIG_PATH}")
+            core.save_config(CONFIG_PATH, self.host_var.get().strip(),
+                             self.mac_var.get().strip(), self._collect_maps())
+            self._info("gui.msg.config_saved", path=CONFIG_PATH)
         except OSError as e:
-            messagebox.showerror("HAP Sync", f"Could not save: {e}")
+            messagebox.showerror(self._T("gui.app_title"),
+                                 self._T("gui.msg.config_save_failed", err=e))
 
     def _persist(self) -> None:
         """Silently remember the current host / MAC / folders so they're pre-filled next
@@ -868,7 +782,7 @@ class App:
         if not host and not maps:
             return
         try:
-            save_config(CONFIG_PATH, host, self.mac_var.get().strip(), maps)
+            core.save_config(CONFIG_PATH, host, self.mac_var.get().strip(), maps)
         except OSError:
             pass  # best-effort; the explicit Save config button surfaces real errors
 
@@ -877,46 +791,41 @@ class App:
         self.root.destroy()
 
     def on_autodetect(self) -> None:
-        """Find the HAP on the LAN and fill IP + MAC. Scans every local /24 for an open
-        ScalarWebAPI port, then confirms each candidate with getSystemInformation (which also
-        yields the MAC; ARP is the fallback). Stdlib only — works without pysmb. SSDP is not
-        used: it's unreliable on multi-homed Windows and the HAP ignored M-SEARCH in testing.
-        The HAP must be awake and on the same network (click Wake first if it's asleep)."""
+        """Find the HAP on the LAN and fill IP + MAC.
+
+        `discover.find_hap` scans every local /24 for an open ScalarWebAPI port
+        and confirms each candidate with getSystemInformation (which also yields
+        the MAC; ARP is the fallback). The HAP must be awake and on the same
+        network (click Wake first if it's asleep).
+        """
         def job():
-            prefixes = local_subnet_prefixes()
+            prefixes = discover.local_subnet_prefixes()
             if not prefixes:
-                self._emit("error", msg="No local network interface found.")
+                self._emit("error", msg=self._T("gui.log.net.no_interface"))
                 return
-            self._emit("status", text="Scanning the network…")
-            self._emit("log", line=f"Scanning {', '.join(p + '0/24' for p in prefixes)} "
-                                   f"for a HAP on port {API_PORT}…")
-            hosts = scan_for_hap_hosts()
-            if not hosts:
-                self._emit("status", text="No HAP found.")
-                self._emit("log", line="No device answered on port "
-                                       f"{API_PORT}. Make sure the HAP is on and on the same "
-                                       "network (click Wake if it's asleep), then retry.")
+            self._status_t("gui.conn.detecting")
+            self._log_t("gui.log.net.scanning", port=API_PORT,
+                        subnets=", ".join(p + "0/24" for p in prefixes))
+            scan = discover.find_hap(
+                prefixes=prefixes,
+                on_candidates=lambda hosts: self._log_t("gui.log.net.candidates",
+                                                        hosts=", ".join(hosts)))
+            if not scan.candidates:
+                self._status_t("gui.conn.not_found")
+                self._log_t("gui.log.net.no_answer", port=API_PORT)
                 return
-            self._emit("log", line=f"Candidate(s) with the API port open: {', '.join(hosts)}")
-            import hap_client
-            for ip in hosts:
-                try:
-                    info = hap_client.HAP(ip).system_info()
-                except Exception:  # noqa: BLE001 — not a HAP / not answering; try the next host
-                    continue
-                if "HAP" not in (info.model or "").upper():
-                    continue
-                mac = _norm_mac(info.mac) or arp_mac(ip)
-                self._emit("fill", ip=ip, mac=mac)
-                self._emit("conn", ok=True)
-                summary = (f"Detected: {info.model} at {ip}"
-                           + (f", MAC {mac}" if mac else " (MAC not found — enter it manually)"))
-                self._emit("status", text=summary)
-                self._emit("log", line=summary + "  —  click Save config to remember it.")
+            found = scan.found
+            if found is None:
+                self._status_t("gui.conn.not_found")
+                self._log_t("gui.log.net.not_a_hap")
                 return
-            self._emit("status", text="No HAP found.")
-            self._emit("log", line="Found open ports but none was a HAP "
-                                   "(getSystemInformation didn't confirm an HAP model).")
+            self._emit("fill", ip=found.ip, mac=found.mac)
+            self._emit("conn", ok=True)
+            summary = self._T("gui.log.net.detected", model=found.model, ip=found.ip) + (
+                self._T("gui.log.net.mac", mac=found.mac) if found.mac
+                else self._T("gui.log.net.no_mac"))
+            self._emit("status", text=summary)
+            self._emit("log", line=summary + "  —  " + self._T("gui.log.net.save_hint"))
 
         self._run_async(job, self.transfer_log)
 
@@ -926,7 +835,7 @@ class App:
         host = self.host_var.get().strip()
 
         def job():
-            self._emit("log", line=f"Diagnosing SMB access to {host}…")
+            self._log_t("gui.log.check.start", host=host)
             findings = smb_doctor.diagnose(host)
             for line in smb_doctor.format_report(findings):
                 self._emit("log", line=line)
@@ -935,11 +844,9 @@ class App:
             # that actually matters for this app — not the native-Windows-only knobs.
             self._emit("conn", ok=s["transfer_ok"])
             self._emit("log", line="")
-            self._emit("log", line="Transfer (this app): "
-                       + ("WORKS — you can sync." if s["transfer_ok"] else "NOT WORKING."))
+            self._log_t("gui.log.check.works" if s["transfer_ok"] else "gui.log.check.broken")
             if s["fixable"]:
-                self._emit("log", line=f"{s['fixable']} Windows issue(s) block File Explorer / "
-                           "HAP Music Transfer. Click “Fix access” (top bar) to repair them.")
+                self._log_t("gui.log.check.fixable", n=s["fixable"])
             self._emit("fixstate", has=bool(s["fixable"]), findings=findings)
 
         self._run_async(job, self.transfer_log)
@@ -948,28 +855,27 @@ class App:
         if self.busy or not self._has_fixes:
             return
         fixes = smb_doctor.pending_fixes(self._findings)
-        needs_admin = any(f.needs_admin for f in fixes)
         detail = "\n".join(f"• {f.title}" for f in fixes)
-        prompt = (f"Apply {len(fixes)} fix(es) so File Explorer and HAP Music Transfer can "
-                  f"reach the HAP?\n\n{detail}")
-        if needs_admin:
-            prompt += "\n\nWindows will ask for administrator permission (UAC)."
-        if not messagebox.askyesno("Fix Windows SMB access", prompt):
+        prompt = self._T("gui.fix_access.prompt", n=len(fixes), detail=detail)
+        if any(f.needs_admin for f in fixes):
+            prompt += "\n\n" + self._T("gui.fix_access.uac")
+        if not messagebox.askyesno(self._T("gui.fix_access.title"), prompt):
             return
         findings = self._findings
+        host = self.host_var.get().strip()  # read on the main thread, not in the job
 
         def job():
-            self._emit("log", line="Applying fixes…")
-            changed, msg = smb_doctor.apply_fixes(
+            self._log_t("gui.log.fix.applying")
+            _changed, msg = smb_doctor.apply_fixes(
                 findings, on_log=lambda line: self._emit("log", line=line))
             self._emit("log", line=msg)
             # Re-diagnose so the report and the connection dot reflect the new state.
-            after = smb_doctor.diagnose(self.host_var.get().strip())
+            after = smb_doctor.diagnose(host)
             s = smb_doctor.summary(after)
             self._emit("conn", ok=s["transfer_ok"])
             self._emit("fixstate", has=bool(s["fixable"]), findings=after)
             if not s["fixable"]:
-                self._emit("log", line="All Windows SMB issues resolved.")
+                self._log_t("gui.log.fix.resolved")
 
         self._run_async(job, self.transfer_log)
 
@@ -978,8 +884,8 @@ class App:
 
         def job():
             try:
-                core.send_wol(mac)
-                self._emit("log", line=f"Wake-on-LAN magic packet sent to {mac}.")
+                hap_common.send_wol(mac)
+                self._log_t("gui.log.wol_sent", mac=mac)
             except ValueError as e:
                 self._emit("error", msg=str(e))
 
@@ -987,33 +893,54 @@ class App:
 
     def on_stop(self) -> None:
         self.stop_event.set()
-        self.status_var.set("Stop requested — finishing the current file…")
+        self.status_var.set(self._T("gui.status.stop_requested"))
+
+    def _scan_options(self) -> dict:
+        """Everything a scan needs, read from the widgets on the main thread.
+
+        The worker must never touch a tk variable: outside the main loop such a
+        call blocks (or raises "main thread is not in main loop").
+        """
+        return {"cfg": self._cfg(), "maps": self._collect_maps(),
+                "include_unsupported": self.unsupported_var.get(),
+                "refresh": self.refresh_var.get(), "new_only": self.new_only_var.get()}
+
+    def _scan_maps(self, lazy: core.LazySmb, opts: dict) -> tuple[list[dict], int]:
+        """Analyse every mapped folder; returns (scans, number of maps whose folder is gone).
+
+        Runs on the worker thread with the options captured by `_scan_options`.
+        """
+        cfg, maps = opts["cfg"], opts["maps"]
+        include_unsup, refresh, new_only = (opts["include_unsupported"], opts["refresh"],
+                                            opts["new_only"])
+        scans: list[dict] = []
+        missing = 0
+        for m in maps:
+            self._log_t("gui.log.analyzing", local=m["local"], share=m["share"])
+            s = core.scan_map(cfg, lazy, m, include_unsup, refresh, new_only=new_only,
+                              on_scan=self._log_scan,
+                              on_progress=self._listing_progress(m["share"]))
+            if s is None:
+                self._log_t("gui.log.folder_missing", local=m["local"])
+                missing += 1
+            else:
+                scans.append(s)
+        return scans, missing
 
     def on_plan(self) -> None:
         if not (self._need_host() and self._need_maps() and self._need_pysmb()):
             return
         self._persist()  # using the app remembers the setup — no manual save needed
-        cfg, maps = self._cfg(), self._collect_maps()
-        include_unsup, refresh = self.unsupported_var.get(), self.refresh_var.get()
-        new_only = self.new_only_var.get()
+        opts = self._scan_options()
 
         def job():
-            lazy = core.LazySmb(cfg["host"])
+            lazy = core.LazySmb(opts["cfg"]["host"])
             try:
-                total = 0
-                for m in maps:
-                    self._emit("log", line=f"Analyzing: {m['local']}  →  {m['share']}")
-                    s = core.scan_map(cfg, lazy, m, include_unsup, refresh, new_only=new_only,
-                                      on_scan=lambda s: self._log_scan(s),
-                                      on_progress=self._listing_progress(m["share"]))
-                    if s is None:
-                        self._emit("log", line=f"  ! folder not found: {m['local']}")
-                    else:
-                        total += len(core.actionable(s))
-                self._emit("status", text=f"Analysis done: {total} file(s) to transfer.")
-                self._emit("log", line=f"\nPlan: {total} file(s) would transfer. "
-                                       "Click Sync to do it."
-                                       + ("  (changed files kept as-is)" if new_only else ""))
+                scans, _missing = self._scan_maps(lazy, opts)
+                total = len(core.jobs_for(scans))
+                self._status_t("gui.status.analysis_done", n=total)
+                self._emit("log", line="\n" + self._T("gui.log.plan", n=total)
+                           + (self._T("gui.log.plan_new_only") if opts["new_only"] else ""))
             finally:
                 lazy.close()
 
@@ -1023,173 +950,142 @@ class App:
         if not (self._need_host() and self._need_maps() and self._need_pysmb()):
             return
         self._persist()  # using the app remembers the setup — no manual save needed
-        cfg, maps = self._cfg(), self._collect_maps()
-        include_unsup, refresh = self.unsupported_var.get(), self.refresh_var.get()
-        new_only = self.new_only_var.get()
+        opts = self._scan_options()
+        cfg = opts["cfg"]
 
         def job():
             lazy = core.LazySmb(cfg["host"])
             try:
-                scans = []
-                for m in maps:
-                    self._emit("log", line=f"Analyzing: {m['local']}  →  {m['share']}")
-                    s = core.scan_map(cfg, lazy, m, include_unsup, refresh, new_only=new_only,
-                                      on_scan=lambda s: self._log_scan(s),
-                                      on_progress=self._listing_progress(m["share"]))
-                    if s is not None:
-                        scans.append(s)
-                jobs = [(s["share"], rel, ap, size)
-                        for s in scans for rel, ap, size, _ in core.actionable(s)]
+                scans, _missing = self._scan_maps(lazy, opts)
+                jobs = core.jobs_for(scans)
                 if not jobs:
-                    self._emit("status", text="Already in sync.")
-                    self._emit("log", line="\nNothing to transfer — already in sync.")
+                    self._status_t("gui.status.in_sync")
+                    self._emit("log", line="\n" + self._T("gui.log.in_sync"))
                     return
                 self._emit("progmax", total=len(jobs))
                 smb = lazy.smb
                 smb.reconnect()  # a long listing can desync SMB1 — upload on a fresh connection
-                self._emit("log", line=f"\nTransferring {len(jobs)} file(s)…")
+                self._emit("log", line="\n" + self._T("gui.log.transferring", n=len(jobs)))
                 index_by_share = {s["share"]: s["remote"] for s in scans}
-
-                def on_event(kind, **e):
-                    if kind == "file_done":
-                        self._emit("progress", value=e["i"])
-                        self._emit("status",
-                                   text=f"{e['i']}/{e['total']} — {e['share']}:/{e['rel']}")
-                        self._emit("log",
-                                   line=f"  [{e['i']}/{e['total']}] {e['share']}:/{e['rel']}  "
-                                        f"({core.human(e['size'])})")
-                    elif kind == "file_failed":
-                        self._emit("progress", value=e["i"])
-                        self._emit("log",
-                                   line=f"  [{e['i']}/{e['total']}] FAILED {e['share']}:/{e['rel']} "
-                                        f"— {e['error']}")
-                    elif kind == "cancelled":
-                        self._emit("log", line=f"\nCancelled at {e['i']}/{e['total']}.")
-
-                done, failed = core.transfer(smb, jobs, index_by_share, on_event=on_event,
+                done, failed = core.transfer(smb, jobs, index_by_share,
+                                             on_event=self._transfer_event,
                                              should_cancel=self.stop_event.is_set)
                 for share, idx in index_by_share.items():
                     core.save_cache(cfg, share, idx)
-                self._emit("status", text=f"Done: {done} transferred, {failed} failed.")
-                self._emit("log", line=f"\nDone: {done} transferred, {failed} failed. "
-                                       "(cache updated)")
-                self._emit("log", line="The HAP re-indexes new files within seconds.")
+                self._status_t("gui.status.done", done=done, failed=failed)
+                self._emit("log", line="\n" + self._T("gui.log.done", done=done, failed=failed))
+                self._log_t("gui.log.reindex")
             finally:
                 lazy.close()
 
         self._run_async(job, self.transfer_log, use_progress=True)
 
+    def _transfer_event(self, kind: str, **e) -> None:
+        """Progress callback for `core.transfer` (runs on the worker thread)."""
+        if kind == "file_done":
+            self._emit("progress", value=e["i"])
+            self._emit("status", text=f"{e['i']}/{e['total']} — {e['share']}:/{e['rel']}")
+            self._emit("log", line=f"  [{e['i']}/{e['total']}] {e['share']}:/{e['rel']}  "
+                                   f"({human_size(e['size'])})")
+        elif kind == "file_failed":
+            self._emit("progress", value=e["i"])
+            self._log_t("gui.log.file_failed", i=e["i"], total=e["total"], share=e["share"],
+                        rel=e["rel"], error=e["error"])
+        elif kind == "cancelled":
+            self._emit("log", line="\n" + self._T("gui.log.cancelled", i=e["i"], total=e["total"]))
+
     def on_validate(self) -> None:
         folder = self.validate_dir.get().strip()
         if not folder or not os.path.isdir(folder):
-            messagebox.showwarning("HAP Sync", self._T("gui.warn.valid_folder"))
+            self._warn("gui.warn.valid_folder")
             return
 
         def job():
-            self._emit("log", line=f"Scanning {folder}…\n")
+            self._emit("log", line=self._T("gui.log.scanning_folder", folder=folder) + "\n")
             r = comp.scan_folder(folder)
-            self._emit("log", line=f"Playable audio files   : {r['n_ok']}")
-            self._emit("log", line=f"Unsupported            : {r['n_unsup']}")
-            self._emit("log", line=f"Junk (pollutes library): {r['n_junk']}")
-            self._emit("log", line=f"PCM over 192 kHz       : {r['n_hi']}")
-            self._emit("log", line=f"Albums without cover   : {len(r['no_cover'])}")
-            self._log_section("[JUNK] delete before transfer", r["junk"])
-            self._log_section("[UNSUPPORTED] the HAP won't play these", r["unsup"])
-            self._log_section("[OVER 192 kHz] exceeds the PCM path — downsample first", r["hires"])
-            self._log_section("[NO COVER FILE] (embedded art may still work)", r["no_cover"])
+            for key, value in (("gui.val.playable", r["n_ok"]),
+                               ("gui.val.unsupported", r["n_unsup"]),
+                               ("gui.val.junk", r["n_junk"]),
+                               ("gui.val.over_ceiling", r["n_hi"]),
+                               ("gui.val.missing_cover", len(r["no_cover"]))):
+                self._emit("log", line=f"{self._T(key):<32}: {value}")
+            self._log_section(self._T("gui.val.sec.junk"), r["junk"])
+            self._log_section(self._T("gui.val.sec.unsupported"), r["unsup"])
+            self._log_section(self._T("gui.val.sec.hires"), r["hires"])
+            self._log_section(self._T("gui.val.sec.no_cover"), r["no_cover"])
             clean = r["n_unsup"] == r["n_junk"] == r["n_hi"] == 0
-            self._emit("log", line="\nVerdict: clean ✓" if clean else "\nVerdict: issues above.")
+            self._emit("log", line="\n" + self._T("gui.val.ok" if clean else "gui.val.issues"))
 
         self._run_async(job, self.validate_log)
 
     def on_diff(self) -> None:
         db, folder = self.diff_db.get().strip(), self.diff_dir.get().strip()
         if not db or not os.path.isfile(db):
-            messagebox.showwarning("HAP Sync", self._T("gui.warn.choose_db"))
+            self._warn("gui.warn.choose_db")
             return
         if not folder or not os.path.isdir(folder):
-            messagebox.showwarning("HAP Sync", self._T("gui.warn.choose_local"))
+            self._warn("gui.warn.choose_local")
             return
 
         def job():
-            self._emit("log", line="Comparing…\n")
+            self._emit("log", line=self._T("gui.log.comparing") + "\n")
             r = comp.diff_library(db, folder)
-            self._emit("log", line=f"HAP library: {r['have_count']} (artist, album) pairs")
-            self._emit("log", line=f"Local tree : {os.path.abspath(folder)}\n")
-            self._log_section(f"NEW — not on the HAP ({len(r['new'])})", r["new"], "+", limit=10**9)
-            self._log_section(f"ALREADY on the HAP ({len(r['existing'])}) — skip these",
+            self._log_t("gui.diff.have", n=r["have_count"])
+            self._emit("log", line=self._T("gui.diff.local", path=os.path.abspath(folder)) + "\n")
+            self._log_section(self._T("gui.diff.new", n=len(r["new"])), r["new"], "+",
+                              limit=len(r["new"]))
+            self._log_section(self._T("gui.diff.existing", n=len(r["existing"])),
                               r["existing"], "=")
 
         self._run_async(job, self.diff_log)
 
     # ---------- log formatting (worker thread) ----------
 
+    LOG_CAP = 300  # keep the on-screen log snappy; the FULL list always goes to the plan file
+
     def _listing_progress(self, share: str):
         """Callback for the slow remote SMB listing — shows a live file count in the status
         line so the user sees the scan is alive (the bar keeps pulsing meanwhile)."""
-        return lambda n: self._emit("status", text=f"Listing {share}: {n:,} files so far…")
+        return lambda n: self._status_t("gui.status.listing", share=share, n=f"{n:,}")
 
     def _log_scan(self, s: dict) -> None:
         todo, remote = s["todo"], s["remote"]
         new_only = s.get("new_only")
-        xfer = sum(x[2] for x in core.actionable(s))
-        self._emit("log", line=f"  [{s['source']}] remote library: {len(remote)} files; "
-                               f"to transfer: {len(core.actionable(s))} ({core.human(xfer)})  "
-                               f"[junk={s['skipped']['junk']}, unsupported={s['skipped']['unsupported']}]")
+        to_go = core.actionable(s)
+        self._emit("log", line="  " + self._T(
+            "gui.log.scan_summary", source=s["source"], remote=len(remote), n=len(to_go),
+            size=human_size(sum(t.size for t in to_go)),
+            junk=s["skipped"]["junk"], unsupported=s["skipped"]["unsupported"]))
 
-        changed = sorted((t for t in todo if t[3] == "changed"), key=lambda t: t[0].lower())
-        new = sorted((t for t in todo if t[3] == "new"), key=lambda t: t[0].lower())
-        log_cap = 300  # keep the on-screen log snappy; the FULL list always goes to the file below
-
-        def _fmt_changed(rel: str, size: int) -> str:
-            rsize = remote.get(rel)
-            if rsize is None:
-                return f"      ~ {rel}  ({core.human(size)}, changed)"
-            delta = size - rsize
-            sign = "+" if delta >= 0 else "-"
-            return (f"      ~ {rel}  (local {core.human(size)} vs HAP {core.human(rsize)}, "
-                    f"Δ{sign}{core.human(abs(delta))})")
-
+        changed, new = core.split_plan(todo)
+        cap = self.LOG_CAP
         # CHANGED first — these are the surprising ones (path already on the HAP, bytes differ).
         if changed:
-            head = (f"\n  CHANGED — already on the HAP, only the bytes differ ({len(changed)}). "
-                    + ("SKIPPED (kept as-is) — untick “Only add new files” to push them. "
-                       if new_only else
-                       "A few KB Δ = a re-tag; a big Δ = a real re-rip. ")
-                    + "Check the Δ column:")
+            head = ("\n  " + self._T("gui.log.changed_head", n=len(changed))
+                    + self._T("gui.log.changed_skipped" if new_only else "gui.log.changed_hint")
+                    + self._T("gui.log.changed_tail"))
             self._emit("log", line=head)
-            for rel, _ap, size, _why in changed[:log_cap]:
-                self._emit("log", line=_fmt_changed(rel, size))
-            if len(changed) > log_cap:
-                self._emit("log", line=f"      … and {len(changed) - log_cap} more "
-                                       "(full list in the saved plan file below)")
+            for entry in changed[:cap]:
+                self._emit("log",
+                           line=f"      ~ {entry.rel}  ({core.describe_changed(entry, remote)})")
+            if len(changed) > cap:
+                self._emit("log", line="      "
+                           + self._T("gui.log.more_in_file", n=len(changed) - cap))
         if new:
-            self._emit("log", line=f"\n  NEW — not on the HAP yet ({len(new)}):")
-            for rel, _ap, size, _why in new[:log_cap]:
-                self._emit("log", line=f"      + {rel}  ({core.human(size)})")
-            if len(new) > log_cap:
-                self._emit("log", line=f"      … and {len(new) - log_cap} more "
-                                       "(full list in the saved plan file below)")
+            self._emit("log", line="\n  " + self._T("gui.log.new_head", n=len(new)))
+            for entry in new[:cap]:
+                self._emit("log", line=f"      + {entry.rel}  ({human_size(entry.size)})")
+            if len(new) > cap:
+                self._emit("log", line="      "
+                           + self._T("gui.log.more_in_file", n=len(new) - cap))
 
         # Always dump the COMPLETE plan to a file so nothing is ever hidden behind a cap.
         try:
-            plan_path = CONFIG_PATH.parent / f"hap_plan_{s['share']}.txt"
-            lines = [f"Transfer plan   {s['local']}  ->  {s['share']}",
-                     f"remote library: {len(remote)} files | would transfer: "
-                     f"{len(core.actionable(s))} ({core.human(xfer)})"
-                     + ("  [new-only: changed files listed below are skipped]"
-                        if new_only else ""), ""]
-            if changed:
-                lines.append(f"CHANGED ({len(changed)}) — already on the HAP, bytes differ:")
-                lines += [_fmt_changed(rel, size).strip() for rel, _ap, size, _why in changed]
-                lines.append("")
-            if new:
-                lines.append(f"NEW ({len(new)}):")
-                lines += [f"+ {rel}  ({core.human(size)})" for rel, _ap, size, _why in new]
-            plan_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            self._emit("log", line=f"\n  → Full plan ({len(todo)} files) saved to: {plan_path}")
+            plan_path = core.write_plan_file(s, CONFIG_PATH.parent)
+            self._emit("log", line="\n  "
+                       + self._T("gui.log.plan_saved", n=len(todo), path=plan_path))
         except OSError as e:
-            self._emit("log", line=f"  (could not write the full plan file: {e})")
+            self._emit("log", line="  " + self._T("gui.log.plan_save_failed", err=e))
 
     def _log_section(self, title: str, items: list, marker: str = "-", limit: int = 25) -> None:
         if not items:
@@ -1198,7 +1094,7 @@ class App:
         for it in items[:limit]:
             self._emit("log", line=f"  {marker} {it}")
         if len(items) > limit:
-            self._emit("log", line=f"  … and {len(items) - limit} more")
+            self._emit("log", line="  " + self._T("gui.log.more", n=len(items) - limit))
 
     def run(self) -> None:
         self.root.mainloop()

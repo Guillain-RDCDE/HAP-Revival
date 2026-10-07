@@ -59,8 +59,8 @@ import json
 import socket
 import sys
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Iterator
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -241,7 +241,7 @@ class HapNotifier:
 
     # ---------- context manager ----------
 
-    def __enter__(self) -> "HapNotifier":
+    def __enter__(self) -> HapNotifier:
         self.open()
         return self
 
@@ -255,6 +255,8 @@ class HapNotifier:
         sock.bind(("0.0.0.0", self.listen_port))
         sock.settimeout(1.0)
         self._sock = sock
+        # Port 0 asks the OS for a free one; the player must be told which.
+        self.listen_port = sock.getsockname()[1]
 
         # Prime Windows' stateful UDP filtering: an outbound datagram from this
         # socket to the player makes the inbound notifications acceptable
@@ -302,7 +304,7 @@ class HapNotifier:
                 "the path was mistyped (note: the Crestron module's own "
                 "/notification/status, without the /sony prefix, is a 404)."
             ) from exc
-        except (URLError, TimeoutError, socket.timeout) as exc:
+        except (URLError, TimeoutError) as exc:
             raise NotifyError(
                 f"no answer from {url}. The player may be off, or another "
                 "request may have wedged the daemon — it serialises requests, "
@@ -345,7 +347,7 @@ class HapNotifier:
                     self._next_rearm = time.monotonic() + 10
             try:
                 data, address = sock.recvfrom(65535)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except OSError:
                 return                      # socket closed under us
@@ -377,7 +379,7 @@ class HapNotifier:
         try:
             with urlopen(request, timeout=self.timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
-        except (HTTPError, URLError, TimeoutError, socket.timeout, json.JSONDecodeError):
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
             return None
 
 

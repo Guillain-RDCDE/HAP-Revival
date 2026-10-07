@@ -5,7 +5,6 @@ import pytest
 
 import i18n
 
-
 # ---------- normalize_lang ----------
 
 

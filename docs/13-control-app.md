@@ -71,7 +71,10 @@ appears in the address bar). Same standalone behaviour.
 ## How it works (for the curious)
 
 The PWA is three small additions to the existing stdlib web server, no new
-dependencies:
+dependencies. The page itself and the two PWA files live next to the server as
+plain files in [`tools/web/`](../tools/web/) — `index.html`, `manifest.webmanifest`
+and `sw.js` — and are re-read on every request, so they can be edited while the
+server runs:
 
 | Piece | Route | Purpose |
 |---|---|---|

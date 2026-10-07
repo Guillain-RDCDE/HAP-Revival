@@ -53,9 +53,10 @@ import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
-API_PORT = 60200
+from hap_common import API_PORT, USER_CACHE_DIR, read_json_dict, safe_name, write_json
+
 BASE_PATH = "/sony/contentdb/v100"
 
 # Generous on purpose. A cold root listing can take 90 s; the 6 s this repo used
@@ -85,7 +86,7 @@ COLLECTION_KEYS = ("tracks", "albums", "artists", "genres", "playlists")
 
 # Where a harvested catalog is kept. Outside the repo on purpose: it is the
 # user's own music metadata, and it must never end up in a commit.
-CACHE_DIR = Path.home() / ".hap-revival"
+CACHE_DIR = USER_CACHE_DIR
 
 
 class LibraryError(Exception):
@@ -130,31 +131,20 @@ def _fold(text: str) -> str:
 
 def cache_path(host: str) -> Path:
     """Where this host's harvested catalog lives."""
-    safe = "".join(c if c.isalnum() or c in ".-_" else "_" for c in host)
-    return CACHE_DIR / f"library-{safe}.json"
+    return CACHE_DIR / f"library-{safe_name(host)}.json"
 
 
 def save_harvest(harvest: dict, path: Path | None = None) -> Path:
     """Write a harvest to disk. Stays on this machine; nothing is uploaded."""
     target = path or cache_path(harvest.get("host", "unknown"))
-    target.parent.mkdir(parents=True, exist_ok=True)
     payload = dict(harvest)
     payload["saved_at"] = time.time()
-    # write_bytes, not write_text: on Windows the default encoding is not UTF-8
-    # and a library full of accents would be mangled on the way out.
-    target.write_bytes(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
-    return target
+    return write_json(target, payload)
 
 
 def load_harvest(host: str, path: Path | None = None) -> dict | None:
     """Read a previously saved harvest, or None if there isn't one."""
-    target = path or cache_path(host)
-    if not target.is_file():
-        return None
-    try:
-        return json.loads(target.read_bytes().decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
+    return read_json_dict(path or cache_path(host))
 
 
 @dataclass
@@ -457,10 +447,8 @@ class Library:
             raise LibraryError(f"{e} on {url}") from e
 
 
-def _post(url: str, body: bytes):
+def _post(url: str, body: bytes) -> Request:
     """A POST request object, kept out of the class so tests can see it."""
-    from urllib.request import Request
-
     return Request(url, data=body, method="POST")
 
 
@@ -472,7 +460,8 @@ def _fmt_track(t: dict) -> str:
     spec = ""
     if codec:
         rate = codec.get("sample_rate", 0)
-        spec = f"  [{codec.get('codec_type', '?')} {rate / 1000:g}kHz/{codec.get('bit_width', '?')}bit]"
+        spec = (f"  [{codec.get('codec_type', '?')} {rate / 1000:g}kHz/"
+                f"{codec.get('bit_width', '?')}bit]")
     artist = (t.get("artist") or {}).get("name", "")
     return f"  {t.get('trackid'):>7}  {t.get('name', '')[:44]:<44} {artist[:24]:<24}{spec}"
 
@@ -485,39 +474,52 @@ def _fmt_row(item: dict) -> str:
     return f"  {item}"
 
 
-def main(argv: list[str] | None = None) -> int:
-    # The paging flags live on a parent parser so they work on either side of
-    # the subcommand: `... albums --limit 5` and `... --limit 5 albums` both do
-    # the same thing. Declared only on the top level, the first form is an error,
-    # which is the form everyone types.
+def _common_options(with_defaults: bool) -> argparse.ArgumentParser:
+    """The paging flags, as a parent parser.
+
+    They are attached on both sides of the subcommand so `... albums --limit 5`
+    and `... --limit 5 albums` do the same thing. Only the top-level copy
+    carries defaults: a subparser's defaults would overwrite a value given
+    before the subcommand, so there they are suppressed and only set when typed.
+    """
+    dflt = (lambda v: v) if with_defaults else (lambda v: argparse.SUPPRESS)
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--limit", type=int, default=30)
-    common.add_argument("--offset", type=int, default=0)
-    common.add_argument("--json", action="store_true", help="dump raw JSON")
+    common.add_argument("--limit", type=int, default=dflt(30))
+    common.add_argument("--offset", type=int, default=dflt(0))
+    common.add_argument("--json", action="store_true", default=dflt(False),
+                        help="dump raw JSON")
     common.add_argument(
-        "--timeout", type=float, default=DEFAULT_TIMEOUT_SEC, metavar="SEC",
+        "--timeout", type=float, default=dflt(DEFAULT_TIMEOUT_SEC), metavar="SEC",
         help=f"seconds to wait for one request (default {DEFAULT_TIMEOUT_SEC:.0f}). "
              "Raise it on a very large library: the cost of a request is the cost "
              "of counting your whole catalogue.")
     common.add_argument(
-        "--harvest-timeout", type=float, default=HARVEST_TIMEOUT_SEC, metavar="SEC",
+        "--harvest-timeout", type=float, default=dflt(HARVEST_TIMEOUT_SEC), metavar="SEC",
         help=f"starting deadline for one harvest page (default "
              f"{HARVEST_TIMEOUT_SEC:.0f}); doubles on each retry.")
+    return common
 
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Read a HAP music library over REST.", parents=[common]
+        description="Read a HAP music library over REST.", parents=[_common_options(True)]
     )
     parser.add_argument("host", help="player IP or hostname")
     sub = parser.add_subparsers(dest="cmd", required=True)
+    common = [_common_options(False)]
     for name in ("artists", "albums", "genres", "tracks", "playlists", "favorites", "count"):
-        sub.add_parser(name, parents=[common])
+        sub.add_parser(name, parents=common)
     for name in ("artist-albums", "album-tracks", "playlist-tracks", "track"):
-        p = sub.add_parser(name, parents=[common])
+        p = sub.add_parser(name, parents=common)
         p.add_argument("id", type=int)
-    sub.add_parser("harvest", parents=[common])
-    p = sub.add_parser("search", parents=[common])
+    sub.add_parser("harvest", parents=common)
+    p = sub.add_parser("search", parents=common)
     p.add_argument("query")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     lib = Library(args.host, timeout=args.timeout,
                   timeout_for_harvest=args.harvest_timeout)

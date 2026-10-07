@@ -24,20 +24,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import socket
 import sys
 import time
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
+from hap_client import DEFAULT_TIMEOUT_SEC, RpcReply, rpc_post
+from hap_common import API_PORT, safe_name, save_capture
+
+TOOL_NAME = "HAP-Revival/tools/api-fuzzer.py"
 
 # 90 s, not 6. A cold contentdb request takes up to 57 s; the old 6 s ceiling
 # turned every one of them into a false negative and had this fuzzer reporting
 # a live API as dead. See docs/16-gotchas.md §7.
-HTTP_TIMEOUT_SEC = 90
+HTTP_TIMEOUT_SEC = DEFAULT_TIMEOUT_SEC
 
 # Candidate methods grouped by service.
 # Add to this list as new method names are discovered.
@@ -117,148 +115,126 @@ CANDIDATES: dict[str, list[str]] = {
 
 VERSIONS_TO_TRY = ["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7"]
 
+# Sony's JSON-RPC error codes that tell us something about the method itself.
+ERR_ILLEGAL_REQUEST = 5
+ERR_NO_SUCH_METHOD = 12
+ERR_UNSUPPORTED_VERSION = 14
 
-def call(
-    ip: str, port: int, service: str, method: str, version: str, params: list
-) -> dict[str, Any]:
-    url = f"http://{ip}:{port}/sony/{service}"
-    body = json.dumps(
-        {"method": method, "id": 1, "params": params, "version": version}
-    ).encode("utf-8")
-    req = Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
-    try:
-        with urlopen(req, timeout=HTTP_TIMEOUT_SEC) as r:
-            raw = r.read().decode("utf-8", errors="replace")
-            try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return {"_raw": raw}
-    except HTTPError as e:
-        return {"_http_error": e.code, "_reason": e.reason}
-    except (URLError, socket.timeout) as e:
-        return {"_transport_error": str(e)}
+# Classes that settle a (service, method): no point trying further versions.
+DECISIVE = frozenset({"OK", "ILLEGAL_REQUEST", "NO_SUCH_METHOD", "OTHER"})
+# Classes that prove the method exists.
+EXISTS = frozenset({"OK", "ILLEGAL_REQUEST"})
+
+# Throttle between calls: don't hammer the device.
+PAUSE_SEC = 0.05
 
 
-def classify(resp: dict) -> str:
-    """Return one of: OK, ILLEGAL_REQUEST, UNSUPPORTED_VERSION, NO_SUCH_METHOD, TRANSPORT, OTHER."""
-    if "_transport_error" in resp:
+def classify(reply: RpcReply) -> str:
+    """One of: OK, ILLEGAL_REQUEST, UNSUPPORTED_VERSION, NO_SUCH_METHOD, TRANSPORT, OTHER."""
+    if reply.error is not None:
         return "TRANSPORT"
-    if "_http_error" in resp:
-        return "TRANSPORT"
-    err = resp.get("error")
+    err = reply.rpc_error
     if err is None:
         return "OK"
-    if isinstance(err, list) and len(err) >= 1:
-        code = err[0]
-        if code == 12:
-            return "NO_SUCH_METHOD"
-        if code == 14:
-            return "UNSUPPORTED_VERSION"
-        if code == 5:
-            return "ILLEGAL_REQUEST"
+    code = err[0] if err else None
+    if code == ERR_NO_SUCH_METHOD:
+        return "NO_SUCH_METHOD"
+    if code == ERR_UNSUPPORTED_VERSION:
+        return "UNSUPPORTED_VERSION"
+    if code == ERR_ILLEGAL_REQUEST:
+        return "ILLEGAL_REQUEST"
     return "OTHER"
 
 
-def fuzz(ip: str, port: int, only_service: str | None, only_method: str | None) -> list[dict]:
-    findings: list[dict] = []
+def call(ip: str, port: int, service: str, method: str, version: str, params: list) -> RpcReply:
+    return rpc_post(ip, service, method, version, params, port=port, timeout=HTTP_TIMEOUT_SEC)
 
+
+def fuzz_method(ip: str, port: int, service: str, method: str, sleep=time.sleep) -> list[dict]:
+    """Try every version of one method until an answer settles it.
+
+    Every reply other than "unsupported version" is a finding worth keeping
+    (a transport error on one version is evidence too), so a method can yield
+    several rows; the first decisive one ends the search.
+    """
+    findings: list[dict] = []
+    for version in VERSIONS_TO_TRY:
+        reply = call(ip, port, service, method, version, [])
+        klass = classify(reply)
+        if klass != "UNSUPPORTED_VERSION":
+            snippet = json.dumps(reply.as_dict())[:140]
+            print(f"  [{klass:18s}] {service:10s} {method:35s} v{version}: {snippet}")
+            findings.append({
+                "service": service,
+                "method": method,
+                "version": version,
+                "class": klass,
+                "response": reply.as_dict(),
+            })
+            if klass in DECISIVE:
+                return findings
+        sleep(PAUSE_SEC)
+    # Every version answered UNSUPPORTED_VERSION (or only transport noise).
+    print(f"  [UNSUPPORTED_ALL  ] {service:10s} {method:35s} (all versions tried)")
+    findings.append({
+        "service": service,
+        "method": method,
+        "version": None,
+        "class": "UNSUPPORTED_VERSION_ALL",
+        "response": None,
+    })
+    return findings
+
+
+def fuzz(
+    ip: str, port: int, only_service: str | None, only_method: str | None, sleep=time.sleep
+) -> list[dict]:
+    findings: list[dict] = []
     for service, methods in CANDIDATES.items():
         if only_service and service != only_service:
             continue
         for method in methods:
             if only_method and method != only_method:
                 continue
-            # Try each version. Stop early per (service, method) once we get OK
-            # or a non-version error (those are informative regardless of version).
-            stop = False
-            for version in VERSIONS_TO_TRY:
-                resp = call(ip, port, service, method, version, [])
-                klass = classify(resp)
-                if klass != "UNSUPPORTED_VERSION":
-                    finding = {
-                        "service": service,
-                        "method": method,
-                        "version": version,
-                        "class": klass,
-                        "response": resp,
-                    }
-                    findings.append(finding)
-                    snippet = json.dumps(resp)[:140]
-                    print(f"  [{klass:18s}] {service:10s} {method:35s} v{version}: {snippet}")
-                    # If OK or ILLEGAL_REQUEST or NO_SUCH_METHOD, we have enough.
-                    if klass in {"OK", "ILLEGAL_REQUEST", "NO_SUCH_METHOD", "OTHER"}:
-                        stop = True
-                        break
-                # Throttle: don't hammer the device.
-                time.sleep(0.05)
-            if not stop:
-                # All versions returned UNSUPPORTED_VERSION — record that.
-                findings.append(
-                    {
-                        "service": service,
-                        "method": method,
-                        "version": None,
-                        "class": "UNSUPPORTED_VERSION_ALL",
-                        "response": None,
-                    }
-                )
-                print(f"  [UNSUPPORTED_ALL  ] {service:10s} {method:35s} (all versions tried)")
+            findings.extend(fuzz_method(ip, port, service, method, sleep=sleep))
     return findings
 
 
-def save(findings: list[dict], target_ip: str) -> Path:
-    out_dir = Path(__file__).resolve().parent.parent / "research" / "captures"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out_path = out_dir / f"fuzz-{target_ip.replace('.', '_')}-{ts}.json"
-    with out_path.open("w", encoding="utf-8") as f:
-        json.dump(
-            {
-                "tool": "HAP-Revival/tools/api-fuzzer.py",
-                "target": target_ip,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "findings": findings,
-            },
-            f,
-            indent=2,
-            ensure_ascii=False,
-        )
-    return out_path
-
-
-def summarize(findings: list[dict]) -> None:
+def summarize(findings: list[dict]) -> str:
     by_class: dict[str, int] = {}
     for f in findings:
         by_class[f["class"]] = by_class.get(f["class"], 0) + 1
-    print("\n=== Summary ===")
-    for k in sorted(by_class):
-        print(f"  {k:25s} {by_class[k]}")
-    print("\nMethods that returned OK or ILLEGAL_REQUEST (= method exists):")
-    for f in findings:
-        if f["class"] in {"OK", "ILLEGAL_REQUEST"}:
-            print(f"  {f['service']}.{f['method']} v{f['version']}: {f['class']}")
+    lines = ["", "=== Summary ==="]
+    lines += [f"  {k:25s} {by_class[k]}" for k in sorted(by_class)]
+    lines += ["", "Methods that returned OK or ILLEGAL_REQUEST (= method exists):"]
+    lines += [
+        f"  {f['service']}.{f['method']} v{f['version']}: {f['class']}"
+        for f in findings
+        if f["class"] in EXISTS
+    ]
+    return "\n".join(lines)
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True, help="HAP IP address")
-    parser.add_argument("--port", type=int, default=60200)
+    parser.add_argument("--port", type=int, default=API_PORT)
     parser.add_argument("--service", help="Only fuzz this service")
     parser.add_argument("--method", help="Only fuzz this method (across all services in scope)")
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     print(f"Fuzzing {args.target}:{args.port} ...")
     findings = fuzz(args.target, args.port, args.service, args.method)
-    out = save(findings, args.target)
-    summarize(findings)
+    out = save_capture(
+        f"fuzz-{safe_name(args.target)}",
+        {"target": args.target, "findings": findings},
+        tool=TOOL_NAME,
+    )
+    print(summarize(findings))
     print(f"\nReport saved: {out}")
     return 0
 

@@ -14,7 +14,6 @@ import pytest
 import hap_library
 import mock_hap
 
-
 # ---------- unit: envelope unpacking ----------
 
 
