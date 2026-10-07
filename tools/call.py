@@ -37,6 +37,8 @@ import argparse
 import json
 import sys
 
+import hap_update
+
 from hap_client import DEFAULT_TIMEOUT_SEC, RpcReply, rpc_post, rpc_url
 from hap_common import API_PORT, save_capture
 
@@ -45,6 +47,7 @@ TOOL_NAME = "HAP-Revival/tools/call.py"
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    hap_update.add_version_flag(parser, "--tool-version")  # --version is the API method's
     parser.add_argument("--target", required=True, help="HAP IP address")
     parser.add_argument("--port", type=int, default=API_PORT)
     parser.add_argument("--service", required=True)
@@ -84,6 +87,7 @@ def capture_record(args: argparse.Namespace, params: list, reply: RpcReply) -> d
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
 
     try:
         params = json.loads(args.params)

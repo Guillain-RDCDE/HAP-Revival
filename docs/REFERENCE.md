@@ -234,6 +234,13 @@ python tools/webui.py --demo                      # no HAP? drive the mock devic
 ```
 
 Only the SMB tools need a dependency — `pip install pysmb`. Everything else is standard library.
+
+**Updates.** Every tool knows its version (`--version`) and asks GitHub once a day whether a newer
+release exists. HAP Sync shows an **Update to X.Y.Z** button in its footer: one click downloads the
+new exe, verifies its SHA-256 and restarts into it. The web remote shows a banner with the same
+button (it updates the copy on the computer that runs it and restarts itself). Command-line tools
+print one line at the end of a run; `python tools/hap_update.py apply` updates a clone
+(`git pull --ff-only`) or a downloaded folder. Set `HAP_NO_UPDATE_CHECK=1` to never ask.
 To build the `.exe` yourself, run `tools/build_gui.ps1` in a clean virtual environment.
 
 **No player yet?** [`mock_hap.py`](../tools/mock_hap.py) impersonates one faithfully — a living demo

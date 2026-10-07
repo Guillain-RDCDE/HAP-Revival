@@ -53,6 +53,8 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, NamedTuple
 
+import hap_update
+
 from hap_common import (
     API_PORT,
     SmbConnectError,
@@ -643,6 +645,7 @@ COMMANDS: dict[str, Callable[[dict, argparse.Namespace], int]] = {
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="hap_sync", description="HAP-aware music sync (replaces FreeFileSync for the HAP).")
+    hap_update.add_version_flag(ap)
     ap.add_argument("--config", help="path to hap_sync.json")
     sub = ap.add_subparsers(dest="cmd")
     for name in ("plan", "sync"):
@@ -672,6 +675,7 @@ def main(argv: list[str] | None = None) -> int:
     force_utf8_stdio()
     ap = build_parser()
     args = ap.parse_args(argv)
+    hap_update.notice_at_exit()
     if not args.cmd:
         ap.print_help()
         return 2

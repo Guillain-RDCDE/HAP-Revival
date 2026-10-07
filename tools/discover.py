@@ -27,6 +27,8 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+import hap_update
+
 from hap_client import (
     HAP,
     HAPError,
@@ -298,6 +300,7 @@ def probe_device(ip: str) -> dict:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    hap_update.add_version_flag(parser)
     parser.add_argument(
         "--target",
         help="Skip SSDP. Probe this IP address directly.",
@@ -312,6 +315,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
 
     devices: list[dict] = []
 

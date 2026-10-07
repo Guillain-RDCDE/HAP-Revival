@@ -64,6 +64,8 @@ from dataclasses import dataclass, field
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+import hap_update
+
 try:  # local sibling module; keep the client importable even if it's absent
     import i18n
 except ImportError:  # pragma: no cover
@@ -408,6 +410,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Subscribe to the HAP's UDP push notifications.",
         epilog="Read-only: subscribing changes nothing on the device.",
     )
+    hap_update.add_version_flag(parser)
     parser.add_argument("ip", help="player address, e.g. 192.168.1.28")
     parser.add_argument(
         "--lang",
@@ -435,6 +438,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--raw", action="store_true", help="also print the raw datagram")
     args = parser.parse_args(argv)
+    hap_update.notice_at_exit()
 
     global _LANG
     if i18n is not None:
