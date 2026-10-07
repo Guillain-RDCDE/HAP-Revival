@@ -45,6 +45,8 @@ import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+import hap_update
+
 import discover
 import hap_common
 import hap_companion as comp
@@ -102,6 +104,9 @@ class App:
         self._action_widgets: list = []  # disabled while a job runs
         self._findings: list = []        # last SMB-doctor result (for the Fix button)
         self._has_fixes = False          # are there pending Windows fixes to apply?
+        self._update_status: hap_update.Status | None = None  # last answer from GitHub
+        self._bg_jobs = 0                # background checks still owed a queue event
+        self._polling = False            # is the queue drain loop scheduled?
 
         cfg = core.load_config_tolerant(CONFIG_PATH)
         self.host_var = tk.StringVar(value=cfg["host"])
@@ -130,6 +135,11 @@ class App:
 
         # Remember settings without a manual save: persist on close.
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # A previous update leaves HapSync.exe.old next to the exe; tidy it, then
+        # ask GitHub (cached for a day) whether a newer release exists.
+        hap_update.remove_leftovers()
+        self._start_update_check(interactive=False)
 
     # ---------- i18n plumbing ----------
 
@@ -181,6 +191,17 @@ class App:
         self._i18n.append(
             (lambda s: menubar.entryconfigure(self._lang_menu_index, label=s), "gui.menu.language")
         )
+        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(label=self._T("gui.menu.check_updates"),
+                              command=self.on_check_updates)
+        help_menu.add_command(label=self._T("gui.menu.about"), command=self.on_about)
+        menubar.add_cascade(label=self._T("gui.menu.help"), menu=help_menu)
+        help_index = menubar.index("end")
+        self._i18n.append((lambda s: menubar.entryconfigure(help_index, label=s), "gui.menu.help"))
+        self._i18n.append(
+            (lambda s: help_menu.entryconfigure(0, label=s), "gui.menu.check_updates"))
+        self._i18n.append((lambda s: help_menu.entryconfigure(1, label=s), "gui.menu.about"))
+        self.help_menu = help_menu
         self.root.configure(menu=menubar)
 
     # ---------- UI construction ----------
@@ -225,6 +246,14 @@ class App:
                          foreground="#5a7fb5", cursor="hand2", font=("Segoe UI", 8))
         link.pack(side="right")
         link.bind("<Button-1>", lambda _e: webbrowser.open(GITHUB_URL))
+        self.version_lbl = ttk.Label(footer, foreground="#888", font=("Segoe UI", 8))
+        self.version_lbl.pack(side="left")
+        self._i18n.append((lambda s: self.version_lbl.configure(
+            text=s.format(version=hap_update.VERSION)), "gui.footer.version"))
+        self.version_lbl.configure(text=self._T("gui.footer.version", version=hap_update.VERSION))
+        # Shown only once a check has found a newer release: one click updates.
+        self.update_btn = ttk.Button(footer, command=self.on_update)
+        self._i18n.append((lambda s: self._refresh_update_button(), "gui.update.btn"))
 
     def _build_tabs(self) -> None:
         nb = ttk.Notebook(self.root)
@@ -673,7 +702,13 @@ class App:
                 self._emit("finished")
 
         threading.Thread(target=runner, daemon=True).start()
-        self.root.after(POLL_MS, self._poll)
+        self._schedule_poll()
+
+    def _schedule_poll(self) -> None:
+        """Start the queue drain loop if it is not already running."""
+        if not self._polling:
+            self._polling = True
+            self.root.after(POLL_MS, self._poll)
 
     def _poll(self) -> None:
         try:
@@ -682,8 +717,10 @@ class App:
                 self._dispatch(tag, d)
         except queue.Empty:
             pass
-        if self.busy:
+        if self.busy or self._bg_jobs > 0:
             self.root.after(POLL_MS, self._poll)
+        else:
+            self._polling = False
 
     def _dispatch(self, tag: str, d: dict) -> None:
         if tag == "log" and self._active_log is not None:
@@ -716,6 +753,14 @@ class App:
             self._set_busy(False)
             self.progress.stop()  # halt any pulse animation
             self.progress.configure(mode="determinate", value=0)
+        elif tag == "update":
+            self._bg_jobs = max(0, self._bg_jobs - 1)
+            self._on_update_status(d["status"], d["interactive"])
+        elif tag == "updated":
+            self._on_updated(d["result"], d["version"])
+        elif tag == "update_failed":
+            messagebox.showerror(self._T("gui.app_title"),
+                                 self._T("gui.update.failed", err=d["err"], url=d["url"]))
 
     def _set_busy(self, busy: bool) -> None:
         for w in self._action_widgets:
@@ -890,6 +935,113 @@ class App:
                 self._emit("error", msg=str(e))
 
         self._run_async(job, self.transfer_log)
+
+    # ---------- updates ----------
+
+    def _start_update_check(self, interactive: bool) -> None:
+        """Ask GitHub on a background thread; the answer arrives through the queue.
+
+        `interactive` is the Help-menu path: it bypasses the day-long cache and
+        always answers with a dialog, even "you are up to date".
+        """
+        self._bg_jobs += 1
+
+        def done(status: hap_update.Status) -> None:
+            self._emit("update", status=status, interactive=interactive)
+
+        hap_update.check_in_background(done, force=interactive)
+        self._schedule_poll()
+
+    def _refresh_update_button(self) -> None:
+        status = self._update_status
+        if status is not None and status.available and status.latest is not None:
+            self.update_btn.configure(
+                text=self._T("gui.update.btn", version=status.latest.version))
+            if not self.update_btn.winfo_manager():
+                self.update_btn.pack(side="right", padx=(0, 10))
+        elif self.update_btn.winfo_manager():
+            self.update_btn.pack_forget()
+
+    def _on_update_status(self, status: hap_update.Status, interactive: bool) -> None:
+        self._update_status = status
+        self._refresh_update_button()
+        if status.available and status.latest is not None:
+            if not self.busy:
+                self.status_var.set(self._T("gui.update.available",
+                                            version=status.latest.version,
+                                            current=status.current))
+            if interactive:
+                self.on_update()
+            return
+        if not interactive:
+            return
+        if status.disabled:
+            self._info("gui.update.disabled", env=hap_update.OPT_OUT_ENV)
+        elif status.error and status.latest is None:
+            self._warn("gui.update.check_failed", err=status.error)
+        else:
+            self._info("gui.update.up_to_date", current=status.current)
+            if not self.busy:
+                self.status_var.set(self._T("gui.status.ready"))
+
+    def on_check_updates(self) -> None:
+        if not self.busy:
+            self.status_var.set(self._T("gui.update.checking"))
+        self._start_update_check(interactive=True)
+
+    def on_about(self) -> None:
+        self._info("gui.about.text", version=hap_update.VERSION, url=GITHUB_URL)
+
+    def on_update(self) -> None:
+        """One click: download (or pull) the new version, then restart into it."""
+        status = self._update_status
+        if self.busy or status is None or not status.available or status.latest is None:
+            return
+        version = status.latest.version
+        kind = hap_update.install_kind()
+        confirm = "gui.update.confirm_exe" if kind == "frozen" else "gui.update.confirm_source"
+        if not messagebox.askyesno(self._T("gui.app_title"), self._T(confirm, version=version)):
+            return
+        self._persist()
+        url = status.latest.url
+
+        def job():
+            shown = [-1]
+
+            def progress(done: int, total: int) -> None:
+                if not total:
+                    return
+                pct = done * 100 // total
+                if pct == shown[0]:
+                    return
+                if shown[0] < 0:
+                    self._emit("progmax", total=total)
+                shown[0] = pct
+                self._emit("progress", value=done)
+                self._status_t("gui.update.downloading", version=version, pct=pct)
+
+            try:
+                result = hap_update.apply(status, progress=progress, launch=True)
+            except hap_update.UpdateError as e:
+                self._emit("update_failed", err=str(e), url=url)
+                return
+            self._emit("log", line=result.message)
+            self._emit("updated", result=result, version=version)
+
+        self._run_async(job, self.transfer_log, use_progress=True)
+
+    def _on_updated(self, result: hap_update.Result, version: str) -> None:
+        if result.launched:
+            self._info("gui.update.launched", version=version)
+            self._on_close()
+        elif result.restart:
+            if messagebox.askyesno(self._T("gui.app_title"),
+                                   self._T("gui.update.applied_restart",
+                                           version=version, msg=result.message)):
+                self._persist()
+                hap_update.restart_self()
+        else:
+            self._info("gui.update.up_to_date", current=hap_update.VERSION)
 
     def on_stop(self) -> None:
         self.stop_event.set()

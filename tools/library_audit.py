@@ -45,6 +45,8 @@ import html
 import sqlite3
 import sys
 
+import hap_update
+
 import hap_library
 from hap_catalog import codec_name, open_catalog
 from hap_common import force_utf8_stdio
@@ -574,6 +576,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Audit a HAP music library — from the player over the network, "
         "or from its on-disk SQLite catalog."
     )
+    hap_update.add_version_flag(ap)
     ap.add_argument("db", nargs="?", help="path to hdd_browse.db")
     ap.add_argument(
         "--from-player",
@@ -589,6 +592,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
     args = ap.parse_args(argv)
+    hap_update.notice_at_exit()
 
     if bool(args.db) == bool(args.from_player):
         ap.error("give either a path to hdd_browse.db or --from-player <ip>, not both")

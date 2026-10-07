@@ -55,6 +55,8 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+import hap_update
+
 from hap_common import API_PORT, USER_CACHE_DIR, read_json_dict, safe_name, write_json
 
 BASE_PATH = "/sony/contentdb/v100"
@@ -504,6 +506,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Read a HAP music library over REST.", parents=[_common_options(True)]
     )
+    hap_update.add_version_flag(parser)
     parser.add_argument("host", help="player IP or hostname")
     sub = parser.add_subparsers(dest="cmd", required=True)
     common = [_common_options(False)]
@@ -520,6 +523,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
 
     lib = Library(args.host, timeout=args.timeout,
                   timeout_for_harvest=args.harvest_timeout)

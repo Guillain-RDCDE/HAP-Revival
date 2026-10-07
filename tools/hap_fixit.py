@@ -68,6 +68,8 @@ import sys
 import time
 from pathlib import Path
 
+import hap_update
+
 import hap_library
 import i18n
 import library_audit
@@ -588,6 +590,7 @@ function cp(b){{navigator.clipboard.writeText(b.dataset.p);
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Locate and act on what the audit found.")
+    hap_update.add_version_flag(ap)
     ap.add_argument("host", help="player IP or hostname")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("index", help="crawl both SMB shares (~4 min)")
@@ -609,6 +612,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
     force_utf8_stdio()
 
     if args.cmd == "index":

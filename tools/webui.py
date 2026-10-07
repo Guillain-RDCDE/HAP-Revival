@@ -60,6 +60,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+import hap_update
+
 import hap_fixit
 import hap_library
 import hap_notify
@@ -112,6 +114,7 @@ def render_index(template: str, *, accent: tuple[int, int, int, int], cover_url:
         .replace("__LANGS_JSON__", json.dumps(i18n.language_options(), ensure_ascii=False))
         .replace("__DEFAULT_LANG__", lang)
         .replace("__LANG__", lang)
+        .replace("__VERSION__", hap_update.VERSION)
     )
 
 
@@ -338,6 +341,31 @@ def is_local_client(address: str) -> bool:
     return address in ("127.0.0.1", "::1")
 
 
+def update_payload(status: hap_update.Status, *, local: bool) -> dict:
+    """What `/api/update` answers: the check, plus whether this viewer may apply it.
+
+    Applying means pulling new code into the machine that runs the server and
+    restarting it, which only its owner should trigger: from the same machine,
+    and never for the frozen exe (which has no web UI anyway).
+    """
+    kind = hap_update.install_kind()
+    payload = status.to_dict()
+    payload["kind"] = kind
+    payload["can_apply"] = bool(local and status.available and kind != "frozen")
+    payload["releases_url"] = hap_update.RELEASES_URL
+    return payload
+
+
+def schedule_restart(server: Any, delay: float = 0.5) -> None:
+    """Stop `server` shortly, so `main` can start again on the new code.
+
+    Called from a request handler, whose reply must leave first: the server's
+    `shutdown()` blocks until the serve loop notices, hence the timer thread.
+    """
+    HAPHandler.restart_pending = True
+    threading.Timer(delay, server.shutdown).start()
+
+
 class BadRequest(ValueError):
     """A POST the handler refuses with 400 and this message."""
 
@@ -374,6 +402,7 @@ class HAPHandler(BaseHTTPRequestHandler):
     hap: HAP  # set on the class before serving
     push: PushWatcher | None = None  # set on the class before serving
     library: hap_library.Library | None = None  # set on the class before serving
+    restart_pending = False  # set by an applied update; `main` restarts after serving
 
     # Silence the default request logging
     def log_message(self, fmt, *args):
@@ -448,6 +477,11 @@ class HAPHandler(BaseHTTPRequestHandler):
 
     def _serve_state(self, query: str) -> None:
         self._send_json(200, build_state(self.hap))
+
+    def _serve_update(self, query: str) -> None:
+        force = "force" in urllib.parse.parse_qs(query)
+        status = hap_update.check(force=force)
+        self._send_json(200, update_payload(status, local=is_local_client(self.client_address[0])))
 
     def _serve_events(self, query: str) -> None:
         # Long-poll. Returns as soon as the player pushes a notification, or
@@ -623,6 +657,7 @@ class HAPHandler(BaseHTTPRequestHandler):
         "/manifest.webmanifest": _serve_manifest,
         "/sw.js": _serve_service_worker,
         "/api/state": _serve_state,
+        "/api/update": _serve_update,
         "/api/events": _serve_events,
         "/api/library/search": _serve_search,
         "/api/panel/screen": _serve_panel_screen,
@@ -658,7 +693,7 @@ class HAPHandler(BaseHTTPRequestHandler):
                     self.send_error(404)
                     return
                 payload = special(self, params)
-        except HAPError as e:
+        except (HAPError, hap_update.UpdateError) as e:
             self._send_json(500, {"error": str(e)})
         except Forbidden as e:
             self._send_json(403, {"error": str(e)})
@@ -702,6 +737,17 @@ class HAPHandler(BaseHTTPRequestHandler):
         hap_fixit.open_folder(target)
         return {"opened": target}
 
+    def _post_update_apply(self, params: dict) -> dict:
+        # New code lands on the machine running this server and the server
+        # restarts: the owner's call, from the owner's machine.
+        if not is_local_client(self.client_address[0]):
+            raise Forbidden("only from this machine")
+        status = hap_update.check(force=True)
+        result = hap_update.apply(status, launch=False)
+        if result.restart:
+            schedule_restart(self.server)
+        return {"applied": True, **result.to_dict()}
+
     def _post_harvest(self, params: dict) -> dict:
         if self.library is None:
             raise HAPError("library unavailable")
@@ -720,6 +766,7 @@ class HAPHandler(BaseHTTPRequestHandler):
     POST_ROUTES: dict[str, Callable[[HAPHandler, dict], dict]] = {
         "/api/panel/key": _post_panel_key,
         "/api/fix/open": _post_fix_open,
+        "/api/update/apply": _post_update_apply,
         "/api/library/harvest": _post_harvest,
         "/api/set-favorite": _post_set_favorite,
     }
@@ -727,6 +774,7 @@ class HAPHandler(BaseHTTPRequestHandler):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    hap_update.add_version_flag(parser)
     parser.add_argument("ip", nargs="?", help="HAP device IP address (omit when using --demo)")
     parser.add_argument("--port", type=int, default=DEFAULT_HTTP_PORT,
                         help=f"Local HTTP port (default {DEFAULT_HTTP_PORT})")
@@ -754,6 +802,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    hap_update.notice_at_exit()
 
     if args.demo:
         import mock_hap
@@ -791,6 +840,10 @@ def main(argv: list[str] | None = None) -> int:
         print("\nStopping.")
     finally:
         server.server_close()
+    if HAPHandler.restart_pending:
+        HAPHandler.restart_pending = False
+        print("Update applied; starting again on the new version.")
+        hap_update.restart_self()
     return 0
 
 

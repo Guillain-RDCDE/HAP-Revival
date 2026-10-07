@@ -35,6 +35,8 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
+import hap_update
+
 from hap_common import API_PORT
 
 HTTP_TIMEOUT_SEC = 20
@@ -117,6 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Mirror the HAP front panel and press its keys."
     )
+    hap_update.add_version_flag(parser)
     parser.add_argument("host", help="player IP or hostname")
     sub = parser.add_subparsers(dest="action", required=True)
 
@@ -134,6 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
 
     try:
         if args.action == "show":

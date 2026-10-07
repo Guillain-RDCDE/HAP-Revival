@@ -52,6 +52,8 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import hap_update
+
 DNS_PORT = 53
 HTTP_PORT = 80
 UPSTREAM_TIMEOUT_SEC = 5
@@ -331,6 +333,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Log what the HAP looks up, and optionally relay one host."
     )
+    hap_update.add_version_flag(parser)
     parser.add_argument(
         "--ip",
         default="",
@@ -361,6 +364,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
 
     if args.log:
         LOG.open(Path(args.log))

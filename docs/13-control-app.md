@@ -17,6 +17,9 @@ the custom on-device daemon are still being built.
   settings (DSEE, DSD remastering, gapless, oversampling…), themes, and a
   minimal mode — everything the browser UI already does, in an app shell.
 - Your theme / minimal-mode preferences are **remembered** (stored on-device).
+- **It tells you when a newer version exists**, in a banner at the top, with an *Update* button
+  when you open it on the computer that runs it (the server updates itself and restarts). From a
+  phone the banner links to the release; the gear's *About* row checks on demand.
 - **Browse the library and play from it** — artists, albums, playlists, favorites, down to tracks
   with their codec and sample rate; tap one to play it, and the track currently playing is
   highlighted. This is the half Sony's own app lost. The first listing takes up to a minute (the

@@ -38,6 +38,8 @@ import sqlite3
 import sys
 from collections.abc import Iterable
 
+import hap_update
+
 from hap_catalog import open_catalog
 from hap_common import API_PORT, SMB_DIRECT_PORT, force_utf8_stdio, send_wol, tcp_port_open
 from hap_media import COVER_NAMES, PCM_CEILING_HZ, classify, pcm_sample_rate
@@ -214,6 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="hap_companion",
         description="HAP-aware pre-flight checks and library diff for any copy tool.",
     )
+    hap_update.add_version_flag(ap)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("validate",
                        help="scan a folder for junk / unsupported / >192 kHz / no cover")
@@ -231,6 +234,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     force_utf8_stdio()  # never crash on unicode track/artist names on a legacy console
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
     try:
         if args.cmd == "validate":
             return cmd_validate(args.folder)

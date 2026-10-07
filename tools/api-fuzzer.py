@@ -27,6 +27,8 @@ import json
 import sys
 import time
 
+import hap_update
+
 from hap_client import DEFAULT_TIMEOUT_SEC, RpcReply, rpc_post
 from hap_common import API_PORT, safe_name, save_capture
 
@@ -217,6 +219,7 @@ def summarize(findings: list[dict]) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    hap_update.add_version_flag(parser)
     parser.add_argument("--target", required=True, help="HAP IP address")
     parser.add_argument("--port", type=int, default=API_PORT)
     parser.add_argument("--service", help="Only fuzz this service")
@@ -226,6 +229,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
 
     print(f"Fuzzing {args.target}:{args.port} ...")
     findings = fuzz(args.target, args.port, args.service, args.method)
