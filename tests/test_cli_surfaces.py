@@ -49,6 +49,42 @@ def client_on_mock(device, monkeypatch):
     return host
 
 
+# ---------- the shared version ----------
+
+
+EVERY_TOOL = ["api-fuzzer", "call", "discover", "hap_client", "hap_companion", "hap_fixit",
+              "hap_intercept", "hap_library", "hap_notify", "hap_screen", "hap_sync",
+              "library_audit", "library_browser", "mock_hap", "smb_doctor", "smoke_live",
+              "webui", "hap_update"]
+
+
+@pytest.mark.parametrize("name", EVERY_TOOL)
+def test_every_tool_reports_the_shared_version(name, capsys):
+    import importlib
+
+    import hap_update
+
+    flag = "--tool-version" if name == "call" else "--version"  # call.py: the API version
+    with pytest.raises(SystemExit) as exc:
+        importlib.import_module(name).main([flag])
+    assert exc.value.code == 0
+    assert capsys.readouterr().out.strip().endswith(f"{hap_update.VERSION} (HAP-Revival)")
+
+
+def test_tools_arm_the_update_notice_after_parsing(monkeypatch, capsys):
+    import hap_update
+
+    import hap_sync
+
+    armed = []
+    monkeypatch.setattr(hap_update, "notice_at_exit", lambda stream=None: armed.append(1))
+    assert hap_sync.main([]) == 2, "no command: usage"
+    assert armed == [1]
+    with pytest.raises(SystemExit):
+        hap_sync.main(["--help"])
+    assert armed == [1], "--help never reaches the notice"
+
+
 # ---------- hap_client ----------
 
 

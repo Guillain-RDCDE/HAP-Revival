@@ -35,6 +35,8 @@ from dataclasses import dataclass, field
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+import hap_update
+
 from hap_client import HAP, _first_field
 from hap_common import API_PORT
 
@@ -268,6 +270,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Exercise the client against a real HAP and assert it reads real values.",
         epilog="Read-only unless --include-writes. Never run from CI.",
     )
+    hap_update.add_version_flag(p)
     p.add_argument("ip", help="player address, e.g. 192.168.1.28")
     p.add_argument(
         "--include-writes",
@@ -278,6 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--port", type=int, default=API_PORT,
                    help=f"API port (default {API_PORT}; only the mock ever listens elsewhere)")
     args = p.parse_args(argv)
+    hap_update.notice_at_exit()
 
     try:
         socket.create_connection((args.ip, args.port), timeout=5).close()

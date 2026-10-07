@@ -1,0 +1,78 @@
+name: Release HAP Sync
+
+# Pushing a tag `hap-sync-vX.Y.Z` builds HapSync.exe on Windows from that
+# exact tag, checks that tools/hap_update.VERSION says X.Y.Z (every tool
+# reports that number and the update check compares against it), and opens
+# a *draft* GitHub release with the exe and its SHA-256 attached. Publishing
+# the draft, after writing the notes, is a human's click: from that moment
+# every installed copy sees the new version.
+
+on:
+  push:
+    tags:
+      - "hap-sync-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build HapSync.exe and draft the release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: The tag must carry the version the code reports
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = python -c "import sys; sys.path.insert(0, 'tools'); import hap_update; print(hap_update.VERSION)"
+          Write-Host "tag $tag, tools/hap_update.VERSION $version"
+          if ($tag -ne "hap-sync-v$version") {
+            throw "tag $tag does not match tools/hap_update.VERSION ($version): bump VERSION (and the CHANGELOG) before tagging"
+          }
+
+      - name: Build the exe
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File tools/build_gui.ps1
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist\HapSync.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  HapSync.exe" | Out-File -Encoding ascii dist\SHA256SUMS.txt
+          Get-Content dist\SHA256SUMS.txt
+          "SHA256=$hash" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
+
+      - name: The exe reports the tagged version
+        shell: pwsh
+        run: |
+          $size = (Get-Item dist\HapSync.exe).Length
+          Write-Host "HapSync.exe: $size bytes"
+          if ($size -lt 5MB) { throw "HapSync.exe is suspiciously small ($size bytes)" }
+
+      - name: Draft the release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: HAP Sync ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            **Download `HapSync.exe` below.** No install, no Python, no admin rights — double-click it.
+            Copies already installed offer this version themselves: HAP Sync in its footer, the web
+            remote in a banner, the command-line tools at the end of a run.
+
+            **Verify your download** — SHA-256 of `HapSync.exe`:
+
+            ```text
+            ${{ env.SHA256 }}
+            ```
+
+            Windows x64 · built by CI from the sources at this tag · nothing here can damage your device.
+          files: |
+            dist/HapSync.exe
+            dist/SHA256SUMS.txt

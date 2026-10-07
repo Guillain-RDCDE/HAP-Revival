@@ -371,6 +371,20 @@ def test_main_wires_the_handler_and_serves(monkeypatch, capsys, device):
     assert "Push notifications disabled" in capsys.readouterr().out
     assert len(started) == 1
 
+    # An applied update stops the server and `main` starts again on the new code.
+    import hap_update
+
+    restarted = []
+    monkeypatch.setattr(hap_update, "restart_self", lambda: restarted.append(1))
+
+    def stop_for_update(self):
+        HAPHandler.restart_pending = True
+
+    monkeypatch.setattr(Server, "serve_forever", stop_for_update)
+    assert webui.main([host, "--port", "0", "--no-push"]) == 0
+    assert restarted == [1] and not HAPHandler.restart_pending
+    assert "starting again" in capsys.readouterr().out
+
     monkeypatch.setattr(webui, "HAP", lambda ip: real(ip, port=1, timeout=1))
     assert webui.main(["127.0.0.1", "--port", "0", "--no-push"]) == 0
     assert "could not connect" in capsys.readouterr().err
@@ -403,3 +417,95 @@ def test_parser_defaults():
     assert args.port == webui.DEFAULT_HTTP_PORT and args.ip is None and args.demo
     with pytest.raises(SystemExit):
         webui.build_parser().parse_args(["--port", "x"])
+
+
+# ---------- updates ----------
+
+
+def _release(version="9.9.9"):
+    import hap_update
+
+    return hap_update.Release(version, f"hap-sync-v{version}",
+                              f"https://github.com/x/y/releases/tag/hap-sync-v{version}")
+
+
+def test_update_route_reports_the_check_and_who_may_apply(ui, monkeypatch):
+    import hap_update
+
+    status, _headers, body = get(ui, "/api/update")
+    data = json.loads(body)
+    assert status == 200 and data["disabled"] and not data["available"]
+    assert data["current"] == hap_update.VERSION and data["kind"] in ("git", "source")
+    assert not data["can_apply"] and data["releases_url"].startswith("https://github.com/")
+
+    forced = []
+
+    def fake_check(force=False):
+        forced.append(force)
+        return hap_update.Status(current="0.1.0", latest=_release("9.9.9"))
+
+    monkeypatch.setattr(hap_update, "check", fake_check)
+    monkeypatch.setattr(hap_update, "install_kind", lambda root=None: "git")
+    data = json.loads(get(ui, "/api/update?force=1")[2])
+    assert data["available"] and data["can_apply"] and data["latest"]["version"] == "9.9.9"
+    assert forced == [True]
+    monkeypatch.setattr(hap_update, "install_kind", lambda root=None: "frozen")
+    assert not json.loads(get(ui, "/api/update")[2])["can_apply"]
+    monkeypatch.setattr(hap_update, "install_kind", lambda root=None: "git")
+    monkeypatch.setattr(webui, "is_local_client", lambda address: False)
+    assert not json.loads(get(ui, "/api/update")[2])["can_apply"]
+
+
+def test_update_apply_pulls_then_restarts_the_server(ui, monkeypatch):
+    import hap_update
+
+    monkeypatch.setattr(hap_update, "check",
+                        lambda force=False: hap_update.Status(current="0.1.0", latest=_release()))
+    launched = []
+    monkeypatch.setattr(hap_update, "apply", lambda status, progress=None, launch=True:
+                        launched.append(launch) or hap_update.Result("git", "Fast-forward",
+                                                                     restart=True))
+    scheduled = []
+    monkeypatch.setattr(webui, "schedule_restart", lambda server: scheduled.append(server))
+    status, payload = post(ui, "/api/update/apply", {})
+    assert status == 200 and payload["applied"] and payload["restart"]
+    assert payload["message"] == "Fast-forward" and launched == [False] and len(scheduled) == 1
+
+    monkeypatch.setattr(hap_update, "apply", lambda status, progress=None, launch=True:
+                        hap_update.Result("git", "0.1.0 is the latest release"))
+    status, payload = post(ui, "/api/update/apply", {})
+    assert status == 200 and not payload["restart"] and len(scheduled) == 1
+
+    def refuse(status, progress=None, launch=True):
+        raise hap_update.UpdateError("the clone has local changes")
+
+    monkeypatch.setattr(hap_update, "apply", refuse)
+    status, payload = post(ui, "/api/update/apply", {})
+    assert status == 500 and "local changes" in payload["error"]
+
+    monkeypatch.setattr(webui, "is_local_client", lambda address: False)
+    assert post(ui, "/api/update/apply", {})[0] == 403
+
+
+def test_schedule_restart_stops_the_server_and_flags_main(monkeypatch):
+    import types
+
+    timers = []
+    monkeypatch.setattr(webui.threading, "Timer",
+                        lambda delay, fn: timers.append((delay, fn)) or types.SimpleNamespace(
+                            start=lambda: None))
+    server = types.SimpleNamespace(shutdown=lambda: None)
+    try:
+        webui.schedule_restart(server, delay=0.1)
+        assert HAPHandler.restart_pending and timers == [(0.1, server.shutdown)]
+    finally:
+        HAPHandler.restart_pending = False
+
+
+def test_page_carries_the_version_and_the_banner(ui):
+    import hap_update
+
+    body = get(ui, "/")[2].decode("utf-8")
+    assert f'const APP_VERSION = "{hap_update.VERSION}";' in body
+    assert 'id="update-banner"' in body and "web.update.btn" in body
+    assert "__VERSION__" not in body

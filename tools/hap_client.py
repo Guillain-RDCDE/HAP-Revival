@@ -46,6 +46,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+import hap_update
+
 from hap_common import API_PORT, UPNP_PORT, force_utf8_stdio
 
 try:  # local sibling module; keep the client importable even if it's absent
@@ -1079,6 +1081,7 @@ def _cli_sleep_timer(hap: HAP, _args) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    hap_update.add_version_flag(parser)
     parser.add_argument("ip", help="HAP device IP address")
     parser.add_argument(
         "--lang",
@@ -1128,6 +1131,7 @@ def main(argv: list[str] | None = None) -> int:
     # Translated output (Français, 日本語, …) must render on a cp1252 console too.
     force_utf8_stdio()
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
     global _LANG
     if i18n is not None:
         _LANG = i18n.detect_lang(override=args.lang)

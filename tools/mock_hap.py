@@ -48,6 +48,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
+import hap_update
+
 from hap_common import API_PORT
 from hap_png import COLOR_RGB, encode_png, lerp_rgb
 from hap_screen import KEYS as KEYEVENTS
@@ -1020,6 +1022,7 @@ def serve_in_thread(bind: str = "127.0.0.1", port: int = API_PORT) -> ThreadingH
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    hap_update.add_version_flag(parser)
     parser.add_argument("--port", type=int, default=API_PORT,
                         help=f"Listen port (default {API_PORT}, the real HAP port)")
     parser.add_argument("--bind", default="127.0.0.1", help="Bind address (default 127.0.0.1)")

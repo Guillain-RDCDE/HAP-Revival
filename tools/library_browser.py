@@ -31,6 +31,8 @@ import html
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import hap_update
+
 from hap_catalog import codec_name, open_catalog
 
 # The PROP-code schema is decoded once, in hap_catalog.py (docs/09-disk-layout.md).
@@ -374,6 +376,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Browse a HAP's hdd_browse.db in your web browser.")
+    hap_update.add_version_flag(ap)
     ap.add_argument("db", help="path to hdd_browse.db")
     ap.add_argument("port", nargs="?", type=int, default=DEFAULT_PORT,
                     help=f"local HTTP port (default {DEFAULT_PORT})")
@@ -382,6 +385,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
     Handler.lib = Library(args.db)
     s = Handler.lib.stats()
     print(f"Loaded {s['tracks']:,} tracks / {s['albums']:,} albums / {s['artists']:,} artists")

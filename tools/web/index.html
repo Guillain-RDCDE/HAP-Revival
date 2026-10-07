@@ -208,6 +208,11 @@ main { width: 100%; max-width: 520px; }
 footer { color: var(--muted); font-size: 11px; margin-top: 32px; text-align: center; }
 footer a { color: var(--muted); text-decoration: underline; }
 .error { background: #422; color: #f88; padding: 12px; border-radius: 8px; font-size: 13px; }
+/* A newer release: one line, one button. Hidden until /api/update says so. */
+.update-banner { display: none; align-items: center; gap: 10px; flex-wrap: wrap; background: rgba(46,160,67,0.16); border: 1px solid rgba(46,160,67,0.45); border-radius: 12px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px; }
+.update-banner.show { display: flex; }
+.update-banner .grow { flex: 1; min-width: 160px; }
+.update-banner .btn { padding: 8px 14px; font-size: 13px; text-decoration: none; }
 
 /* ===== Settings panel ===== */
 .gear-wrap { position: fixed; top: 16px; right: 16px; z-index: 100; }
@@ -452,6 +457,15 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
       </div>
       <div class="set-note" id="fav-note" data-i18n="web.current.favorite_note">Marks the current track in the HAP library. Buttons disable when playing a non-HDD source (Spotify, radio).</div>
     </section>
+
+    <section>
+      <h3 data-i18n="web.about.title">About</h3>
+      <div class="set-row">
+        <span class="k" id="about-version">HAP-Revival __VERSION__</span>
+        <button class="btn" id="update-check-btn" onclick="checkUpdate(true)" data-i18n="web.update.check">Check for updates</button>
+      </div>
+      <div class="set-note" id="update-note"></div>
+    </section>
   </div>
 </div>
 <header>
@@ -459,6 +473,11 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
   <div class="device" id="device-info" data-i18n="web.connecting">connecting…</div>
 </header>
 <main>
+  <div class="update-banner" id="update-banner">
+    <span class="grow" id="update-text"></span>
+    <a class="btn" id="update-notes" href="#" target="_blank" rel="noopener" data-i18n="web.update.notes">What's new</a>
+    <button class="btn primary" id="update-btn" onclick="applyUpdate()" data-i18n="web.update.btn">Update</button>
+  </div>
   <div class="card" id="now-playing">
     <div class="cover placeholder" id="cover"></div>
     <div class="meta">
@@ -548,6 +567,7 @@ html.bg-is-light .fav-row button { background: rgba(255,255,255,0.5); border-col
 const I18N = __I18N_JSON__;
 const LANGS = __LANGS_JSON__;
 const LANG_KEY = "hap-revival.lang";
+const APP_VERSION = "__VERSION__";
 let LANG = localStorage.getItem(LANG_KEY) || "__DEFAULT_LANG__";
 if (!I18N[LANG]) LANG = "en";
 
@@ -575,6 +595,8 @@ function applyI18n() {
   const ptoggle = document.getElementById("panel-toggle");
   if (ptoggle) ptoggle.textContent = panelOpen ? t("web.panel.close") : t("web.panel.open");
   if (libOpen && libStack.length) { libCrumbs(); libRender(); }
+  document.getElementById("about-version").textContent = t("web.about.version", {version: APP_VERSION});
+  if (updateInfo) renderUpdate(false);
 }
 function buildLangSelect() {
   const sel = document.getElementById("lang-sel");
@@ -925,6 +947,85 @@ async function hapCall(action, params) {
   } catch (e) {
     document.getElementById("error-banner").innerHTML =
       '<div class="error">' + t("web.err.action", {msg: e.message}) + "</div>";
+  }
+}
+
+/* ===== Updates =====
+   /api/update answers from a day-long cache (GitHub's releases API); the
+   gear's button forces a fresh look. Applying is offered only when the server
+   says this viewer may (same machine, not the frozen exe): the server pulls
+   the new code, restarts itself, and the page reloads once it is back. */
+let updateInfo = null;
+
+async function checkUpdate(force) {
+  const note = document.getElementById("update-note");
+  if (force) note.textContent = t("web.update.checking");
+  try {
+    const r = await fetch("/api/update" + (force ? "?force=1" : ""), {cache: "no-store"});
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    updateInfo = await r.json();
+  } catch (e) {
+    if (force) note.textContent = t("web.update.check_failed", {msg: e.message});
+    return;
+  }
+  renderUpdate(force);
+}
+
+function renderUpdate(verbose) {
+  const d = updateInfo;
+  const banner = document.getElementById("update-banner");
+  const note = document.getElementById("update-note");
+  if (!d) return;
+  if (d.disabled) {
+    banner.classList.remove("show");
+    if (verbose) note.textContent = t("web.update.disabled");
+    return;
+  }
+  if (d.available && d.latest) {
+    const text = t("web.update.banner", {version: d.latest.version, current: d.current});
+    document.getElementById("update-text").textContent = text;
+    document.getElementById("update-notes").href = d.latest.url;
+    document.getElementById("update-btn").style.display = d.can_apply ? "" : "none";
+    banner.classList.add("show");
+    note.textContent = d.can_apply ? text : text + " " + t("web.update.remote_only");
+    return;
+  }
+  banner.classList.remove("show");
+  if (verbose) {
+    note.textContent = d.error ? t("web.update.check_failed", {msg: d.error})
+                               : t("web.update.up_to_date");
+  }
+}
+
+async function applyUpdate() {
+  const text = document.getElementById("update-text");
+  const btn = document.getElementById("update-btn");
+  btn.disabled = true;
+  text.textContent = t("web.update.applying");
+  try {
+    const r = await fetch("/api/update/apply", {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+    text.textContent = t("web.update.done", {version: updateInfo.latest.version});
+    if (d.restart) await waitForRestart();
+    location.reload();
+  } catch (e) {
+    text.textContent = t("web.update.failed", {msg: e.message});
+    btn.disabled = false;
+  }
+}
+
+async function waitForRestart() {
+  // The server re-executes itself; wait until the new one answers.
+  await new Promise((r) => setTimeout(r, 1500));
+  for (let i = 0; i < 60; i++) {
+    try {
+      const r = await fetch("/api/update", {cache: "no-store"});
+      if (r.ok) return;
+    } catch (e) { /* still restarting */ }
+    await new Promise((r) => setTimeout(r, 1000));
   }
 }
 
@@ -1329,6 +1430,7 @@ setInterval(() => {
 buildLangSelect();
 applyI18n();
 refresh();
+checkUpdate(false);
 scheduleTick();
 eventLoop();
 

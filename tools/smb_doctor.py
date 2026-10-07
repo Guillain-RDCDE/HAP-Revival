@@ -26,6 +26,8 @@ import sys
 import tempfile
 from dataclasses import dataclass
 
+import hap_update
+
 from hap_common import (
     SMB_DIRECT_PORT,
     SMB_NETBIOS_PORT,
@@ -367,6 +369,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="smb_doctor",
         description="Diagnose (and optionally fix) SMB access to the HAP.")
+    hap_update.add_version_flag(ap)
     ap.add_argument("host", help="HAP IP address, e.g. 192.168.1.28")
     ap.add_argument("--fix", action="store_true",
                     help="apply the fixes for any problems found (Windows asks for admin)")
@@ -376,6 +379,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     force_utf8_stdio()
     args = build_parser().parse_args(argv)
+    hap_update.notice_at_exit()
 
     findings = diagnose(args.host)
     print("\n".join(format_report(findings)))

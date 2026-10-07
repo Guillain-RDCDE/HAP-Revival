@@ -541,3 +541,165 @@ def test_queue_is_drained_in_order(app):
     app._poll()
     text = log_text(app.transfer_log)
     assert text.index("first") < text.index("second")
+
+
+# ---------- updates ----------
+
+
+def _release(version="9.9.9"):
+    import hap_update
+
+    return hap_update.Release(version, f"hap-sync-v{version}",
+                              f"https://github.com/x/y/releases/tag/hap-sync-v{version}")
+
+
+def test_startup_check_is_silent_when_opted_out(app):
+    """conftest opts the suite out, so the window came up without a button."""
+    deadline = time.monotonic() + 5
+    while app._bg_jobs and time.monotonic() < deadline:  # the startup thread's answer
+        app._poll()
+        time.sleep(0.02)
+    assert not app.update_btn.winfo_manager() and app._bg_jobs == 0
+    assert "HAP Sync" in app.version_lbl.cget("text")
+
+
+def test_an_available_update_shows_the_button_and_the_status(app):
+    import hap_update
+
+    status = hap_update.Status(current="0.1.0", latest=_release("9.9.9"))
+    app._dispatch("update", {"status": status, "interactive": False})
+    assert app.update_btn.winfo_manager() == "pack"
+    assert "9.9.9" in app.update_btn.cget("text") and "9.9.9" in app.status_var.get()
+    app._set_language("fr")
+    assert app.update_btn.cget("text").startswith("Mettre à jour")
+    assert "0.1.0" not in app.status_var.get(), "the status line was retranslated"
+    app._set_language("en")
+    app._dispatch("update", {"status": hap_update.Status(), "interactive": False})
+    assert not app.update_btn.winfo_manager()
+
+
+def test_a_menu_check_reports_each_outcome(app, monkeypatch):
+    import hap_gui
+    import hap_update
+
+    infos, warns, asked = [], [], []
+    monkeypatch.setattr(hap_gui.messagebox, "showinfo", lambda t, m: infos.append(m))
+    monkeypatch.setattr(hap_gui.messagebox, "showwarning", lambda t, m: warns.append(m))
+    monkeypatch.setattr(hap_gui.messagebox, "askyesno", lambda t, m: asked.append(m) or False)
+    app._dispatch("update", {"status": hap_update.Status(disabled=True), "interactive": True})
+    assert hap_update.OPT_OUT_ENV in infos[-1]
+    app._dispatch("update", {"status": hap_update.Status(error="offline"), "interactive": True})
+    assert "offline" in warns[-1]
+    app._dispatch("update", {"status": hap_update.Status(latest=_release("0.0.1")),
+                             "interactive": True})
+    assert "latest version" in infos[-1] and app.status_var.get() == "Ready."
+    app._dispatch("update", {"status": hap_update.Status(current="0.1.0", latest=_release()),
+                             "interactive": True})
+    assert "9.9.9" in asked[-1], "an interactive check goes straight to the confirmation"
+    assert not app.busy, "and a declined confirmation starts nothing"
+    app._dispatch("update", {"status": hap_update.Status(), "interactive": False})
+
+
+def test_check_for_updates_runs_in_the_background(app, monkeypatch):
+    import hap_gui
+    import hap_update
+
+    forced = []
+
+    def fake_bg(callback, force=False):
+        forced.append(force)
+        callback(hap_update.Status(latest=_release("0.0.1")))
+
+    monkeypatch.setattr(hap_update, "check_in_background", fake_bg)
+    infos = []
+    monkeypatch.setattr(hap_gui.messagebox, "showinfo", lambda t, m: infos.append(m))
+    app.on_check_updates()
+    assert forced == [True] and app._bg_jobs == 1 and app._polling
+    assert "Checking" in app.status_var.get()
+    app._poll()
+    assert app._bg_jobs == 0 and "latest version" in infos[-1]
+    app.on_about()
+    assert hap_update.VERSION in infos[-1] and "github.com" in infos[-1]
+
+
+def test_one_click_update_installs_the_exe_and_closes(app, monkeypatch):
+    import hap_gui
+    import hap_update
+
+    app._dispatch("update", {"status": hap_update.Status(current="0.1.0", latest=_release()),
+                             "interactive": False})
+    monkeypatch.setattr(hap_update, "install_kind", lambda root=None: "frozen")
+    asked, infos, closed, calls = [], [], [], []
+    monkeypatch.setattr(hap_gui.messagebox, "askyesno", lambda t, m: asked.append(m) or True)
+    monkeypatch.setattr(hap_gui.messagebox, "showinfo", lambda t, m: infos.append(m))
+    monkeypatch.setattr(app, "_on_close", lambda: closed.append(1))
+
+    def fake_apply(status, progress=None, launch=True):
+        calls.append(launch)
+        for done in (0, 50, 50, 100):
+            progress(done, 100)
+        progress(1, 0)  # unknown size: ignored
+        return hap_update.Result("frozen", "installed HapSync.exe 9.9.9", restart=True,
+                                 launched=True)
+
+    monkeypatch.setattr(hap_update, "apply", fake_apply)
+    app.on_update()
+    drain(app)
+    assert "Download and install" in asked[0] and calls == [True]
+    assert "installed HapSync.exe 9.9.9" in log_text(app.transfer_log)
+    assert closed == [1] and "9.9.9" in infos[-1] and "closes" in infos[-1]
+    app._dispatch("update", {"status": hap_update.Status(), "interactive": False})
+
+
+def test_one_click_update_from_a_clone_offers_a_restart(app, monkeypatch):
+    import hap_gui
+    import hap_update
+
+    app._dispatch("update", {"status": hap_update.Status(current="0.1.0", latest=_release()),
+                             "interactive": False})
+    monkeypatch.setattr(hap_update, "install_kind", lambda root=None: "git")
+    answers = [False]  # decline the confirmation first
+    asked = []
+    monkeypatch.setattr(hap_gui.messagebox, "askyesno",
+                        lambda t, m: asked.append(m) or answers.pop(0))
+    applied, restarted = [], []
+    monkeypatch.setattr(hap_update, "apply", lambda status, progress=None, launch=True:
+                        applied.append(1) or hap_update.Result("git", "Fast-forward", restart=True))
+    monkeypatch.setattr(hap_update, "restart_self", lambda: restarted.append(1))
+    app.on_update()
+    assert "started again" in asked[-1] and applied == [] and not app.busy
+
+    answers[:] = [True, True]  # confirm, then accept the restart
+    app.on_update()
+    drain(app)
+    assert applied == [1] and "Fast-forward" in asked[-1] and restarted == [1]
+
+    answers[:] = [True, False]  # confirm, then keep running the old code
+    app.on_update()
+    drain(app)
+    assert restarted == [1]
+    app._dispatch("update", {"status": hap_update.Status(), "interactive": False})
+
+
+def test_a_failed_update_is_explained_with_the_download_link(app, monkeypatch):
+    import hap_gui
+    import hap_update
+
+    app._dispatch("update", {"status": hap_update.Status(current="0.1.0", latest=_release()),
+                             "interactive": False})
+    monkeypatch.setattr(hap_gui.messagebox, "askyesno", lambda t, m: True)
+    errors = []
+    monkeypatch.setattr(hap_gui.messagebox, "showerror", lambda t, m: errors.append(m))
+
+    def refuse(status, progress=None, launch=True):
+        raise hap_update.UpdateError("checksum mismatch")
+
+    monkeypatch.setattr(hap_update, "apply", refuse)
+    app.on_update()
+    drain(app)
+    assert "checksum mismatch" in errors[-1] and "releases/tag/hap-sync-v9.9.9" in errors[-1]
+
+    app._dispatch("update", {"status": hap_update.Status(), "interactive": False})
+    app.on_update()  # nothing to update: nothing happens
+    assert not app.busy
+    app._dispatch("updated", {"result": hap_update.Result("git", "noop"), "version": "x"})

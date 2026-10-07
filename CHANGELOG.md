@@ -8,6 +8,26 @@ once we ship a versioned release.
 
 ## [Unreleased]
 
+### Added (2026-10-07, every tool knows when it is out of date)
+
+- **One version number, and every tool checks it against the latest release.**
+  `tools/hap_update.py` holds `VERSION` (0.4.0, the next release) and asks GitHub's releases API,
+  once a day at most and never when `HAP_NO_UPDATE_CHECK=1`, whether a newer `hap-sync-v*` release
+  exists. HAP Sync shows its version in the footer and, when there is a newer one, an **Update to
+  X.Y.Z** button: one click downloads the new `HapSync.exe` next to the running one, checks its
+  SHA-256 against what GitHub published, swaps the two files and starts the new one. A **Help**
+  menu checks on demand and shows the version. The web remote shows a banner with the same
+  one-click update (from the machine that runs it: `git pull --ff-only` for a clone, the release's
+  zip laid over a downloaded folder, then the server restarts itself) and a *Check for updates*
+  button under the gear. Every command-line tool answers `--version` and, on a terminal, ends a run
+  with one line when a newer release is known; `python tools/hap_update.py check|apply` does the
+  same by hand. All of it in the six languages.
+- **Releases are built by CI.** Pushing a tag `hap-sync-vX.Y.Z` builds `HapSync.exe` on Windows,
+  refuses a tag that does not match `VERSION`, and opens a draft release with the exe and its
+  `SHA256SUMS.txt` attached; publishing the draft is the human step. The update check reads the
+  SHA-256 from the release's asset digest, the sums file, or the notes, and refuses to install
+  an exe it cannot verify.
+
 ### Changed (2026-10-05, one definition of everything)
 
 - **The tools share their knowledge of the player instead of copying it.** Four new modules hold
