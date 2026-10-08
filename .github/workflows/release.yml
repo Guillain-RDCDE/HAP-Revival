@@ -53,6 +53,7 @@ jobs:
             Write-Host "created $tag at ${{ github.sha }}"
           }
           "TAG=$tag" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
+          "VERSION=$version" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
 
       - name: Build the exe
         shell: pwsh
@@ -78,7 +79,7 @@ jobs:
         with:
           draft: true
           tag_name: ${{ env.TAG }}
-          name: HAP Sync ${{ env.TAG }}
+          name: HAP Sync v${{ env.VERSION }}
           generate_release_notes: true
           body: |
             **Download `HapSync.exe` below.** No install, no Python, no admin rights — double-click it.
