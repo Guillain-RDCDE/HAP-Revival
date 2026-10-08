@@ -13,9 +13,10 @@ Nothing yet.
 
 Everything since `hap-sync-v0.3.0` (2026-09-25). The downloadable
 [`HapSync.exe`](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe)
-(Windows x64, self-contained; its SHA-256 is in the release's `SHA256SUMS.txt` and on the release
-page) is the first built by CI from the tag, the first that shows its version, and the first that
-updates itself. The rest of the repository shares one set of modules, speaks six languages in the
+(Windows x64, 14.3 MB, self-contained — SHA-256
+`f35f980c0e852c1117b36c5b6e3ebefb0d7a11d5df8ae3112eb0f4a7f10ec1c2`, also in the release's
+`SHA256SUMS.txt`) is the first built by CI from the tag, the first that shows its version, and the
+first that updates itself. The rest of the repository shares one set of modules, speaks six languages in the
 sync window, and is tested end to end against the mock player.
 
 ### Added (2026-10-07, every tool knows when it is out of date)

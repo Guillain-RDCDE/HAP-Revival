@@ -1,0 +1,47 @@
+name: Delete merged branches
+
+# Housekeeping: delete work branches whose every commit is already in main.
+# A branch that is not fully merged is kept and fails the run, so nothing is
+# ever lost; main itself is refused. Run it from the Actions tab.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branches:
+        description: "Branch names, separated by spaces"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    name: Delete the branches that are merged into main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check each branch against main, then delete it
+        env:
+          BRANCHES: ${{ inputs.branches }}
+        run: |
+          set -euo pipefail
+          status=0
+          for branch in $BRANCHES; do
+            if [ "$branch" = "main" ]; then
+              echo "main: refused"; status=1; continue
+            fi
+            if ! git rev-parse --verify --quiet "origin/$branch" > /dev/null; then
+              echo "$branch: not on origin, nothing to do"; continue
+            fi
+            if git merge-base --is-ancestor "origin/$branch" origin/main; then
+              git push origin --delete "$branch"
+              echo "$branch: deleted (every commit is in main)"
+            else
+              echo "$branch: NOT fully merged into main, kept"; status=1
+            fi
+          done
+          exit $status

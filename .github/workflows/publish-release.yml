@@ -1,0 +1,60 @@
+name: Publish release
+
+# Turns the draft that "Release HAP Sync" left into a published release:
+# sets the title, replaces the notes with .github/release-notes/<tag>.md when
+# that file exists ({{SHA256}} in it becomes the exe's digest), and clears the
+# draft flag. From that moment the release is what every installed copy
+# compares itself against. Run it from the Actions tab with the tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. hap-sync-v0.4.0"
+        required: true
+        type: string
+      title:
+        description: "Release title (default: HAP Sync vX.Y.Z)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish the draft for the tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Find the draft, write its notes, publish it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          TITLE: ${{ inputs.title }}
+        run: |
+          set -euo pipefail
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=50" \
+                 --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n 1)
+          if [ -z "$id" ]; then
+            echo "no release (draft or published) carries the tag $TAG" >&2
+            exit 1
+          fi
+          version="${TAG#hap-sync-v}"
+          title="${TITLE:-HAP Sync v$version}"
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/releases/$id" \
+                  --jq '.assets[] | select(.name == "HapSync.exe") | .digest' | sed 's/^sha256://')
+          echo "release $id, tag $TAG, title '$title', HapSync.exe sha256 ${sha:-<none>}"
+          notes=".github/release-notes/$TAG.md"
+          if [ -f "$notes" ]; then
+            body=$(sed "s/{{SHA256}}/${sha:-unknown}/g" "$notes")
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" \
+              -f name="$title" -f body="$body" -F draft=false -F prerelease=false > /dev/null
+          else
+            echo "no $notes: keeping the generated notes"
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" \
+              -f name="$title" -F draft=false -F prerelease=false > /dev/null
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/releases/latest" \
+            --jq '"latest release is now \(.tag_name): \(.name) — \(.html_url)"'

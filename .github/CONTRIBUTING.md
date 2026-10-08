@@ -118,9 +118,13 @@ release is three steps and a click:
    the Actions tab on that commit (it then creates the tag from `VERSION` itself). The workflow
    builds `HapSync.exe` on Windows, refuses a tag that does not match `VERSION`, and opens a
    **draft** release with the exe and `SHA256SUMS.txt` attached.
-3. Write the release notes on the draft and publish it. From that moment every installed copy
-   offers the update: HAP Sync in its footer, the web remote in its banner, the command-line tools
-   at the end of a run.
+3. Write the notes as `.github/release-notes/hap-sync-vX.Y.Z.md` (`{{SHA256}}` becomes the exe's
+   digest) and run *Publish release* from the Actions tab with the tag; it titles the draft, fills
+   the notes and publishes it. From that moment every installed copy offers the update: HAP Sync
+   in its footer, the web remote in its banner, the command-line tools at the end of a run.
+
+Work branches are deleted once merged, by *Delete merged branches* from the Actions tab (it refuses
+anything not fully in `main`), so the repository carries `main` and the release tags, nothing else.
 
 The update check reads the exe's SHA-256 from GitHub's asset digest (or the sums file, or the
 notes) and refuses to install an exe it cannot verify, so never attach an unverified binary by hand.
