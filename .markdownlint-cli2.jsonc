@@ -1,0 +1,5 @@
+{
+  // Rules live in .markdownlint.json. Release notes are GitHub release bodies,
+  // not pages: they start with a paragraph, not a heading.
+  "ignores": [".github/release-notes/**", "node_modules/**"]
+}
