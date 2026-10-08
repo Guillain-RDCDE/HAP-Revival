@@ -1,16 +1,21 @@
 name: Release HAP Sync
 
-# Pushing a tag `hap-sync-vX.Y.Z` builds HapSync.exe on Windows from that
-# exact tag, checks that tools/hap_update.VERSION says X.Y.Z (every tool
-# reports that number and the update check compares against it), and opens
-# a *draft* GitHub release with the exe and its SHA-256 attached. Publishing
-# the draft, after writing the notes, is a human's click: from that moment
-# every installed copy sees the new version.
+# Builds HapSync.exe on Windows, checks that the tag says what
+# tools/hap_update.VERSION says (every tool reports that number and the
+# update check compares against it), and opens a *draft* GitHub release with
+# the exe and its SHA-256 attached. Publishing the draft, after writing the
+# notes, is a human's click: from that moment every installed copy sees the
+# new version.
+#
+# Two ways in: push a tag `hap-sync-vX.Y.Z`, or run it from the Actions tab
+# on the commit to release, in which case the workflow creates that tag
+# itself from VERSION (and refuses if it already exists).
 
 on:
   push:
     tags:
       - "hap-sync-v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -26,15 +31,28 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: The tag must carry the version the code reports
+      - name: The tag and tools/hap_update.VERSION must agree
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
           $version = python -c "import sys; sys.path.insert(0, 'tools'); import hap_update; print(hap_update.VERSION)"
-          Write-Host "tag $tag, tools/hap_update.VERSION $version"
-          if ($tag -ne "hap-sync-v$version") {
-            throw "tag $tag does not match tools/hap_update.VERSION ($version): bump VERSION (and the CHANGELOG) before tagging"
+          $tag = "hap-sync-v$version"
+          Write-Host "tools/hap_update.VERSION $version -> $tag (event: ${{ github.event_name }})"
+          if ("${{ github.event_name }}" -eq "push") {
+            if ("${{ github.ref_name }}" -ne $tag) {
+              throw "tag ${{ github.ref_name }} does not match tools/hap_update.VERSION ($version): bump VERSION (and the CHANGELOG) before tagging"
+            }
+          } else {
+            git fetch --tags --quiet origin
+            if (git tag --list $tag) {
+              throw "$tag already exists: bump tools/hap_update.VERSION (and the CHANGELOG) before releasing again"
+            }
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a $tag -m "HAP Sync $tag"
+            git push origin $tag
+            Write-Host "created $tag at ${{ github.sha }}"
           }
+          "TAG=$tag" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
 
       - name: Build the exe
         shell: pwsh
@@ -59,7 +77,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          name: HAP Sync ${{ github.ref_name }}
+          tag_name: ${{ env.TAG }}
+          name: HAP Sync ${{ env.TAG }}
           generate_release_notes: true
           body: |
             **Download `HapSync.exe` below.** No install, no Python, no admin rights — double-click it.

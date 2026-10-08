@@ -114,9 +114,10 @@ release is three steps and a click:
 
 1. Bump `VERSION` in `tools/hap_update.py` and turn the CHANGELOG's *Unreleased* section into
    `## [hap-sync-vX.Y.Z] — date`.
-2. Tag that commit `hap-sync-vX.Y.Z` and push the tag. The *Release HAP Sync* workflow builds
-   `HapSync.exe` on Windows, refuses a tag that does not match `VERSION`, and opens a **draft**
-   release with the exe and `SHA256SUMS.txt` attached.
+2. Tag that commit `hap-sync-vX.Y.Z` and push the tag, or run the *Release HAP Sync* workflow from
+   the Actions tab on that commit (it then creates the tag from `VERSION` itself). The workflow
+   builds `HapSync.exe` on Windows, refuses a tag that does not match `VERSION`, and opens a
+   **draft** release with the exe and `SHA256SUMS.txt` attached.
 3. Write the release notes on the draft and publish it. From that moment every installed copy
    offers the update: HAP Sync in its footer, the web remote in its banner, the command-line tools
    at the end of a run.
