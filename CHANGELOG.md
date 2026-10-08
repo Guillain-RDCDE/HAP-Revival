@@ -3,10 +3,20 @@
 All notable changes to HAP-Revival will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
-once we ship a versioned release.
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+Nothing yet.
+
+## [hap-sync-v0.4.0] — 2026-10-08
+
+Everything since `hap-sync-v0.3.0` (2026-09-25). The downloadable
+[`HapSync.exe`](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest/download/HapSync.exe)
+(Windows x64, self-contained; its SHA-256 is in the release's `SHA256SUMS.txt` and on the release
+page) is the first built by CI from the tag, the first that shows its version, and the first that
+updates itself. The rest of the repository shares one set of modules, speaks six languages in the
+sync window, and is tested end to end against the mock player.
 
 ### Added (2026-10-07, every tool knows when it is out of date)
 
