@@ -33,6 +33,14 @@ The hardware still sings. This is the rest of the story.
 
 ---
 
+<!-- opening -->
+> Sony stopped supporting its high-end music players in 2021. This keeps them alive and improving, on your own network.
+>
+> The device protocol reverse-engineered; a sync tool that updates itself, a phone remote, internet radio, library audit and tag repair; nothing leaves your network.
+>
+> A legacy system kept in service without its vendor. Part of the work of [Guillain d’Erceville](https://github.com/Guillain-RDCDE), forward deployed engineer.
+<!-- opening -->
+
 <br>
 
 ## More
