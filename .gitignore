@@ -90,3 +90,9 @@ site/
 .coverage
 .coverage.*
 htmlcov/
+
+# Shared tool settings are versioned; per-machine ones (settings.local.json) are not
+!.claude/
+.claude/*
+!.claude/settings.json
+!.claude/CLAUDE.md
