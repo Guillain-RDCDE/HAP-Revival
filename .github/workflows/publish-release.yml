@@ -33,7 +33,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Find the draft, write its notes, publish it
         env:
