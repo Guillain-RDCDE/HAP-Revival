@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed (2026-10-12, push notifications on Windows)
+
+- **`hap_notify` no longer stops listening on Windows right after subscribing.** To open the
+  firewall's UDP mapping it sends one datagram to the player's API port, where nothing listens on
+  UDP; the ICMP "port unreachable" that comes back surfaces on Windows as `ConnectionResetError`
+  on the next receive, and the listener took it for a closed socket. The command-line listener
+  received nothing and the web remote's instant refresh silently fell back to its three-second
+  timer. Found by running the suite on Windows, which CI now does on every change, and which
+  every release build now waits for.
+
+### Changed (2026-10-12, tooling)
+
+- Every URL the tools open goes through `hap_common.http_open`, which refuses anything but http
+  and https. The ruff rules now include security, simplification and complexity checks, and the
+  code is `ruff format`ted. The August detail log moved to
+  [`docs/history/`](docs/history/CHANGELOG-detail-2026-08.md).
 
 ## [hap-sync-v0.4.0] — 2026-10-08
 
