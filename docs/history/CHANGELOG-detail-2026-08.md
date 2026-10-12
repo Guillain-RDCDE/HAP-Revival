@@ -1,6 +1,6 @@
 # Detailed change log — August 2026
 
-[`CHANGELOG.md`](CHANGELOG.md) says *what* changed. This file says **why**, at
+[`CHANGELOG.md`](../../CHANGELOG.md) says *what* changed. This file says **why**, at
 length, for the cycle that began on 2026-08-15.
 
 It is kept because a good part of it is the project correcting itself: six
@@ -257,9 +257,9 @@ that exists in no other source we hold.
   what TuneIn offers for the station — three entries, all 320 kbps MP3. That is the surface an
   interposed host would be talking to, which sharpens the open bitrate question rather than settling
   it.
-- **New tool**: [`tools/hap_screen.py`](tools/hap_screen.py) — `show`, `key`, `capture`. Stdlib only.
+- **New tool**: [`tools/hap_screen.py`](../../tools/hap_screen.py) — `show`, `key`, `capture`. Stdlib only.
 - **Three screens preserved** in `research/captures/`, and the full write-up with the evidence in
-  [`research/notes/2026-08-27-hap-tool-endpoint.md`](research/notes/2026-08-27-hap-tool-endpoint.md).
+  [`research/notes/2026-08-27-hap-tool-endpoint.md`](../../research/notes/2026-08-27-hap-tool-endpoint.md).
 - **Two corrections to what the pages appear to offer.** v1.0's "On Timer" is not a device feature —
   it is a `setTimeout` in the browser that sends a power-on; close the tab and it is gone. And
   v1.2.1's breakage on the reference unit is explained by `browselib.js` building its tree purely
@@ -278,7 +278,7 @@ which still browses and plays TuneIn perfectly.
 - **Three self-inflicted causes, each producing `[1, "Any"]`:**
   - **`x-hap-device-id` breaks `getContentList` on a `netService:` URI.** With it, `[1, "Any"]`.
     Without it, the full directory. The catalogue used to call this header "optional". Now
-    [gotcha 6](docs/16-gotchas.md).
+    [gotcha 6](../16-gotchas.md).
   - **`scope: "directory"` is invalid for TuneIn** — omit it, or use `favorite`.
   - **`path` is a position in *this player's* tree and must match the station id.** Locale-specific:
     a French tree and a German one differ. Pairing an arbitrary path with an arbitrary id does
@@ -313,7 +313,7 @@ which still browses and plays TuneIn perfectly.
 - **TuneIn's device API still answers in 2026.** `opml.radiotime.com` returns `200` for `Browse.ashx`
   and `Describe.ashx`. Its stream-resolution call `Tune.ashx` returns **`400` without a `formats=`
   parameter** and **real stream URLs with one**. Tested live; the table is in
-  [`research/notes/2026-08-25-tunein-is-alive.md`](research/notes/2026-08-25-tunein-is-alive.md).
+  [`research/notes/2026-08-25-tunein-is-alive.md`](../../research/notes/2026-08-25-tunein-is-alive.md).
 - **TuneIn even has a message for devices like ours.** A resolution request that omits `formats`
   comes back well-formed, with the audio element pointing at a file called
   `notcompatible.enUS.mp3` — a spoken announcement. Somebody built that deliberately for legacy
@@ -336,7 +336,7 @@ which still browses and plays TuneIn perfectly.
 
 ### Added (2026-08-25, dead anchors can no longer hide)
 
-- **New tool: [`tools/check_links.py`](tools/check_links.py)**, wired into the docs CI. markdownlint
+- **New tool: [`tools/check_links.py`](../../tools/check_links.py)**, wired into the docs CI. markdownlint
   and lychee both ignore `#fragments`, so a link to a heading that no longer exists passes every
   check we had — two such links were dead for two weeks after a README rewrite before anyone
   noticed. Stdlib only, external URLs deliberately not checked. Verified it fails on a dead anchor
@@ -376,7 +376,7 @@ testing.
 
 ### Added (2026-08-24, which machine can answer which question)
 
-- **The test fleet is documented** in [`CONTRIBUTING.md`](.github/CONTRIBUTING.md). Four players,
+- **The test fleet is documented** in [`CONTRIBUTING.md`](../../.github/CONTRIBUTING.md). Four players,
   each able to settle things the others cannot: the reference Z1ES (everything except radio, volume,
   tone control and old firmware), Amos's workplace S1 (the only route to `0018120R`, and the one we
   will not ask him to risk), his home S1 (backup slot spent), and the German author's player
@@ -399,12 +399,12 @@ Prompted by the contributed script being broken by a refactor that added a corre
 wrong-here HTTP header. Any tidy-up tends to move code toward what is correct in general, which is
 exactly what this player punishes — so the same failure mode is ours as much as his.
 
-- **New page: [`docs/16-gotchas.md`](docs/16-gotchas.md)** — the five places where doing the correct
+- **New page: [`docs/16-gotchas.md`](../16-gotchas.md)** — the five places where doing the correct
   thing breaks this player, in one place instead of scattered across three pages: `Content-Type` on
   browser requests, `Expect: 100-continue`, concurrent requests, non-uniform API versions, and
   success-shaped replies that mean nothing. Linked from CONTRIBUTING, the README index and the
   five-minute page.
-- **New tool: [`tools/smoke_live.py`](tools/smoke_live.py)** — exercises the client against a real
+- **New tool: [`tools/smoke_live.py`](../../tools/smoke_live.py)** — exercises the client against a real
   player and asserts values come back **populated**, not merely that nothing raised. Read-only by
   default; `--include-writes` adds writes that are idempotent by construction. Never in CI.
   - **Verified it has teeth**: re-introducing the exact `_first_field` unwrapping bug that green
@@ -453,7 +453,7 @@ exactly what this player punishes — so the same failure mode is ours as much a
   endpoints are unresponsive. The player also still emits `contentdb` URLs in its own `playinginfo`
   payload — firmware handing out links to its own dead endpoints, which is what withdrawal looks
   like rather than something never built.
-- **New page: [`docs/HELP-IN-5-MINUTES.md`](docs/HELP-IN-5-MINUTES.md)** — read-only, copy-paste,
+- **New page: [`docs/HELP-IN-5-MINUTES.md`](../HELP-IN-5-MINUTES.md)** — read-only, copy-paste,
   no Python. Five asks, each with the reason it matters, plus the three traps that cost us evenings
   (PowerShell's `curl` alias, the serialising daemon, the hanging `contentdb`). Linked from the
   README and CONTRIBUTING. It exists because the biggest gains of the past week came from small
@@ -602,7 +602,7 @@ protocol content is one call, and it turned out to be a mode of a primitive we a
 
 Follow-up to the teardown below, closing the two gaps that commit left open.
 
-- **[`tools/webui.py`](tools/webui.py) is push-driven.** The server subscribes to the player's UDP
+- **[`tools/webui.py`](../../tools/webui.py) is push-driven.** The server subscribes to the player's UDP
   notification stream and the browser long-polls `/api/events`, which is released the moment
   something changes — a track change now appears immediately instead of up to three seconds later.
   Verified end-to-end against a live Z1ES: a real push released the long-poll in 5.6 s of a 25 s
@@ -630,7 +630,7 @@ from the Crestron Application Market. `docs/08-prior-art.md` had it listed as th
 valuable missing artefact. It delivered more than the Help PDF: `Crestron.Sony.ContentServiceWebApi.dll`
 is a complete, non-obfuscated protocol client that decompiles cleanly. Findings re-verified live
 against a Z1ES on 19404R. Full teardown in
-[`research/notes/2026-08-20-crestron-module-teardown.md`](research/notes/2026-08-20-crestron-module-teardown.md).
+[`research/notes/2026-08-20-crestron-module-teardown.md`](../../research/notes/2026-08-20-crestron-module-teardown.md).
 
 - **The HAP has push notifications — we said it didn't.** `POST /sony/notification/status` with
   `{"status":"enable","port":N}` returns `{"timeout":300,"port":N}` and the device then pushes
@@ -657,7 +657,7 @@ against a Z1ES on 19404R. Full teardown in
 Licence: the binaries are © Crestron Electronics. Protocol facts are documented and re-verified; no
 decompiled code enters this repository.
 
-- **New tool: [`tools/hap_notify.py`](tools/hap_notify.py)** — subscribes to the push stream and
+- **New tool: [`tools/hap_notify.py`](../../tools/hap_notify.py)** — subscribes to the push stream and
   streams events, with `--follow` to read back the new state. Handles the three traps for you:
   `SEQ` deduplication, re-arming at 80% of the server-declared timeout, and priming Windows'
   stateful UDP filter so the firewall stops dropping the inbound datagrams. Smoke-tested against a

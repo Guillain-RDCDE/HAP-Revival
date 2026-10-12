@@ -160,7 +160,7 @@ Everything since `hap-sync-v0.2.0` (2026-08-15). The downloadable
 (Windows x64, 14.8 MB, self-contained — SHA-256
 `5207e0d11cf7cf64eb4b1be7d5f71ac71bfb0eeaadd4c7e6726719d87e87438b`) gains the **Fix** tab; the rest of the repository gains the web remote's front panel, the library,
 internet radio and the audit. Long-form write-ups of everything below, with the measurements behind
-them, are in [`CHANGELOG-detail-2026-08.md`](CHANGELOG-detail-2026-08.md).
+them, are in [`docs/history/CHANGELOG-detail-2026-08.md`](docs/history/CHANGELOG-detail-2026-08.md).
 
 ### Added
 
