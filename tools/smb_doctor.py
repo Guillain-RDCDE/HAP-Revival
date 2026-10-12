@@ -19,6 +19,7 @@ Nothing here imports tkinter or argparse — it is a pure engine shared by the G
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import subprocess
@@ -71,8 +72,9 @@ def _ps(script: str, timeout: int = 20) -> tuple[int, str]:
     """Run a PowerShell snippet (no profile, non-interactive); return (rc, stdout-stripped).
     Returns (1, 'error: …') on any launch failure. Windows only — callers guard on IS_WINDOWS."""
     try:
-        p = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+        # Windows PowerShell from PATH; `script` is always one of ours.
+        p = subprocess.run(  # noqa: S603
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],  # noqa: S607
             capture_output=True, text=True, timeout=timeout, creationflags=_NO_WINDOW,
         )
         return p.returncode, (p.stdout or "").strip()
@@ -97,9 +99,8 @@ def probe_guest_share(host: str, timeout: int = 8) -> Finding:
                        "Make sure the HAP is awake (Wake) and on the same LAN.")
     shares: list[str] = []
     try:
-        shares = [s.name for s in c.listShares() if not s.isSpecial]
-    except Exception:
-        pass
+        with contextlib.suppress(Exception):
+            shares = [s.name for s in c.listShares() if not s.isSpecial]
     finally:
         c.close()
     tail = f" Shares: {', '.join(shares)}." if shares else ""
@@ -354,10 +355,8 @@ def apply_fixes(findings: list[Finding], on_log=None, wait: bool = True) -> tupl
             # With -Wait the script has finished and its file can go. Without it the
             # elevated PowerShell may still be reading the file, so it has to stay.
             if wait:
-                try:
+                with contextlib.suppress(OSError):
                     os.unlink(path)
-                except OSError:
-                    pass
 
     return changed, ("Fixes applied. Reconnect to the HAP "
                      "(stale mappings were cleared; reopen \\\\<hap-ip>).")

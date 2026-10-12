@@ -435,7 +435,7 @@ def test_fixit_crawl_walks_two_levels_with_a_fake_session(monkeypatch):
     seen = []
     index = hap_fixit.crawl_shares("10.0.0.1", progress=lambda *a: seen.append(a))
     files = index["shares"]["HAP_Internal"]
-    assert ["/Artist", "/Artist/Album", "/Artist/Album/CD1"] == sorted({f[0] for f in files})
+    assert sorted({f[0] for f in files}) == ["/Artist", "/Artist/Album", "/Artist/Album/CD1"]
     assert "03.flac" not in [f[1] for f in files], "three levels down is never visited"
     assert index["shares"]["HAP_External"] == [], "an absent USB drive is normal"
     assert seen == [("HAP_Internal", 1, 1, 3)]
@@ -464,11 +464,11 @@ def test_fixit_editor_lookup_and_folder_opening(monkeypatch, tmp_path):
     ran = []
     monkeypatch.setattr(hap_fixit.subprocess, "run", lambda args, check: ran.append(args))
     monkeypatch.setattr(hap_fixit.sys, "platform", "linux")
-    hap_fixit.open_folder("/tmp/x")
-    assert ran[-1] == ["xdg-open", "/tmp/x"]
+    hap_fixit.open_folder("/music/Album")
+    assert ran[-1] == ["xdg-open", "/music/Album"]
     monkeypatch.setattr(hap_fixit.sys, "platform", "darwin")
-    hap_fixit.open_folder("/tmp/x")
-    assert ran[-1] == ["open", "/tmp/x"]
+    hap_fixit.open_folder("/music/Album")
+    assert ran[-1] == ["open", "/music/Album"]
 
 
 # ---------- hap_notify ----------

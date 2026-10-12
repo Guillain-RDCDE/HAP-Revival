@@ -53,11 +53,11 @@ import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 import hap_update
 
-from hap_common import API_PORT, USER_CACHE_DIR, read_json_dict, safe_name, write_json
+from hap_common import API_PORT, USER_CACHE_DIR, http_open, read_json_dict, safe_name, write_json
 
 BASE_PATH = "/sony/contentdb/v100"
 
@@ -188,7 +188,7 @@ class Library:
 
     def _get_json(self, url: str) -> dict:
         try:
-            with urlopen(url, timeout=self.timeout) as resp:
+            with http_open(url, timeout=self.timeout) as resp:
                 raw = resp.read()
         except HTTPError as e:
             # The device answers 400 for an out-of-range limit, and its body is
@@ -443,7 +443,7 @@ class Library:
         # No Content-Type on purpose: the player parses JSON without one, and
         # sending it makes a browser client fail its preflight (docs/16-gotchas.md).
         try:
-            with urlopen(_post(url, body), timeout=self.timeout):
+            with http_open(_post(url, body), timeout=self.timeout):
                 return
         except (HTTPError, URLError, OSError) as e:
             raise LibraryError(f"{e} on {url}") from e
@@ -451,7 +451,7 @@ class Library:
 
 def _post(url: str, body: bytes) -> Request:
     """A POST request object, kept out of the class so tests can see it."""
-    return Request(url, data=body, method="POST")
+    return Request(url, data=body, method="POST")  # noqa: S310 - opened only by hap_common.http_open
 
 
 # ---------- CLI ----------
@@ -521,7 +521,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:  # noqa: C901 - one branch per subcommand
     args = build_parser().parse_args(argv)
     hap_update.notice_at_exit()
 

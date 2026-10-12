@@ -55,6 +55,7 @@ subscription lapses on its own when this exits.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import socket
 import sys
@@ -62,9 +63,11 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 import hap_update
+
+from hap_common import http_open
 
 try:  # local sibling module; keep the client importable even if it's absent
     import i18n
@@ -254,7 +257,8 @@ class HapNotifier:
         """Bind the listening socket and subscribe."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("0.0.0.0", self.listen_port))
+        # Every interface: the player pushes from the LAN, not from loopback.
+        sock.bind(("0.0.0.0", self.listen_port))  # noqa: S104 - see above
         sock.settimeout(1.0)
         self._sock = sock
         # Port 0 asks the OS for a free one; the player must be told which.
@@ -264,10 +268,8 @@ class HapNotifier:
         # socket to the player makes the inbound notifications acceptable
         # without a firewall rule. Harmless everywhere else — the player
         # ignores it.
-        try:
+        with contextlib.suppress(OSError):
             sock.sendto(b"\x00", (self.ip, self.api_port))
-        except OSError:
-            pass
 
         self.subscribe()
 
@@ -297,7 +299,7 @@ class HapNotifier:
             },
         )
         try:
-            with urlopen(request, timeout=self.timeout) as response:
+            with http_open(request, timeout=self.timeout) as response:
                 body = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             raise NotifyError(
@@ -384,9 +386,9 @@ class HapNotifier:
             if path.startswith("http://")
             else f"http://{self.ip}:{self.api_port}{path}"
         )
-        request = Request(url, headers={"Accept": "application/json", "Connection": "close"})
+        request = Request(url, headers={"Accept": "application/json", "Connection": "close"})  # noqa: S310 - opened only by hap_common.http_open
         try:
-            with urlopen(request, timeout=self.timeout) as response:
+            with http_open(request, timeout=self.timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
             return None

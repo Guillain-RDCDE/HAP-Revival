@@ -374,7 +374,7 @@ def khz(hz) -> str:
     return f"{hz / 1000:g} kHz"
 
 
-def render_text(r: dict) -> str:
+def render_text(r: dict) -> str:  # noqa: C901 - one block per report section
     """The console report, as one string (so it can be tested and piped)."""
     t = r["totals"]
     n = max(1, t["tracks"])

@@ -47,6 +47,7 @@ Never deletes anything on the HAP (add/update only). Requires: pip install pysmb
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import sys
 from collections.abc import Callable, Iterable
@@ -214,10 +215,8 @@ class Smb:
     def close(self) -> None:
         if self.conn is None:
             return
-        try:
+        with contextlib.suppress(Exception):
             self.conn.close()
-        except Exception:
-            pass
         self.conn = None
 
 
@@ -313,10 +312,8 @@ def ensure_dirs(smb: Smb, share: str, rel: str, made: set[str]) -> None:
         cur = f"{cur}/{p}"
         if cur in made:
             continue
-        try:
+        with contextlib.suppress(Exception):
             smb.conn.createDirectory(share, cur)
-        except Exception:
-            pass
         made.add(cur)
 
 

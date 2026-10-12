@@ -589,7 +589,7 @@ class HAPHandler(BaseHTTPRequestHandler):
             },
         )
 
-    def _serve_library(self, what: str, query: str) -> None:
+    def _serve_library(self, what: str, query: str) -> None:  # noqa: C901 - one branch per library route
         """Back the library browser: /api/library/<collection>[/<id>/<sub>].
 
         Root listings cost 40-90 s on the device and are cached by the Library

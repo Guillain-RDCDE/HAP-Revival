@@ -40,6 +40,7 @@ Stdlib only. No PIL, no Flask — the PNG covers are hand-encoded with zlib.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import socket
 import threading
@@ -288,7 +289,7 @@ def _page(items: list[dict], key: str, query: dict, host: str, path: str) -> dic
     }
 
 
-def contentdb_get(path: str, query: dict, host: str) -> dict | None:
+def contentdb_get(path: str, query: dict, host: str) -> dict | None:  # noqa: C901 - one branch per REST route
     """Route one GET under /sony/contentdb/v100. None means 404."""
     parts = [p for p in path.split("/") if p]
     tracks = _library_tracks()
@@ -716,7 +717,7 @@ def radio_browse(uri: str) -> list[list[dict]]:
     return [RADIO_TREE.get(path, [])]
 
 
-def dispatch(service: str, method: str, version: str, params: list, host: str) -> Any:
+def dispatch(service: str, method: str, version: str, params: list, host: str) -> Any:  # noqa: C901 - one branch per API method
     """Map (service, method) → the *unwrapped* result value. The handler wraps
     it back into `{"id":…, "result":[value]}` (or `result: []` for EMPTY)."""
     p0 = params[0] if params and isinstance(params[0], dict) else {}
@@ -775,10 +776,8 @@ def dispatch(service: str, method: str, version: str, params: list, host: str) -
         if service == "avContent" and method == "createPlayingListAndQuickPlay":
             uri = p0.get("uri", "")
             if uri.startswith("audio:track?id="):
-                try:
+                with contextlib.suppress(ValueError):
                     STATE.play_id(int(uri.split("=", 1)[1]))
-                except ValueError:
-                    pass
             return {"uri": "audio:playinglist?id=70"}
         if service == "avContent" and method == "getContentInfo":
             uri = p0.get("uri", "")
@@ -863,10 +862,8 @@ class MockHandler(BaseHTTPRequestHandler):
         for key, value in (extra or {}).items():
             self.send_header(key, value)
         self.end_headers()
-        try:
+        with contextlib.suppress(BrokenPipeError, ConnectionResetError):
             self.wfile.write(body)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
 
     def _send_json(self, status: int, payload: Any) -> None:
         self._send(status, "application/json", json.dumps(payload, ensure_ascii=False).encode())

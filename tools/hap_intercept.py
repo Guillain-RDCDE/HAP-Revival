@@ -41,6 +41,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import socket
 import socketserver
@@ -256,10 +257,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self._pump(method, upstream_ip, host, body)
         except OSError as exc:
             record("http-error", host=host, path=self.path, error=str(exc))
-            try:
+            with contextlib.suppress(OSError):
                 self.send_error(502, "upstream failed")
-            except OSError:
-                pass
 
     def _pump(self, method: str, upstream_ip: str, host: str, body: bytes) -> None:
         """Replay the request against the real server and stream the reply back."""
@@ -377,7 +376,8 @@ def main(argv: list[str] | None = None) -> int:
     DNSHandler.upstream = args.upstream
 
     try:
-        dns_server = ThreadedUDPServer(("0.0.0.0", DNS_PORT), DNSHandler)
+        # Every interface: the HAP queries us over the LAN.
+        dns_server = ThreadedUDPServer(("0.0.0.0", DNS_PORT), DNSHandler)  # noqa: S104
     except OSError as exc:
         print(f"cannot bind udp/{DNS_PORT}: {exc}", file=sys.stderr)
         return 1
@@ -385,7 +385,8 @@ def main(argv: list[str] | None = None) -> int:
     http_server = None
     if hijack:
         try:
-            http_server = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), ProxyHandler)
+            # Every interface, as for DNS: the HAP connects over the LAN.
+            http_server = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), ProxyHandler)  # noqa: S104
         except OSError as exc:
             dns_server.server_close()
             print(f"cannot bind tcp/{HTTP_PORT}: {exc}", file=sys.stderr)

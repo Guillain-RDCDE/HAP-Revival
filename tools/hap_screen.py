@@ -33,11 +33,10 @@ import time
 import urllib.parse
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
 
 import hap_update
 
-from hap_common import API_PORT
+from hap_common import API_PORT, http_open
 
 HTTP_TIMEOUT_SEC = 20
 
@@ -73,7 +72,7 @@ def tool_url(host: str, target: str, cmd: str, port: int = API_PORT) -> str:
 
 def tool_get(host: str, target: str, cmd: str, port: int = API_PORT) -> tuple[bytes, str]:
     """GET one tool command. Returns (body, content-type)."""
-    with urlopen(tool_url(host, target, cmd, port), timeout=HTTP_TIMEOUT_SEC) as resp:
+    with http_open(tool_url(host, target, cmd, port), timeout=HTTP_TIMEOUT_SEC) as resp:
         return resp.read(), resp.headers.get("Content-Type", "")
 
 

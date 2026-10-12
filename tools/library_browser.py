@@ -64,13 +64,16 @@ class Library:
     def q(self, sql: str, args=()):
         return self.db.execute(sql, args).fetchall()
 
+    # A table name cannot be a bound parameter: one fixed query per count.
+    COUNTS = {
+        "artists": "SELECT count(*) FROM FT5202",
+        "albums": "SELECT count(*) FROM FT000A",
+        "tracks": "SELECT count(*) FROM FT0002",
+        "genres": "SELECT count(*) FROM FT4502",
+    }
+
     def stats(self) -> dict:
-        def n(t):
-            return self.db.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
-        return {
-            "artists": n("FT5202"), "albums": n("FT000A"),
-            "tracks": n("FT0002"), "genres": n("FT4502"),
-        }
+        return {k: self.db.execute(sql).fetchone()[0] for k, sql in self.COUNTS.items()}
 
     def artists(self, search: str = "") -> list:
         if search:
@@ -101,12 +104,18 @@ class Library:
         return (a[0] if a else None), albums
 
     def albums(self, search: str = "", limit: int = 600) -> list:
-        where = "WHERE PROP7020 LIKE ?" if search else "WHERE PROP7020<>''"
-        args = (f"%{search}%",) if search else ()
+        if search:
+            return self.q(
+                "SELECT PROP3601 id, PROP7020 name, PROP7055 album_artist, "
+                "PROP6844 year, length(PROP78D9) thumb FROM FT000A "
+                "WHERE PROP7020 LIKE ? ORDER BY PROP7065 LIMIT ?",
+                (f"%{search}%", int(limit)),
+            )
         return self.q(
-            f"SELECT PROP3601 id, PROP7020 name, PROP7055 album_artist, "
-            f"PROP6844 year, length(PROP78D9) thumb FROM FT000A {where} "
-            f"ORDER BY PROP7065 LIMIT {int(limit)}", args,
+            "SELECT PROP3601 id, PROP7020 name, PROP7055 album_artist, "
+            "PROP6844 year, length(PROP78D9) thumb FROM FT000A "
+            "WHERE PROP7020<>'' ORDER BY PROP7065 LIMIT ?",
+            (int(limit),),
         )
 
     def album(self, alid: int):

@@ -44,11 +44,11 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 import hap_update
 
-from hap_common import API_PORT, UPNP_PORT, force_utf8_stdio
+from hap_common import API_PORT, UPNP_PORT, force_utf8_stdio, http_open
 
 try:  # local sibling module; keep the client importable even if it's absent
     import i18n
@@ -245,7 +245,7 @@ def rpc_request(
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if client_id:
         headers["x-hap-device-id"] = client_id
-    return Request(url, data=body, method="POST", headers=headers)
+    return Request(url, data=body, method="POST", headers=headers)  # noqa: S310 - opened only by hap_common.http_open
 
 
 def rpc_post(
@@ -267,7 +267,7 @@ def rpc_post(
     url = rpc_url(ip, service, port)
     req = rpc_request(url, method, version, params, client_id=client_id)
     try:
-        with urlopen(req, timeout=timeout) as r:
+        with http_open(req, timeout=timeout) as r:
             status = r.status
             raw = r.read().decode("utf-8", errors="replace")
     except HTTPError as e:
@@ -291,7 +291,7 @@ def upnp_description(ip: str, port: int = UPNP_PORT, timeout: float = DEFAULT_TI
     """
     url = f"http://{ip}:{port}/hap.xml"
     try:
-        with urlopen(url, timeout=timeout) as r:
+        with http_open(url, timeout=timeout) as r:
             return r.read().decode("utf-8", errors="replace")
     except (HTTPError, URLError, TimeoutError, OSError) as e:
         raise HAPTransportError(f"could not fetch UPnP description: {e}") from e

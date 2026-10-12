@@ -16,6 +16,7 @@ Requires: Python 3.10+, stdlib only.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import re
 import socket
@@ -157,10 +158,8 @@ def local_subnet_prefixes() -> list[str]:
     primary = primary_lan_ip()
     if primary:
         candidates.append(primary)
-    try:
+    with contextlib.suppress(OSError):
         candidates += socket.gethostbyname_ex(socket.gethostname())[2]
-    except OSError:
-        pass
     prefixes: list[str] = []
     for ip in candidates:
         if ip.startswith(("127.", "169.254.")):
@@ -190,8 +189,14 @@ def arp_mac(ip: str) -> str:
     """`ip`'s MAC from the OS ARP table, or '' — the fallback when the API has none."""
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # keep a windowed .exe console-free
     try:
-        out = subprocess.run(["arp", "-a", ip], capture_output=True, text=True,
-                             timeout=4, creationflags=flags).stdout
+        # The OS arp tool from PATH, an argument list, no shell.
+        out = subprocess.run(  # noqa: S603
+            ["arp", "-a", ip],  # noqa: S607
+            capture_output=True,
+            text=True,
+            timeout=4,
+            creationflags=flags,
+        ).stdout
     except (OSError, subprocess.SubprocessError):
         return ""
     m = _MAC_RE.search(out)

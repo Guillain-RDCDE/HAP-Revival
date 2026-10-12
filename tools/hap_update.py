@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import contextlib
 import hashlib
 import json
 import os
@@ -49,10 +50,17 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 import i18n
-from hap_common import REPO_ROOT, USER_CACHE_DIR, force_utf8_stdio, read_json_dict, write_json
+from hap_common import (
+    REPO_ROOT,
+    USER_CACHE_DIR,
+    force_utf8_stdio,
+    http_open,
+    read_json_dict,
+    write_json,
+)
 
 # ---------------------------------------------------------------- identity
 
@@ -189,13 +197,13 @@ def parse_release(data: dict) -> Release:
 
 
 def _request(url: str, accept: str) -> Request:
-    return Request(url, headers={"Accept": accept, "User-Agent": USER_AGENT})
+    return Request(url, headers={"Accept": accept, "User-Agent": USER_AGENT})  # noqa: S310 - opened only by hap_common.http_open
 
 
 def fetch_latest(timeout: float = FETCH_TIMEOUT_SEC) -> Release:
     """Ask GitHub for the latest published release. Raises UpdateError when it cannot."""
     try:
-        with urlopen(_request(API_URL, "application/vnd.github+json"), timeout=timeout) as r:
+        with http_open(_request(API_URL, "application/vnd.github+json"), timeout=timeout) as r:
             data = json.loads(r.read().decode("utf-8"))
     except HTTPError as exc:
         raise UpdateError(f"GitHub answered HTTP {exc.code}") from exc
@@ -208,7 +216,7 @@ def fetch_latest(timeout: float = FETCH_TIMEOUT_SEC) -> Release:
 
 def fetch_text(url: str, timeout: float = FETCH_TIMEOUT_SEC) -> str:
     try:
-        with urlopen(_request(url, "text/plain"), timeout=timeout) as r:
+        with http_open(_request(url, "text/plain"), timeout=timeout) as r:
             return r.read().decode("utf-8", errors="replace")
     except (HTTPError, URLError, TimeoutError, OSError) as exc:
         raise UpdateError(f"could not download {url}: {exc}") from exc
@@ -320,14 +328,13 @@ def check(force: bool = False, *, path: Path | None = None, now: Callable[[], fl
     except UpdateError as exc:
         error = str(exc)
     checked_at = now()
-    try:
+    # A read-only home must not turn a check into a failure.
+    with contextlib.suppress(OSError):
         write_json(cache, {
             "checked_at": checked_at,
             "release": release.to_dict() if release else None,
             "error": error,
         }, indent=2, atomic=True)
-    except OSError:
-        pass  # a read-only home must not turn a check into a failure
     return Status(latest=release, checked_at=checked_at, error=error)
 
 
@@ -344,10 +351,8 @@ def check_in_background(callback: Callable[[Status], None] | None = None,
         except Exception as exc:  # the thread must never die with a traceback
             status = Status(error=f"{type(exc).__name__}: {exc}")
         if callback is not None:
-            try:
+            with contextlib.suppress(Exception):
                 callback(status)
-            except Exception:
-                pass
 
     thread = threading.Thread(target=run, name="hap-update-check", daemon=True)
     thread.start()
@@ -396,7 +401,7 @@ def download(url: str, dest: Path, *, expected_sha256: str | None = None,
     digest = hashlib.sha256()
     done = 0
     try:
-        with urlopen(_request(url, "application/octet-stream"), timeout=timeout) as r, \
+        with http_open(_request(url, "application/octet-stream"), timeout=timeout) as r, \
                 open(part, "wb") as out:
             total = int(r.headers.get("Content-Length") or 0)
             while True:
@@ -574,9 +579,9 @@ def restart_self(argv: list[str] | None = None) -> None:
     sys.stdout.flush()
     sys.stderr.flush()
     if sys.platform == "win32":  # pragma: no cover - needs Windows
-        subprocess.Popen(args, close_fds=True)
+        subprocess.Popen(args, close_fds=True)  # noqa: S603 - this program, restarted
         os._exit(0)
-    os.execv(sys.executable, args)
+    os.execv(sys.executable, args)  # noqa: S606 - this program, restarted
 
 
 # ---------------------------------------------------------------- for tools

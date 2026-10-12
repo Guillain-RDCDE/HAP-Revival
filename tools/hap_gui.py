@@ -36,6 +36,7 @@ queue, so the window never freezes — tkinter is only ever touched from the mai
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import queue
 import sys
@@ -68,11 +69,10 @@ def _set_window_icon(root: tk.Tk) -> None:
     ico = base / "HapSync.ico"
     if not ico.exists():
         ico = Path(__file__).resolve().parent / "HapSync.ico"
-    try:
+    # The icon is cosmetic; never let it break startup.
+    with contextlib.suppress(Exception):
         if ico.exists():
             root.iconbitmap(default=str(ico))
-    except Exception:
-        pass  # icon is cosmetic; never let it break startup
 
 
 # When frozen (PyInstaller onefile), __file__ lives in the temp _MEIPASS extraction dir,
@@ -160,10 +160,9 @@ class App:
     def _retranslate(self) -> None:
         self.root.title(self._T("gui.window_title"))
         for apply_fn, key in self._i18n:
-            try:
+            # A widget may be destroyed (e.g. a removed mapping row).
+            with contextlib.suppress(tk.TclError):
                 apply_fn(self._T(key))
-            except tk.TclError:
-                pass  # widget destroyed (e.g. a removed mapping row)
         # The idle status line is the one dynamic label worth resetting on switch.
         if not self.busy:
             self.status_var.set(self._T("gui.status.ready"))
@@ -722,7 +721,7 @@ class App:
         else:
             self._polling = False
 
-    def _dispatch(self, tag: str, d: dict) -> None:
+    def _dispatch(self, tag: str, d: dict) -> None:  # noqa: C901 - one branch per worker message tag
         if tag == "log" and self._active_log is not None:
             self._log(self._active_log, d["line"])
         elif tag == "status":
@@ -764,10 +763,8 @@ class App:
 
     def _set_busy(self, busy: bool) -> None:
         for w in self._action_widgets:
-            try:
+            with contextlib.suppress(tk.TclError):
                 w.configure(state="disabled" if busy else "normal")
-            except tk.TclError:
-                pass
         self.stop_btn.configure(state="normal" if busy else "disabled")
         # The Fix button has its own enable rule: only when a check found pending fixes.
         self.fix_btn.configure(
@@ -826,10 +823,9 @@ class App:
         host, maps = self.host_var.get().strip(), self._collect_maps()
         if not host and not maps:
             return
-        try:
+        # Best-effort; the explicit Save config button surfaces real errors.
+        with contextlib.suppress(OSError):
             core.save_config(CONFIG_PATH, host, self.mac_var.get().strip(), maps)
-        except OSError:
-            pass  # best-effort; the explicit Save config button surfaces real errors
 
     def _on_close(self) -> None:
         self._persist()

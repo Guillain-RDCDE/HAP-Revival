@@ -15,7 +15,10 @@ select = [
     "I",    # isort
     "UP",   # pyupgrade: modern syntax for the 3.10+ target
     "B",    # bugbear: likely bugs and design problems
+    "SIM",  # simplifications
     "RUF",  # ruff's own checks
+    "S",    # bandit: security
+    "C90",  # mccabe complexity
 ]
 ignore = [
     # The documentation and the user-facing strings use typographic characters
@@ -26,8 +29,15 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# pytest's assert. And the tests only ever open http:// URLs on the loopback
+# mock device, which is what S310 would have them prove.
+"tests/**" = ["S101", "S310"]
 # One catalogue row per line reads better than a wrapped INSERT.
 "tests/test_library_offline.py" = ["E501"]
+
+[tool.ruff.lint.mccabe]
+# Raised for a single function only with a `noqa: C901` and its reason.
+max-complexity = 12
 
 [tool.ruff.lint.isort]
 known-first-party = [
@@ -39,4 +49,4 @@ known-first-party = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-ra --strict-markers --strict-config"

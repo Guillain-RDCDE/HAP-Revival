@@ -33,12 +33,12 @@ import sys
 import time
 from dataclasses import dataclass, field
 from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 import hap_update
 
 from hap_client import HAP, _first_field
-from hap_common import API_PORT
+from hap_common import API_PORT, http_open
 
 # The daemon serialises requests; a hung one poisons everything after it.
 # See docs/16-gotchas.md#3-never-issue-requests-concurrently.
@@ -87,15 +87,15 @@ def _nonempty(value, label: str):
 
 
 def _http_get(url: str, timeout: float = 8.0) -> tuple[int, bytes]:
-    req = Request(url, headers={"Accept": "application/json", "Connection": "close"})
+    req = Request(url, headers={"Accept": "application/json", "Connection": "close"})  # noqa: S310 - opened only by hap_common.http_open
     try:
-        with urlopen(req, timeout=timeout) as r:
+        with http_open(req, timeout=timeout) as r:
             return r.status, r.read()
     except HTTPError as e:
         return e.code, e.read()
 
 
-def build(ip: str, include_writes: bool, port: int = API_PORT) -> Smoke:
+def build(ip: str, include_writes: bool, port: int = API_PORT) -> Smoke:  # noqa: C901 - a flat checklist, one branch per check
     hap = HAP(ip, port=port)
     s = Smoke(ip)
     base = f"http://{ip}:{port}"
@@ -202,7 +202,7 @@ def build(ip: str, include_writes: bool, port: int = API_PORT) -> Smoke:
 
     def expect_header():
         """Gotcha 2. If this ever stops being true, the docs are stale."""
-        req = Request(
+        req = Request(  # noqa: S310 - opened only by hap_common.http_open
             f"{base}/sony/avContent",
             data=json.dumps(
                 {"method": "getPlayingContentInfo", "id": 1, "params": [], "version": "1.2"}
@@ -211,7 +211,7 @@ def build(ip: str, include_writes: bool, port: int = API_PORT) -> Smoke:
             headers={"Content-Type": "application/json", "Expect": "100-continue"},
         )
         try:
-            with urlopen(req, timeout=8):
+            with http_open(req, timeout=8):
                 raise AssertionError("expected 417, got a success — gotcha 2 may be obsolete")
         except HTTPError as e:
             if e.code != 417:
@@ -222,11 +222,11 @@ def build(ip: str, include_writes: bool, port: int = API_PORT) -> Smoke:
 
     def cors_headers():
         """Gotcha 1. The absence of Allow-Headers is the whole trap."""
-        req = Request(f"{base}/sony/avContent", method="OPTIONS")
+        req = Request(f"{base}/sony/avContent", method="OPTIONS")  # noqa: S310 - opened only by hap_common.http_open
         req.add_header("Origin", "http://example.com")
         req.add_header("Access-Control-Request-Method", "POST")
         req.add_header("Access-Control-Request-Headers", "content-type")
-        with urlopen(req, timeout=8) as r:
+        with http_open(req, timeout=8) as r:
             allow_origin = r.headers.get("Access-Control-Allow-Origin")
             allow_headers = r.headers.get("Access-Control-Allow-Headers")
         if allow_origin != "http://example.com":

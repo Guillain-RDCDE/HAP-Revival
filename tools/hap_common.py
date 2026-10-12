@@ -13,6 +13,7 @@ Stdlib only, importable on every OS, and it never talks to a device by itself.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import socket
@@ -21,6 +22,9 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.error import URLError
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 # ---------------------------------------------------------------- the device
 
@@ -83,10 +87,8 @@ def force_utf8_stdio() -> None:
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is None:
             continue
-        try:
+        with contextlib.suppress(AttributeError, ValueError, OSError):
             reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, ValueError, OSError):
-            pass
 
 
 # ---------------------------------------------------------------- network
@@ -141,6 +143,22 @@ def send_wol(mac: str, target: tuple[str, int] = WOL_TARGET) -> None:
         sock.sendto(packet, target)
     finally:
         sock.close()
+
+
+def http_open(target: str | Request, timeout: float) -> Any:
+    """``urlopen``, for http and https only.
+
+    Every URL the tools open is built from an address the user typed, a
+    player's own answer, or GitHub's release API. urlopen would also follow
+    ``file:`` and custom schemes; nothing here needs them, so they are refused
+    with a URLError, the error urlopen itself raises for a scheme it does not
+    know — every caller already handles it.
+    """
+    url = target.full_url if isinstance(target, Request) else target
+    scheme = urlsplit(url).scheme.lower()
+    if scheme not in ("http", "https"):
+        raise URLError(f"refusing to open a non-http(s) URL: {url}")
+    return urlopen(target, timeout=timeout)  # noqa: S310 - scheme checked just above
 
 
 class SmbConnectError(RuntimeError):

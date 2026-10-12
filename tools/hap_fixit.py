@@ -460,11 +460,11 @@ def find_editor() -> str:
     if from_env and Path(from_env).is_file():
         return from_env
     candidates = [
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Mp3tag" / "Mp3tag.exe",
-        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Mp3tag" / "Mp3tag.exe",
+        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
         / "Mp3tag" / "Mp3tag.exe",
         Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Mp3tag" / "Mp3tag.exe",
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
         / "MusicBrainz Picard" / "picard.exe",
     ]
     for c in candidates:
@@ -475,12 +475,13 @@ def find_editor() -> str:
 
 def open_folder(path: str) -> None:
     """Show a folder in the system file manager."""
+    # The platform's own folder opener, the path as one argument, no shell.
     if sys.platform == "win32":
-        os.startfile(path)
+        os.startfile(path)  # noqa: S606
     elif sys.platform == "darwin":
-        subprocess.run(["open", path], check=False)
+        subprocess.run(["open", path], check=False)  # noqa: S603, S607
     else:
-        subprocess.run(["xdg-open", path], check=False)
+        subprocess.run(["xdg-open", path], check=False)  # noqa: S603, S607
 
 
 def open_in_editor(path: str, editor: str = "") -> str:
@@ -490,7 +491,7 @@ def open_in_editor(path: str, editor: str = "") -> str:
         return ""
     # Mp3tag takes a folder as `/fp:<path>`; anything else gets it positionally.
     args = [exe, f"/fp:{path}"] if "mp3tag" in Path(exe).name.lower() else [exe, path]
-    subprocess.Popen(args)
+    subprocess.Popen(args)  # noqa: S603 - the editor the user configured, no shell
     return exe
 
 
@@ -610,7 +611,7 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:  # noqa: C901 - one branch per subcommand
     args = build_parser().parse_args(argv)
     hap_update.notice_at_exit()
     force_utf8_stdio()
