@@ -351,6 +351,13 @@ class HapNotifier:
                 data, address = sock.recvfrom(65535)
             except TimeoutError:
                 continue
+            except ConnectionResetError:
+                # Windows only: nothing listens on UDP at the player's API
+                # port, so the firewall-priming datagram from open() may be
+                # answered by an ICMP "port unreachable", which Windows
+                # reports as WSAECONNRESET on the next recvfrom. The socket
+                # is unharmed; keep listening.
+                continue
             except OSError:
                 return                      # socket closed under us
             event = self.handle_datagram(data, address[0])

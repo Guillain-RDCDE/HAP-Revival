@@ -228,6 +228,40 @@ def test_events_yields_deduplicated_events_over_the_wire(notifier):
     assert [e.seq for e in received] == [1, 2]
 
 
+def test_a_reset_from_the_priming_datagram_does_not_end_the_stream(notifier):
+    """Windows answers the firewall-priming datagram with ConnectionResetError.
+
+    open() sends one datagram to the player's API port to open the stateful
+    UDP mapping. Nothing listens on UDP there, the ICMP "port unreachable"
+    comes back, and Windows raises WSAECONNRESET on the next recvfrom. The
+    stream used to end on it, silently: on Windows the CLI received nothing
+    and the web UI's push fell back to its timer. Simulated here so every OS
+    runs it; the real thing is test_mock_fidelity's end-to-end tests.
+    """
+    real = notifier._sock
+
+    class ResetOnce:
+        reset = False
+
+        def recvfrom(self, size):
+            if not self.reset:
+                self.reset = True
+                raise ConnectionResetError(10054, "port unreachable")
+            return real.recvfrom(size)
+
+        def close(self):
+            real.close()
+
+    sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sender.sendto(_datagram(seq=1), real.getsockname())
+    sender.close()
+    notifier._sock = ResetOnce()
+
+    received = next(iter(notifier.events(duration=2.0)), None)
+
+    assert received is not None and received.seq == 1
+
+
 def test_events_requires_open():
     with pytest.raises(RuntimeError):
         list(HapNotifier("127.0.0.1").events(duration=0.1))
