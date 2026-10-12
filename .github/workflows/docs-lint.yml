@@ -14,14 +14,24 @@ on:
       - ".markdownlint-cli2.jsonc"
       - "tools/check_links.py"
       - ".github/workflows/docs-lint.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   markdownlint:
     name: markdownlint
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
       - name: Run markdownlint-cli2
+        # Rules and ignores live in .markdownlint-cli2.jsonc.
         uses: DavidAnson/markdownlint-cli2-action@v23
         with:
           globs: |
@@ -31,6 +41,7 @@ jobs:
   anchors:
     name: Relative links and anchors
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -45,12 +56,14 @@ jobs:
   linkcheck:
     name: Check links
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - name: Link checker
-        uses: lycheeverse/lychee-action@v1
+        uses: lycheeverse/lychee-action@v2
         with:
-          args: --no-progress --exclude-mail './**/*.md'
+          # Mail addresses are not checked by default since lychee 0.15.
+          args: --no-progress './**/*.md'
           fail: false   # link-check failures shouldn't block PRs — external sites die
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -10,6 +10,9 @@ name: Release HAP Sync
 # Two ways in: push a tag `hap-sync-vX.Y.Z`, or run it from the Actions tab
 # on the commit to release, in which case the workflow creates that tag
 # itself from VERSION (and refuses if it already exists).
+#
+# Nothing is built unless the whole "Lint Python tools" workflow (ruff,
+# the suite on Linux and on Windows, the GUI tests) passes on that commit.
 
 on:
   push:
@@ -18,12 +21,24 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  tests:
+    name: Lint and tests
+    uses: ./.github/workflows/python-lint.yml
+
   build:
     name: Build HapSync.exe and draft the release
+    needs: tests
     runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write   # pushes the tag, drafts the release
     steps:
       - uses: actions/checkout@v6
 
