@@ -83,13 +83,17 @@ Until we hit a v0.1 milestone, the workflow is intentionally light:
 
 ### Running the checks
 
-Everything CI runs, locally, with nothing but `pip install ruff pytest`:
+Everything CI runs, locally, with nothing but `pip install ruff==0.16.10 pytest`:
 
 ```bash
 ruff check tools/ tests/          # lint, rules from pyproject.toml
+ruff format --check tools/ tests/ # formatting
 python -m compileall -q tools/    # every script still parses
 python -m pytest                  # the offline suite: pure logic + a loopback mock device
 ```
+
+`pip install pre-commit && pre-commit install` runs the same ruff, plus whitespace, YAML/TOML
+and private-key checks, on every commit. CI runs the suite on Windows too.
 
 No test needs a HAP. The suite drives every tool against `tools/mock_hap.py` on a loopback port,
 and never touches `~/.hap-revival` (a fixture redirects the caches to a temp folder). The tkinter

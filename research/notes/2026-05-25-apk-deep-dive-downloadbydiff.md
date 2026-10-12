@@ -459,8 +459,8 @@ public static final String SCOPE_TRACK = "track";
 `GetMusicInfoFragment.java:94/130/154` initialises `mScope = "track"` by default and only switches based on what the user clicked from. The driver (line 213) picks overload A vs B based on whether `mScope == "folder"`:
 
 ```java
-int result = GetMusicInfoFragment.this.mScope.equals("folder") 
-    ? CommonControl.getRichMetaInfo(..., GetMusicInfoFragment.this.mScope, folderTrackIds, GetMusicInfoFragment.this.mIndex, musicInfo) 
+int result = GetMusicInfoFragment.this.mScope.equals("folder")
+    ? CommonControl.getRichMetaInfo(..., GetMusicInfoFragment.this.mScope, folderTrackIds, GetMusicInfoFragment.this.mIndex, musicInfo)
     : CommonControl.getRichMetaInfo(..., GetMusicInfoFragment.this.mScope, GetMusicInfoFragment.this.mAlbumId, GetMusicInfoFragment.this.mTrackIdArray, GetMusicInfoFragment.this.mIndex, musicInfo);
 ```
 

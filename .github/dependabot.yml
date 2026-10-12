@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # HAP-Revival is stdlib-only scripts with no requirements file: the
+  # workflows' actions are the only dependencies to keep current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

@@ -1,0 +1,22 @@
+# pip install pre-commit && pre-commit install
+# The ruff rev is the same pin as in .github/workflows/python-lint.yml.
+# research/captures/ holds device responses kept byte-exact as they came off
+# the wire (see .gitattributes), research/db-schema/ the .schema dumps as the
+# device's SQLite printed them: no hook rewrites either.
+exclude: ^research/(captures|db-schema)/
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+      - id: detect-private-key
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
