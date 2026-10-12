@@ -93,8 +93,7 @@ class UpdateError(RuntimeError):
 
 # ---------------------------------------------------------------- versions
 
-_VERSION_RE = re.compile(
-    r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+)|\.?([A-Za-z][0-9A-Za-z.]*))?$")
+_VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+)|\.?([A-Za-z][0-9A-Za-z.]*))?$")
 
 
 def parse_version(text: str) -> tuple[int, int, int, int, str]:
@@ -121,7 +120,7 @@ def version_from_tag(tag: str) -> str:
     """``hap-sync-v0.3.0`` -> ``0.3.0`` (a bare ``v0.3.0`` is accepted too)."""
     text = tag.strip()
     if text.startswith(TAG_PREFIX):
-        text = text[len(TAG_PREFIX):]
+        text = text[len(TAG_PREFIX) :]
     return text[1:] if text.startswith("v") else text
 
 
@@ -179,12 +178,14 @@ def parse_release(data: dict) -> Release:
     for item in data.get("assets") or ():
         digest = str(item.get("digest") or "")
         sha = digest.split(":", 1)[1].lower() if digest.startswith("sha256:") else None
-        assets.append(Asset(
-            name=str(item.get("name") or ""),
-            url=str(item.get("browser_download_url") or ""),
-            size=int(item.get("size") or 0),
-            sha256=sha,
-        ))
+        assets.append(
+            Asset(
+                name=str(item.get("name") or ""),
+                url=str(item.get("browser_download_url") or ""),
+                size=int(item.get("size") or 0),
+                sha256=sha,
+            )
+        )
     return Release(
         version=version,
         tag=tag,
@@ -231,8 +232,11 @@ def resolve_sha256(release: Release, asset: Asset) -> str | None:
     if sums is not None:
         for line in fetch_text(sums.url).splitlines():
             parts = line.split()
-            if (len(parts) >= 2 and parts[-1].lstrip("*") == asset.name
-                    and _SHA256_RE.match(parts[0])):
+            if (
+                len(parts) >= 2
+                and parts[-1].lstrip("*") == asset.name
+                and _SHA256_RE.match(parts[0])
+            ):
                 return parts[0].lower()
     where = release.notes.find(asset.name)
     if where >= 0:
@@ -307,8 +311,13 @@ def cached_status(path: Path | None = None) -> Status:
     return Status(latest=release, checked_at=checked_at, error=error, from_cache=True)
 
 
-def check(force: bool = False, *, path: Path | None = None, now: Callable[[], float] = time.time,
-          fetch: Callable[[], Release] | None = None) -> Status:
+def check(
+    force: bool = False,
+    *,
+    path: Path | None = None,
+    now: Callable[[], float] = time.time,
+    fetch: Callable[[], Release] | None = None,
+) -> Status:
     """Is a newer release out? Cached for a day; `force` asks GitHub now.
 
     Never raises: a network failure comes back as `error`, with the last known
@@ -330,21 +339,28 @@ def check(force: bool = False, *, path: Path | None = None, now: Callable[[], fl
     checked_at = now()
     # A read-only home must not turn a check into a failure.
     with contextlib.suppress(OSError):
-        write_json(cache, {
-            "checked_at": checked_at,
-            "release": release.to_dict() if release else None,
-            "error": error,
-        }, indent=2, atomic=True)
+        write_json(
+            cache,
+            {
+                "checked_at": checked_at,
+                "release": release.to_dict() if release else None,
+                "error": error,
+            },
+            indent=2,
+            atomic=True,
+        )
     return Status(latest=release, checked_at=checked_at, error=error)
 
 
-def check_in_background(callback: Callable[[Status], None] | None = None,
-                        force: bool = False) -> threading.Thread:
+def check_in_background(
+    callback: Callable[[Status], None] | None = None, force: bool = False
+) -> threading.Thread:
     """Run `check` on a daemon thread; `callback(status)` when it is done.
 
     The thread is never joined: a tool that exits first simply leaves the
     cache for the next run.
     """
+
     def run() -> None:
         try:
             status = check(force=force)
@@ -388,9 +404,15 @@ def install_kind(root: Path | None = None) -> str:
     return "source"
 
 
-def download(url: str, dest: Path, *, expected_sha256: str | None = None,
-             progress: Progress | None = None, timeout: float = DOWNLOAD_TIMEOUT_SEC,
-             chunk_size: int = 1 << 16) -> str:
+def download(
+    url: str,
+    dest: Path,
+    *,
+    expected_sha256: str | None = None,
+    progress: Progress | None = None,
+    timeout: float = DOWNLOAD_TIMEOUT_SEC,
+    chunk_size: int = 1 << 16,
+) -> str:
     """Stream `url` into `dest`, verifying the SHA-256 when one is expected.
 
     Writes a `.part` sibling first, so an interrupted download never leaves a
@@ -401,8 +423,10 @@ def download(url: str, dest: Path, *, expected_sha256: str | None = None,
     digest = hashlib.sha256()
     done = 0
     try:
-        with http_open(_request(url, "application/octet-stream"), timeout=timeout) as r, \
-                open(part, "wb") as out:
+        with (
+            http_open(_request(url, "application/octet-stream"), timeout=timeout) as r,
+            open(part, "wb") as out,
+        ):
             total = int(r.headers.get("Content-Length") or 0)
             while True:
                 block = r.read(chunk_size)
@@ -421,14 +445,20 @@ def download(url: str, dest: Path, *, expected_sha256: str | None = None,
         part.unlink(missing_ok=True)
         raise UpdateError(
             f"checksum mismatch for {dest.name}: expected {expected_sha256.lower()[:16]}…, "
-            f"got {actual[:16]}…; the download was discarded")
+            f"got {actual[:16]}…; the download was discarded"
+        )
     os.replace(part, dest)
     return actual
 
 
-def update_frozen(release: Release, *, progress: Progress | None = None, launch: bool = True,
-                  executable: Path | None = None,
-                  spawn: Callable[..., object] = subprocess.Popen) -> Result:
+def update_frozen(
+    release: Release,
+    *,
+    progress: Progress | None = None,
+    launch: bool = True,
+    executable: Path | None = None,
+    spawn: Callable[..., object] = subprocess.Popen,
+) -> Result:
     """Replace the running HapSync.exe with the release's, verified, and start it."""
     exe = Path(executable or sys.executable).resolve()
     asset = release.asset(EXE_NAME)
@@ -438,7 +468,8 @@ def update_frozen(release: Release, *, progress: Progress | None = None, launch:
     if not expected:
         raise UpdateError(
             f"no SHA-256 is published for {EXE_NAME} in {release.tag}; "
-            f"refusing to install an unverified file (download it from {release.url})")
+            f"refusing to install an unverified file (download it from {release.url})"
+        )
     new = exe.with_name(exe.name + ".new")
     old = exe.with_name(exe.name + ".old")
     download(asset.url, new, expected_sha256=expected, progress=progress)
@@ -451,8 +482,13 @@ def update_frozen(release: Release, *, progress: Progress | None = None, launch:
         raise
     if launch:
         spawn([str(exe)], cwd=str(exe.parent), close_fds=True)
-    return Result("frozen", f"installed {EXE_NAME} {release.version}", restart=True,
-                  launched=launch, executable=str(exe))
+    return Result(
+        "frozen",
+        f"installed {EXE_NAME} {release.version}",
+        restart=True,
+        launched=launch,
+        executable=str(exe),
+    )
 
 
 def remove_leftovers(executable: Path | None = None) -> list[str]:
@@ -478,8 +514,13 @@ def update_git(root: Path | None = None, run: Callable[..., object] = subprocess
 
     def git(*args: str):
         try:
-            return run(["git", "-C", str(base), *args], capture_output=True, text=True,
-                       timeout=120, check=False)
+            return run(
+                ["git", "-C", str(base), *args],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
         except (OSError, subprocess.SubprocessError) as exc:
             raise UpdateError(f"git {args[0]} failed: {exc}") from exc
 
@@ -487,8 +528,9 @@ def update_git(root: Path | None = None, run: Callable[..., object] = subprocess
     if status.returncode != 0:
         raise UpdateError(f"git status failed: {(status.stderr or status.stdout).strip()}")
     if status.stdout.strip():
-        raise UpdateError("the clone has local changes; commit or stash them, "
-                          "then run `git pull --ff-only`")
+        raise UpdateError(
+            "the clone has local changes; commit or stash them, then run `git pull --ff-only`"
+        )
     pull = git("pull", "--ff-only")
     if pull.returncode != 0:
         raise UpdateError(f"git pull failed: {(pull.stderr or pull.stdout).strip()}")
@@ -513,8 +555,9 @@ def _safe_members(archive: zipfile.ZipFile) -> tuple[str, list[zipfile.ZipInfo]]
     return tops.pop(), members
 
 
-def update_source(release: Release, *, root: Path | None = None,
-                  progress: Progress | None = None) -> Result:
+def update_source(
+    release: Release, *, root: Path | None = None, progress: Progress | None = None
+) -> Result:
     """Lay the release's files over a folder that came from a zip download.
 
     Only files that exist in the release are written; `hap_sync.json` and
@@ -545,8 +588,9 @@ def update_source(release: Release, *, root: Path | None = None,
     return Result("source", f"{written} files written from {release.tag}", restart=True)
 
 
-def apply(status: Status | None = None, *, progress: Progress | None = None,
-          launch: bool = True) -> Result:
+def apply(
+    status: Status | None = None, *, progress: Progress | None = None, launch: bool = True
+) -> Result:
     """Install the latest release the way this copy was installed.
 
     Returns a `Result` whose `restart` says the running program is still the
@@ -587,8 +631,9 @@ def restart_self(argv: list[str] | None = None) -> None:
 # ---------------------------------------------------------------- for tools
 
 
-def add_version_flag(parser: argparse.ArgumentParser,
-                     flag: str = "--version") -> argparse.ArgumentParser:
+def add_version_flag(
+    parser: argparse.ArgumentParser, flag: str = "--version"
+) -> argparse.ArgumentParser:
     """`--version` on a tool's parser: prints `<prog> <VERSION>` and exits.
 
     `flag` is for the one tool whose `--version` already means something else
@@ -605,8 +650,13 @@ def notice_line(status: Status, lang: str | None = None) -> str | None:
     """The one line a tool prints when a newer release is known, else None."""
     if not status.available or status.latest is None:
         return None
-    return i18n.t("update.notice", lang, latest=status.latest.version, current=status.current,
-                  url=status.latest.url)
+    return i18n.t(
+        "update.notice",
+        lang,
+        latest=status.latest.version,
+        current=status.current,
+        url=status.latest.url,
+    )
 
 
 def notice_at_exit(stream=None) -> bool:
@@ -643,10 +693,14 @@ def build_parser() -> argparse.ArgumentParser:
     chk = sub.add_parser("check", help="Say whether a newer release exists (exit 3 when it does).")
     chk.add_argument("--force", action="store_true", help="Ask GitHub now, ignoring the cache.")
     chk.add_argument("--json", action="store_true", help="Print the status as JSON.")
-    app = sub.add_parser("apply",
-                         help="Install the latest release the way this copy was installed.")
-    app.add_argument("--no-launch", action="store_true",
-                     help="For HapSync.exe: swap the file but do not start the new one.")
+    app = sub.add_parser(
+        "apply", help="Install the latest release the way this copy was installed."
+    )
+    app.add_argument(
+        "--no-launch",
+        action="store_true",
+        help="For HapSync.exe: swap the file but do not start the new one.",
+    )
     return parser
 
 

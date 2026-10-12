@@ -170,8 +170,9 @@ def local_subnet_prefixes() -> list[str]:
     return prefixes
 
 
-def scan_subnets(prefixes: list[str], port: int = API_PORT,
-                 timeout: float = SCAN_PROBE_TIMEOUT_SEC) -> list[str]:
+def scan_subnets(
+    prefixes: list[str], port: int = API_PORT, timeout: float = SCAN_PROBE_TIMEOUT_SEC
+) -> list[str]:
     """Every host in the given /24s with `port` open, probed concurrently.
 
     High concurrency on purpose: most probes hit dead virtual/VPN subnets and
@@ -232,8 +233,11 @@ def identify(ip: str, port: int = API_PORT) -> FoundHap | None:
     return FoundHap(ip, info.model, normalize_mac(info.mac) or arp_mac(ip))
 
 
-def find_hap(port: int = API_PORT, on_candidates: Callable[[list[str]], None] | None = None,
-             prefixes: list[str] | None = None) -> LanScan:
+def find_hap(
+    port: int = API_PORT,
+    on_candidates: Callable[[list[str]], None] | None = None,
+    prefixes: list[str] | None = None,
+) -> LanScan:
     """Sweep the LAN for a HAP. Stops at the first host that confirms it is one."""
     scan = LanScan(prefixes=local_subnet_prefixes() if prefixes is None else list(prefixes))
     if not scan.prefixes:
@@ -331,17 +335,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Sending SSDP M-SEARCH ({SSDP_TIMEOUT_SEC}s window) ...")
         found = ssdp_search()
         if not found:
-            print(
-                "No HAP devices found via SSDP. "
-                "Try --target <ip> to probe directly."
-            )
+            print("No HAP devices found via SSDP. Try --target <ip> to probe directly.")
             return 1
         print(f"Found {len(found)} HAP device(s): {[d['ip'] for d in found]}")
         for d in found:
             if args.quick:
-                devices.append(
-                    {"ip": d["ip"], "services": d["services"], "headers": d["headers"]}
-                )
+                devices.append({"ip": d["ip"], "services": d["services"], "headers": d["headers"]})
             else:
                 devices.append(probe_device(d["ip"]))
 

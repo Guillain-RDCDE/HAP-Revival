@@ -59,7 +59,9 @@ def build_parser() -> argparse.ArgumentParser:
         help='JSON for the params array. Example: \'[{"uri":"audio:album","stIdx":0,"cnt":5}]\'',
     )
     parser.add_argument(
-        "--timeout", type=float, default=DEFAULT_TIMEOUT_SEC,
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT_SEC,
         help="seconds to wait; a cold contentdb call needs up to 57 s",
     )
     parser.add_argument(
@@ -100,8 +102,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  body: {json.dumps(envelope, ensure_ascii=False)}", file=sys.stderr)
 
     reply = rpc_post(
-        args.target, args.service, args.method, args.version, params,
-        port=args.port, timeout=args.timeout,
+        args.target,
+        args.service,
+        args.method,
+        args.version,
+        params,
+        port=args.port,
+        timeout=args.timeout,
     )
 
     print(f"\nHTTP {reply.status}", file=sys.stderr)

@@ -44,6 +44,7 @@ files it just uploaded into the cache — so steady-state runs never re-scan. Pa
 
 Never deletes anything on the HAP (add/update only). Requires: pip install pysmb
 """
+
 from __future__ import annotations
 
 import argparse
@@ -84,7 +85,7 @@ class SmbError(RuntimeError):
 class LocalFile(NamedTuple):
     """One file under a mapped local folder."""
 
-    rel: str   # path relative to the map root, POSIX separators (what the share sees)
+    rel: str  # path relative to the map root, POSIX separators (what the share sees)
     path: str  # absolute local path
     size: int
     kind: str  # 'audio' | 'sidecar' | 'unsupported'
@@ -347,8 +348,16 @@ def plan_entries(local: Iterable[LocalFile], remote: dict[str, int]) -> list[Pla
     return todo
 
 
-def scan_map(cfg: dict, lazy: LazySmb, m: dict, include_unsupported: bool, refresh: bool,
-             on_scan=None, on_progress=None, new_only: bool = False) -> dict | None:
+def scan_map(
+    cfg: dict,
+    lazy: LazySmb,
+    m: dict,
+    include_unsupported: bool,
+    refresh: bool,
+    on_scan=None,
+    on_progress=None,
+    new_only: bool = False,
+) -> dict | None:
     """Build the transfer plan for one map. `on_scan(s)` reports the result (defaults to
     printing it for the CLI; the GUI passes its own callback). `on_progress(file_count)` is
     forwarded to the remote listing so a GUI can show progress during the slow SMB1 scan.
@@ -360,8 +369,15 @@ def scan_map(cfg: dict, lazy: LazySmb, m: dict, include_unsupported: bool, refre
         return None
     remote, source = get_remote(cfg, lazy, share, refresh, on_progress=on_progress)
     files, skipped = local_index(local_root, include_unsupported)
-    s = {"local": local_root, "share": share, "remote": remote, "source": source,
-         "todo": plan_entries(files, remote), "skipped": skipped, "new_only": new_only}
+    s = {
+        "local": local_root,
+        "share": share,
+        "remote": remote,
+        "source": source,
+        "todo": plan_entries(files, remote),
+        "skipped": skipped,
+        "new_only": new_only,
+    }
     (on_scan or print_scan)(s)
     return s
 
@@ -395,22 +411,29 @@ def describe_changed(entry: PlanEntry, remote: dict[str, int]) -> str:
         return human_size(entry.size)
     delta = entry.size - rsize
     sign = "+" if delta >= 0 else "-"
-    return (f"local {human_size(entry.size)} vs HAP {human_size(rsize)}, "
-            f"Δ{sign}{human_size(abs(delta))}")
+    return (
+        f"local {human_size(entry.size)} vs HAP {human_size(rsize)}, "
+        f"Δ{sign}{human_size(abs(delta))}"
+    )
 
 
 def print_scan(s: dict) -> None:
     todo, remote = s["todo"], s["remote"]
     tot = sum(t[2] for t in todo)
     print(f"  {s['local']}  ->  {s['share']}   [{s['source']}]")
-    print(f"    remote has {len(remote)} files; to transfer: {len(todo)} ({human_size(tot)})"
-          f"   [skipped junk={s['skipped']['junk']}, unsupported={s['skipped']['unsupported']}]")
+    print(
+        f"    remote has {len(remote)} files; to transfer: {len(todo)} ({human_size(tot)})"
+        f"   [skipped junk={s['skipped']['junk']}, unsupported={s['skipped']['unsupported']}]"
+    )
     changed, new = split_plan(todo)
     # CHANGED = path already on the HAP but the byte size differs (usually a re-tag). Show both
     # sizes + the delta so it's obvious whether the audio really changed or it's just metadata.
     if changed:
-        tag = ("SKIPPED, kept as-is on the HAP (--new-only)" if s.get("new_only")
-               else "already on the HAP, bytes differ")
+        tag = (
+            "SKIPPED, kept as-is on the HAP (--new-only)"
+            if s.get("new_only")
+            else "already on the HAP, bytes differ"
+        )
         print(f"    CHANGED ({len(changed)}) — {tag}:")
         for entry in changed:
             print(f"      ~ {entry.rel}  ({describe_changed(entry, remote)})")
@@ -472,8 +495,9 @@ def jobs_for(scans: Iterable[dict]) -> list[Job]:
 # ---------- transfer ----------
 
 
-def transfer(smb: Smb, jobs: list[Job], index_by_share: dict, on_event=None,
-             should_cancel=None) -> tuple[int, int]:
+def transfer(
+    smb: Smb, jobs: list[Job], index_by_share: dict, on_event=None, should_cancel=None
+) -> tuple[int, int]:
     """Upload `jobs` over a fresh SMB1 session.
 
     Each successful upload is folded into `index_by_share[share]` (the cache map) so the
@@ -509,8 +533,9 @@ def transfer(smb: Smb, jobs: list[Job], index_by_share: dict, on_event=None,
                     ensure_dirs(smb, job.share, job.rel, made)
                 else:
                     failed += 1
-                    on_event("file_failed", i=i, total=total, share=job.share, rel=job.rel,
-                             error=str(e))
+                    on_event(
+                        "file_failed", i=i, total=total, share=job.share, rel=job.rel, error=str(e)
+                    )
         if ok:
             done += 1
             index_by_share[job.share][job.rel] = job.size  # fold into the cache
@@ -526,10 +551,12 @@ def cmd_plan(cfg: dict, args: argparse.Namespace) -> int:
     new_only = getattr(args, "new_only", False)
     try:
         total = len(jobs_for(scan_all(cfg, lazy, args)))
-        print(f"\nPlan: {total} file(s) would transfer. Run `sync` to do it."
-              + ("  (--new-only: 'changed' files are kept as-is on the HAP)" if new_only else "")
-              + "\n(remote index came from the on-disk cache where shown; "
-              "use --refresh to re-scan)")
+        print(
+            f"\nPlan: {total} file(s) would transfer. Run `sync` to do it."
+            + ("  (--new-only: 'changed' files are kept as-is on the HAP)" if new_only else "")
+            + "\n(remote index came from the on-disk cache where shown; "
+            "use --refresh to re-scan)"
+        )
     finally:
         lazy.close()
     return 0
@@ -553,8 +580,9 @@ def cmd_sync(cfg: dict, args: argparse.Namespace) -> int:
 
         def on_event(kind: str, **d) -> None:
             if kind == "file_done":
-                print(f"  [{d['i']}/{d['total']}] {d['share']}:/{d['rel']}  "
-                      f"({human_size(d['size'])})")
+                print(
+                    f"  [{d['i']}/{d['total']}] {d['share']}:/{d['rel']}  ({human_size(d['size'])})"
+                )
             elif kind == "file_failed":
                 print(f"  [{d['i']}/{d['total']}] FAILED {d['share']}:/{d['rel']} — {d['error']}")
 
@@ -619,8 +647,10 @@ def cmd_check(cfg: dict, args: argparse.Namespace) -> int:
     print()
     print("Transfer (this tool): " + ("WORKS" if s["transfer_ok"] else "NOT WORKING"))
     if s["fixable"]:
-        print(f"{s['fixable']} fixable native-Windows issue(s)"
-              + (" — admin required." if s["needs_admin"] else "."))
+        print(
+            f"{s['fixable']} fixable native-Windows issue(s)"
+            + (" — admin required." if s["needs_admin"] else ".")
+        )
         if getattr(args, "fix", False):
             changed, msg = smb_doctor.apply_fixes(findings, on_log=print)
             print(msg)
@@ -641,7 +671,8 @@ COMMANDS: dict[str, Callable[[dict, argparse.Namespace], int]] = {
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
-        prog="hap_sync", description="HAP-aware music sync (replaces FreeFileSync for the HAP).")
+        prog="hap_sync", description="HAP-aware music sync (replaces FreeFileSync for the HAP)."
+    )
     hap_update.add_version_flag(ap)
     ap.add_argument("--config", help="path to hap_sync.json")
     sub = ap.add_subparsers(dest="cmd")
@@ -649,11 +680,17 @@ def build_parser() -> argparse.ArgumentParser:
         p = sub.add_parser(name)
         p.add_argument("--only", help="limit to one share, e.g. HAP_External")
         p.add_argument("--all", action="store_true", help="include unsupported formats too")
-        p.add_argument("--refresh", action="store_true",
-                       help="re-scan the HAP instead of using the cached index")
-        p.add_argument("--new-only", action="store_true",
-                       help="add only files missing from the HAP; never overwrite a file that "
-                            "is already there (skip 'changed')")
+        p.add_argument(
+            "--refresh",
+            action="store_true",
+            help="re-scan the HAP instead of using the cached index",
+        )
+        p.add_argument(
+            "--new-only",
+            action="store_true",
+            help="add only files missing from the HAP; never overwrite a file that "
+            "is already there (skip 'changed')",
+        )
         if name == "sync":
             p.add_argument("--dry-run", action="store_true")
     pl = sub.add_parser("list")
@@ -663,8 +700,11 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--only", help="limit to one share")
     sub.add_parser("wake")
     pc = sub.add_parser("check", help="diagnose SMB access (and optionally fix Windows issues)")
-    pc.add_argument("--fix", action="store_true",
-                    help="apply fixes for any native-Windows SMB problems (asks for admin)")
+    pc.add_argument(
+        "--fix",
+        action="store_true",
+        help="apply fixes for any native-Windows SMB problems (asks for admin)",
+    )
     return ap
 
 

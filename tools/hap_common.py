@@ -189,8 +189,9 @@ def connect_smb(
     last: Exception | None = None
     for direct, port in transports:
         try:
-            conn = SMBConnection("", "", client_name, "HAP", use_ntlm_v2=False,
-                                 is_direct_tcp=direct)
+            conn = SMBConnection(
+                "", "", client_name, "HAP", use_ntlm_v2=False, is_direct_tcp=direct
+            )
             if conn.connect(host, port, timeout=timeout):
                 return conn, port
         except Exception as exc:

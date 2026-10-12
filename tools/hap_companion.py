@@ -30,6 +30,7 @@ Subcommands:
 
 Stdlib only. Read-only: it never writes to your files, the DB, or the device.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -88,13 +89,26 @@ def scan_folder(folder: str) -> dict:
                 unsup.append(os.path.relpath(p, folder))
             # sidecar files are harmless: the indexer ignores them
 
-    return {"scanned": folder, "n_ok": n_ok, "n_unsup": n_unsup, "n_junk": n_junk,
-            "n_hi": n_hi, "junk": junk, "unsup": unsup, "hires": hires,
-            "no_cover": sorted(dirs_with_audio - dirs_with_cover)}
+    return {
+        "scanned": folder,
+        "n_ok": n_ok,
+        "n_unsup": n_unsup,
+        "n_junk": n_junk,
+        "n_hi": n_hi,
+        "junk": junk,
+        "unsup": unsup,
+        "hires": hires,
+        "no_cover": sorted(dirs_with_audio - dirs_with_cover),
+    }
 
 
-def print_section(title: str, items: list[str], marker: str = "-",
-                  limit: int = SECTION_LIMIT, show_empty: bool = False) -> None:
+def print_section(
+    title: str,
+    items: list[str],
+    marker: str = "-",
+    limit: int = SECTION_LIMIT,
+    show_empty: bool = False,
+) -> None:
     """`title (N):` then up to `limit` items; silent when empty unless `show_empty`."""
     if not items and not show_empty:
         return
@@ -180,8 +194,9 @@ def cmd_diff(db_path: str, folder: str) -> int:
     print(f"HAP library: {r['have_count']} (artist, album) pairs")
     print(f"Local tree : {os.path.abspath(folder)}")
     print_section("NEW — not on the HAP", r["new"], "+", limit=len(r["new"]), show_empty=True)
-    print_section("ALREADY on the HAP — skip these", r["existing"], "=",
-                  limit=EXISTING_LIMIT, show_empty=True)
+    print_section(
+        "ALREADY on the HAP — skip these", r["existing"], "=", limit=EXISTING_LIMIT, show_empty=True
+    )
     return 0
 
 
@@ -218,8 +233,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     hap_update.add_version_flag(ap)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("validate",
-                       help="scan a folder for junk / unsupported / >192 kHz / no cover")
+    p = sub.add_parser(
+        "validate", help="scan a folder for junk / unsupported / >192 kHz / no cover"
+    )
     p.add_argument("folder")
     p = sub.add_parser("diff", help="compare a local tree with the HAP's hdd_browse.db")
     p.add_argument("db", help="path to hdd_browse.db")

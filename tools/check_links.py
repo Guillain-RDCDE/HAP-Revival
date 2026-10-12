@@ -35,7 +35,7 @@ def anchor_for(heading_text: str) -> str:
     Close enough for our own documents; it is not a full CommonMark parser.
     """
     text = re.sub(r"`|\*|_|~", "", heading_text)
-    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)   # [label](url) -> label
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)  # [label](url) -> label
     text = re.sub(r"[^\w\s-]", "", text, flags=re.UNICODE)
     return text.strip().lower().replace(" ", "-")
 
@@ -60,10 +60,7 @@ def anchors_of(path: Path) -> set[str]:
 
 
 def markdown_files(root: Path) -> list[Path]:
-    return sorted(
-        p for p in root.rglob("*.md")
-        if not any(part in SKIP_DIRS for part in p.parts)
-    )
+    return sorted(p for p in root.rglob("*.md") if not any(part in SKIP_DIRS for part in p.parts))
 
 
 def check(root: Path) -> list[str]:
@@ -84,12 +81,12 @@ def check(root: Path) -> list[str]:
                     problems.append(f"{md}: missing file -> {target}")
                     continue
             else:
-                dest = md.resolve()          # same-document anchor
+                dest = md.resolve()  # same-document anchor
 
             if not fragment:
                 continue
             if dest.suffix.lower() != ".md":
-                continue                     # fragments into non-Markdown: not ours to judge
+                continue  # fragments into non-Markdown: not ours to judge
             if dest not in anchor_cache:
                 anchor_cache[dest] = anchors_of(dest)
             if fragment not in anchor_cache[dest]:

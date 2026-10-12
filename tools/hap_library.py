@@ -295,9 +295,7 @@ class Library:
         return self.fetch(f"audio/albums/{int(album_id)}/tracks", offset=offset, limit=limit)
 
     def playlist_tracks(self, playlist_id: int, offset: int = 0, limit: int = 200) -> Page:
-        return self.fetch(
-            f"audio/playlists/{int(playlist_id)}/tracks", offset=offset, limit=limit
-        )
+        return self.fetch(f"audio/playlists/{int(playlist_id)}/tracks", offset=offset, limit=limit)
 
     def favorites(self, offset: int = 0, limit: int = 200) -> Page:
         return self.fetch("services/favorite/tracks", offset=offset, limit=limit)
@@ -399,8 +397,7 @@ class Library:
                     if progress:
                         # Say the new deadline: on a very large library this is
                         # the difference between "it is working" and "it hung".
-                        progress(f"{kind} (retry {attempt}, {base * 2 ** attempt:.0f}s)",
-                                 offset, 0)
+                        progress(f"{kind} (retry {attempt}, {base * 2**attempt:.0f}s)", offset, 0)
                     time.sleep(HARVEST_RETRY_PAUSE_SEC)
             finally:
                 self.timeout = base
@@ -436,9 +433,9 @@ class Library:
         """
         if kind not in ("favorite", "dislike", "normal"):
             raise LibraryError(f"unknown favorite_type {kind!r}")
-        body = json.dumps(
-            {"track": {"trackid": int(track_id), "favorite_type": kind}}
-        ).encode("utf-8")
+        body = json.dumps({"track": {"trackid": int(track_id), "favorite_type": kind}}).encode(
+            "utf-8"
+        )
         url = self._url(f"audio/tracks/{int(track_id)}")
         # No Content-Type on purpose: the player parses JSON without one, and
         # sending it makes a browser client fail its preflight (docs/16-gotchas.md).
@@ -462,8 +459,10 @@ def _fmt_track(t: dict) -> str:
     spec = ""
     if codec:
         rate = codec.get("sample_rate", 0)
-        spec = (f"  [{codec.get('codec_type', '?')} {rate / 1000:g}kHz/"
-                f"{codec.get('bit_width', '?')}bit]")
+        spec = (
+            f"  [{codec.get('codec_type', '?')} {rate / 1000:g}kHz/"
+            f"{codec.get('bit_width', '?')}bit]"
+        )
     artist = (t.get("artist") or {}).get("name", "")
     return f"  {t.get('trackid'):>7}  {t.get('name', '')[:44]:<44} {artist[:24]:<24}{spec}"
 
@@ -488,17 +487,24 @@ def _common_options(with_defaults: bool) -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--limit", type=int, default=dflt(30))
     common.add_argument("--offset", type=int, default=dflt(0))
-    common.add_argument("--json", action="store_true", default=dflt(False),
-                        help="dump raw JSON")
+    common.add_argument("--json", action="store_true", default=dflt(False), help="dump raw JSON")
     common.add_argument(
-        "--timeout", type=float, default=dflt(DEFAULT_TIMEOUT_SEC), metavar="SEC",
+        "--timeout",
+        type=float,
+        default=dflt(DEFAULT_TIMEOUT_SEC),
+        metavar="SEC",
         help=f"seconds to wait for one request (default {DEFAULT_TIMEOUT_SEC:.0f}). "
-             "Raise it on a very large library: the cost of a request is the cost "
-             "of counting your whole catalogue.")
+        "Raise it on a very large library: the cost of a request is the cost "
+        "of counting your whole catalogue.",
+    )
     common.add_argument(
-        "--harvest-timeout", type=float, default=dflt(HARVEST_TIMEOUT_SEC), metavar="SEC",
+        "--harvest-timeout",
+        type=float,
+        default=dflt(HARVEST_TIMEOUT_SEC),
+        metavar="SEC",
         help=f"starting deadline for one harvest page (default "
-             f"{HARVEST_TIMEOUT_SEC:.0f}); doubles on each retry.")
+        f"{HARVEST_TIMEOUT_SEC:.0f}); doubles on each retry.",
+    )
     return common
 
 
@@ -525,8 +531,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - one branch per s
     args = build_parser().parse_args(argv)
     hap_update.notice_at_exit()
 
-    lib = Library(args.host, timeout=args.timeout,
-                  timeout_for_harvest=args.harvest_timeout)
+    lib = Library(args.host, timeout=args.timeout, timeout_for_harvest=args.harvest_timeout)
 
     if args.cmd == "harvest":
         started = time.time()
@@ -543,10 +548,12 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - one branch per s
                 eta = f", ~{remaining / 60:.0f} min left for {kind}"
             print(f"  {kind:<8} {seen:>6} / {total:<6} ({spent:.0f}s{eta})")
 
-        print(f"Harvesting {args.host}. Time depends on the size of your library — "
-              f"a 78 000-track one took 92 minutes.\n"
-              f"Each page waits up to {int(lib.timeout_for_harvest)}s and doubles that "
-              f"on a retry, so a much larger library is slower, not broken.")
+        print(
+            f"Harvesting {args.host}. Time depends on the size of your library — "
+            f"a 78 000-track one took 92 minutes.\n"
+            f"Each page waits up to {int(lib.timeout_for_harvest)}s and doubles that "
+            f"on a retry, so a much larger library is slower, not broken."
+        )
         try:
             data = lib.harvest(progress=show)
         except LibraryError as e:

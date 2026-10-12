@@ -135,7 +135,7 @@ def test_single_lookups_return_one_object_each(lib):
     page = lib.tracks()
     first = page.items[0]
     assert lib.track(first["trackid"])["name"] == first["name"]
-    assert lib.genre(1)["name"] == "Demo"      # the singular-envelope path
+    assert lib.genre(1)["name"] == "Demo"  # the singular-envelope path
 
 
 def test_an_unknown_id_is_an_empty_answer_not_an_error(lib):

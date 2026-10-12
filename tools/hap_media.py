@@ -17,26 +17,61 @@ import struct
 import wave
 
 #: Containers the player's indexer accepts (lossless PCM, DSD, lossy, ATRAC).
-SUPPORTED_EXT = frozenset({
-    ".flac", ".wav", ".aif", ".aiff", ".alac",
-    ".dsf", ".dff",
-    ".m4a", ".mp3", ".aac", ".wma",
-    ".oma", ".aa3", ".at3",
-})
+SUPPORTED_EXT = frozenset(
+    {
+        ".flac",
+        ".wav",
+        ".aif",
+        ".aiff",
+        ".alac",
+        ".dsf",
+        ".dff",
+        ".m4a",
+        ".mp3",
+        ".aac",
+        ".wma",
+        ".oma",
+        ".aa3",
+        ".at3",
+    }
+)
 #: Harmless companions the indexer ignores: artwork, booklets, cue sheets, and
 #: files with no extension at all.
-SIDECAR_EXT = frozenset({
-    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
-    ".pdf", ".txt", ".nfo", ".log", ".cue", ".m3u", ".m3u8",
-    ".sfv", ".md5", ".lrc", "",
-})
+SIDECAR_EXT = frozenset(
+    {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".webp",
+        ".pdf",
+        ".txt",
+        ".nfo",
+        ".log",
+        ".cue",
+        ".m3u",
+        ".m3u8",
+        ".sfv",
+        ".md5",
+        ".lrc",
+        "",
+    }
+)
 #: Loose artwork, by extension. The player only reads art embedded in tags, so a
 #: file like this is a hint the artwork is to hand, not that the album has it.
 IMAGE_EXT = (".jpg", ".jpeg", ".png", ".bmp", ".gif")
 #: Conventional names a loose front cover goes by.
-COVER_NAMES = frozenset({
-    "cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "front.jpg", "front.jpeg",
-})
+COVER_NAMES = frozenset(
+    {
+        "cover.jpg",
+        "cover.jpeg",
+        "cover.png",
+        "folder.jpg",
+        "front.jpg",
+        "front.jpeg",
+    }
+)
 #: Temporary files copy tools leave behind mid-transfer.
 JUNK_SUFFIXES = (".ffs_tmp", ".ffs_lock", ".part", ".partial", ".tmp", ".crdownload")
 #: OS droppings.

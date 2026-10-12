@@ -34,7 +34,7 @@ def _call(service, method, params=None):
 
 def test_gradient_png_is_valid():
     png = mock_hap.gradient_png((200, 150, 80), (20, 30, 60), size=32)
-    assert png.startswith(b"\x89PNG\r\n\x1a\n")     # PNG signature
+    assert png.startswith(b"\x89PNG\r\n\x1a\n")  # PNG signature
     assert b"IHDR" in png and b"IDAT" in png
     # final chunk is the canonical empty IEND, terminated by its fixed CRC
     assert png.endswith(b"IEND\xae\x42\x60\x82")
@@ -53,7 +53,7 @@ def test_now_playing_shape():
     assert np["state"] == "PLAYING"
     assert np["title"] and np["artist"]
     assert "backgroundColorR" in np and "coverArtUrl" in np
-    assert np["audioInfo"][0]["codec"] == "flac"     # first demo track is the FLAC
+    assert np["audioInfo"][0]["codec"] == "flac"  # first demo track is the FLAC
 
 
 def test_now_playing_streaming_track_has_no_audioinfo():
@@ -79,7 +79,7 @@ def test_toggle_pauses_and_resumes():
 
 def test_seek_sets_position():
     _call("avContent", "setPlayContent", [{"positionSec": 120.0}])
-    mock_hap.STATE.playing = False                   # freeze so position is exact
+    mock_hap.STATE.playing = False  # freeze so position is exact
     np = _call("avContent", "getPlayingContentInfo")
     assert abs(np["positionSec"] - 120.0) < 1.0
 
@@ -112,11 +112,18 @@ def test_repeat_and_shuffle_roundtrip():
 
 def test_favorite_roundtrip():
     tid = mock_hap.DEMO_TRACKS[0].id
-    _call("avContent", "editContentInfo", [{
-        "method": "editTrackInfo",
-        "target": [{"uri": f"audio:track?id={tid}", "tagUri": "meta:favorite",
-                    "value": "favorite"}],
-    }])
+    _call(
+        "avContent",
+        "editContentInfo",
+        [
+            {
+                "method": "editTrackInfo",
+                "target": [
+                    {"uri": f"audio:track?id={tid}", "tagUri": "meta:favorite", "value": "favorite"}
+                ],
+            }
+        ],
+    )
     assert mock_hap.DEMO_TRACKS[0].favorite_type == "favorite"
     assert _call("avContent", "getPlayingContentInfo")["favoriteType"] == "favorite"
 
@@ -213,6 +220,7 @@ def test_gradient_png_can_be_oblong():
 
 def test_client_against_live_mock(live_mock):
     import hap_client
+
     host, port = live_mock
     hap = hap_client.HAP(host, port=port)
 
@@ -236,9 +244,10 @@ def test_client_against_live_mock(live_mock):
 
 def test_client_play_track_against_live_mock(live_mock):
     import hap_client
+
     host, port = live_mock
     hap = hap_client.HAP(host, port=port)
-    target = mock_hap.DEMO_TRACKS[2].id           # the Red-Book FLAC
+    target = mock_hap.DEMO_TRACKS[2].id  # the Red-Book FLAC
     hap.play_track(target)
     np = hap.now_playing()
     assert np.title == "Teardrop"

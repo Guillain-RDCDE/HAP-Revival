@@ -48,8 +48,9 @@ def _get(base, path, **headers):
 
 def test_expect_100_continue_is_417(device):
     host, port = device
-    req = hap_client.rpc_request(hap_client.rpc_url(host, "avContent", port),
-                                 "getPlayingContentInfo", "1.2")
+    req = hap_client.rpc_request(
+        hap_client.rpc_url(host, "avContent", port), "getPlayingContentInfo", "1.2"
+    )
     req.add_header("Expect", "100-continue")
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(req, timeout=10)
@@ -96,8 +97,12 @@ def test_subscribe_validates_the_body(device):
     url = f"http://{host}:{port}/sony/notification/status"
 
     def post(payload):
-        req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
-                                     headers={"Content-Type": "application/json"})
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode(),
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
         try:
             with urllib.request.urlopen(req, timeout=10) as r:
                 return r.status, json.loads(r.read())
@@ -207,8 +212,7 @@ def test_smoke_idempotent_write_round_trips(device):
 
 def test_smoke_reports_failures_instead_of_crashing(device, monkeypatch):
     host, port = device
-    monkeypatch.setattr(mock_hap, "system_information",
-                        lambda: {"model": "", "version": ""})
+    monkeypatch.setattr(mock_hap, "system_information", lambda: {"model": "", "version": ""})
     smoke = smoke_live.build(host, include_writes=False, port=port)
     names = [r.name for r in smoke.failed]
     assert "system_info returns a model and firmware" in names

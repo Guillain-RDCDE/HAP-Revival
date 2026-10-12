@@ -93,13 +93,7 @@ def test_unknown_event_parses_but_has_no_readback():
 
 
 def test_tolerates_bare_lf_and_lowercase_headers():
-    raw = (
-        b"NOTIFY * HTTP/1.1\n"
-        b"seq: 7\n"
-        b"content-type: application/json\n"
-        b"\n"
-        b'{"event": "volumeChanged"}'
-    )
+    raw = b'NOTIFY * HTTP/1.1\nseq: 7\ncontent-type: application/json\n\n{"event": "volumeChanged"}'
     event = parse_notify(raw)
     assert event is not None and event.seq == 7
 
@@ -122,7 +116,7 @@ def test_missing_seq_header_yields_none_not_a_crash():
         b"",
         b"\x00",
         b"not http at all",
-        b"M-SEARCH * HTTP/1.1\r\n\r\n{}",           # SSDP, not ours
+        b"M-SEARCH * HTTP/1.1\r\n\r\n{}",  # SSDP, not ours
         b"NOTIFY * HTTP/1.1\r\n\r\nnot json",
         b'NOTIFY * HTTP/1.1\r\n\r\n{"no": "event key"}',
         b'NOTIFY * HTTP/1.1\r\n\r\n["a list"]',
@@ -302,7 +296,7 @@ def test_rearm_failure_does_not_kill_the_loop(notifier, monkeypatch):
         raise hap_notify.NotifyError("daemon wedged")
 
     monkeypatch.setattr(notifier, "subscribe", failing_subscribe)
-    notifier._next_rearm = time.monotonic() - 1      # due immediately
+    notifier._next_rearm = time.monotonic() - 1  # due immediately
 
     assert list(notifier.events(duration=1.5)) == []
     assert calls, "subscribe() was never retried"
@@ -310,9 +304,7 @@ def test_rearm_failure_does_not_kill_the_loop(notifier, monkeypatch):
 
 def test_fetch_returns_none_for_an_unreachable_url(notifier):
     """A dead readback must not propagate an exception into the event loop."""
-    event = parse_notify(
-        _datagram(url="http://127.0.0.1:1/sony/contentplayer/v100/playinginfo")
-    )
+    event = parse_notify(_datagram(url="http://127.0.0.1:1/sony/contentplayer/v100/playinginfo"))
     assert notifier.fetch(event) is None
 
 

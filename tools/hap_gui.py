@@ -34,6 +34,7 @@ tkinter is stdlib (no extra dependency for the UI itself). All blocking work (SM
 uploads, folder walks, the subnet scan) runs on a worker thread and reports back through a
 queue, so the window never freezes — tkinter is only ever touched from the main thread.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -78,10 +79,13 @@ def _set_window_icon(root: tk.Tk) -> None:
 # When frozen (PyInstaller onefile), __file__ lives in the temp _MEIPASS extraction dir,
 # so the config must sit next to the .exe to persist across runs; in source it sits next
 # to this script.
-_APP_DIR = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
-            else Path(__file__).resolve().parent)
+_APP_DIR = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parent
+)
 CONFIG_PATH = _APP_DIR / "hap_sync.json"
-POLL_MS = 80          # how often the UI drains the worker->UI queue
+POLL_MS = 80  # how often the UI drains the worker->UI queue
 GITHUB_URL = "https://github.com/Guillain-RDCDE/HAP-Revival"
 
 
@@ -102,11 +106,11 @@ class App:
         self.busy = False
         self._active_log: tk.Text | None = None
         self._action_widgets: list = []  # disabled while a job runs
-        self._findings: list = []        # last SMB-doctor result (for the Fix button)
-        self._has_fixes = False          # are there pending Windows fixes to apply?
+        self._findings: list = []  # last SMB-doctor result (for the Fix button)
+        self._has_fixes = False  # are there pending Windows fixes to apply?
         self._update_status: hap_update.Status | None = None  # last answer from GitHub
-        self._bg_jobs = 0                # background checks still owed a queue event
-        self._polling = False            # is the queue drain loop scheduled?
+        self._bg_jobs = 0  # background checks still owed a queue event
+        self._polling = False  # is the queue drain loop scheduled?
 
         cfg = core.load_config_tolerant(CONFIG_PATH)
         self.host_var = tk.StringVar(value=cfg["host"])
@@ -121,7 +125,7 @@ class App:
 
         self._build_menu()
         self._build_connection_bar()
-        self._build_footer()   # packed bottom before the notebook so it's always reserved
+        self._build_footer()  # packed bottom before the notebook so it's always reserved
         self._build_tabs()
 
         # Seed the mapping rows from config. On a first run (no saved maps) start with the
@@ -180,7 +184,9 @@ class App:
         self.lang_var = tk.StringVar(value=self.lang)
         for opt in i18n.language_options():
             lang_menu.add_radiobutton(
-                label=opt["name"], value=opt["code"], variable=self.lang_var,
+                label=opt["name"],
+                value=opt["code"],
+                variable=self.lang_var,
                 command=lambda c=opt["code"]: self._set_language(c),
             )
         menubar.add_cascade(label=self._T("gui.menu.language"), menu=lang_menu)
@@ -191,14 +197,16 @@ class App:
             (lambda s: menubar.entryconfigure(self._lang_menu_index, label=s), "gui.menu.language")
         )
         help_menu = tk.Menu(menubar, tearoff=0)
-        help_menu.add_command(label=self._T("gui.menu.check_updates"),
-                              command=self.on_check_updates)
+        help_menu.add_command(
+            label=self._T("gui.menu.check_updates"), command=self.on_check_updates
+        )
         help_menu.add_command(label=self._T("gui.menu.about"), command=self.on_about)
         menubar.add_cascade(label=self._T("gui.menu.help"), menu=help_menu)
         help_index = menubar.index("end")
         self._i18n.append((lambda s: menubar.entryconfigure(help_index, label=s), "gui.menu.help"))
         self._i18n.append(
-            (lambda s: help_menu.entryconfigure(0, label=s), "gui.menu.check_updates"))
+            (lambda s: help_menu.entryconfigure(0, label=s), "gui.menu.check_updates")
+        )
         self._i18n.append((lambda s: help_menu.entryconfigure(1, label=s), "gui.menu.about"))
         self.help_menu = help_menu
         self.root.configure(menu=menubar)
@@ -212,22 +220,26 @@ class App:
         ip_lbl.grid(row=0, column=0, padx=(8, 4), pady=6, sticky="w")
         self._reg(ip_lbl, "gui.lbl.ip")
         ttk.Entry(bar, textvariable=self.host_var, width=18).grid(
-            row=0, column=1, pady=6, sticky="w")
+            row=0, column=1, pady=6, sticky="w"
+        )
         mac_lbl = ttk.Label(bar)
         mac_lbl.grid(row=0, column=2, padx=(12, 4), pady=6, sticky="w")
         self._reg(mac_lbl, "gui.lbl.mac")
         ttk.Entry(bar, textvariable=self.mac_var, width=20).grid(
-            row=0, column=3, pady=6, sticky="w")
+            row=0, column=3, pady=6, sticky="w"
+        )
 
         btns = ttk.Frame(bar)
         btns.grid(row=0, column=4, padx=8, sticky="e")
         bar.columnconfigure(4, weight=1)
         self.conn_dot = ttk.Label(btns, text="●", foreground="#888")
         self.conn_dot.pack(side="left", padx=(0, 8))
-        for key, cmd in (("gui.conn.autodetect", self.on_autodetect),
-                         ("gui.conn.check", self.on_check),
-                         ("gui.conn.wake", self.on_wake),
-                         ("gui.conn.save", self.on_save_config)):
+        for key, cmd in (
+            ("gui.conn.autodetect", self.on_autodetect),
+            ("gui.conn.check", self.on_check),
+            ("gui.conn.wake", self.on_wake),
+            ("gui.conn.save", self.on_save_config),
+        ):
             b = ttk.Button(btns, command=cmd)
             b.pack(side="left", padx=3)
             self._reg(b, key)
@@ -241,14 +253,23 @@ class App:
     def _build_footer(self) -> None:
         footer = ttk.Frame(self.root)
         footer.pack(side="bottom", fill="x", padx=10, pady=(0, 6))
-        link = ttk.Label(footer, text=GITHUB_URL.replace("https://", ""),
-                         foreground="#5a7fb5", cursor="hand2", font=("Segoe UI", 8))
+        link = ttk.Label(
+            footer,
+            text=GITHUB_URL.replace("https://", ""),
+            foreground="#5a7fb5",
+            cursor="hand2",
+            font=("Segoe UI", 8),
+        )
         link.pack(side="right")
         link.bind("<Button-1>", lambda _e: webbrowser.open(GITHUB_URL))
         self.version_lbl = ttk.Label(footer, foreground="#888", font=("Segoe UI", 8))
         self.version_lbl.pack(side="left")
-        self._i18n.append((lambda s: self.version_lbl.configure(
-            text=s.format(version=hap_update.VERSION)), "gui.footer.version"))
+        self._i18n.append(
+            (
+                lambda s: self.version_lbl.configure(text=s.format(version=hap_update.VERSION)),
+                "gui.footer.version",
+            )
+        )
         self.version_lbl.configure(text=self._T("gui.footer.version", version=hap_update.VERSION))
         # Shown only once a check has found a newer release: one click updates.
         self.update_btn = ttk.Button(footer, command=self.on_update)
@@ -319,7 +340,8 @@ class App:
         self._reg(folder_lbl, "gui.lbl.folder")
         folder_lbl.pack(side="left")
         ttk.Entry(row, textvariable=self.validate_dir).pack(
-            side="left", fill="x", expand=True, padx=6)
+            side="left", fill="x", expand=True, padx=6
+        )
         b_browse = ttk.Button(row, command=lambda: self._pick_dir(self.validate_dir))
         self._reg(b_browse, "gui.btn.browse")
         b_val = ttk.Button(row, command=self.on_validate)
@@ -392,8 +414,9 @@ class App:
         # so the rest of the code never sees a localised string.
         self.fix_kind = tk.StringVar(value="cover")
         self.fix_kind_label = tk.StringVar()
-        self.fix_kind_box = ttk.Combobox(row, textvariable=self.fix_kind_label,
-                                         state="readonly", width=16)
+        self.fix_kind_box = ttk.Combobox(
+            row, textvariable=self.fix_kind_label, state="readonly", width=16
+        )
         self.fix_kind_box.pack(side="left", padx=(16, 0))
         self.fix_kind_box.bind("<<ComboboxSelected>>", self._on_fix_kind_pick)
         self._i18n.append((lambda _s: self._retranslate_fix_kinds(), "gui.fix.kind.cover"))
@@ -469,8 +492,15 @@ class App:
             where = "▪" if f.is_local else " "
             self.fix_list.insert("end", f"{mark}{where} {f.title[:50]:<50} {f.detail[:58]}")
         located = sum(1 for f in self._fix_findings if f.folders)
-        self._log(self.fix_log, self._T("gui.fix.summary", n=len(self._fix_findings),
-                                        kind=self._T(f"gui.fix.kind.{kind}"), located=located))
+        self._log(
+            self.fix_log,
+            self._T(
+                "gui.fix.summary",
+                n=len(self._fix_findings),
+                kind=self._T(f"gui.fix.kind.{kind}"),
+                located=located,
+            ),
+        )
 
     def _fix_load_data(self):
         """Load the two caches. Returns (harvest, index) or (None, None)."""
@@ -507,8 +537,9 @@ class App:
 
             def note(share, i, total, files):
                 if i % 100 == 0 or i == total:
-                    self._log_t("gui.log.index_progress", share=share, i=i, total=total,
-                                files=files)
+                    self._log_t(
+                        "gui.log.index_progress", share=share, i=i, total=total, files=files
+                    )
 
             index = hap_fixit.crawl_shares(ip, progress=note)
             hap_fixit.save_index(index)
@@ -592,8 +623,8 @@ class App:
         if harvest is None:
             return
         target = filedialog.asksaveasfilename(
-            defaultextension=".html", filetypes=[("HTML", "*.html")],
-            initialfile="hap-to-fix.html")
+            defaultextension=".html", filetypes=[("HTML", "*.html")], initialfile="hap-to-fix.html"
+        )
         if not target:
             return
         findings = hap_fixit.build_findings(harvest, index)
@@ -605,8 +636,15 @@ class App:
     def _make_log(self, parent: tk.Widget) -> tk.Text:
         frame = ttk.Frame(parent)
         frame.pack(fill="both", expand=True, padx=8, pady=8)
-        txt = tk.Text(frame, height=10, wrap="none", font=("Consolas", 9),
-                      background="#101014", foreground="#e8e8e8", insertbackground="#e8e8e8")
+        txt = tk.Text(
+            frame,
+            height=10,
+            wrap="none",
+            font=("Consolas", 9),
+            background="#101014",
+            foreground="#e8e8e8",
+            insertbackground="#e8e8e8",
+        )
         sb = ttk.Scrollbar(frame, orient="vertical", command=txt.yview)
         txt.configure(yscrollcommand=sb.set, state="disabled")
         txt.pack(side="left", fill="both", expand=True)
@@ -619,14 +657,17 @@ class App:
         local_var = tk.StringVar(value=local)
         share_var = tk.StringVar(value=share if share in SHARES else SHARES[0])
         ttk.Entry(row, textvariable=local_var).pack(side="left", fill="x", expand=True)
-        ttk.Button(row, text="…", width=3,
-                   command=lambda: self._pick_dir(local_var)).pack(side="left", padx=4)
+        ttk.Button(row, text="…", width=3, command=lambda: self._pick_dir(local_var)).pack(
+            side="left", padx=4
+        )
         ttk.Label(row, text="→").pack(side="left")
-        ttk.Combobox(row, textvariable=share_var, values=SHARES, width=14,
-                     state="readonly").pack(side="left", padx=4)
+        ttk.Combobox(row, textvariable=share_var, values=SHARES, width=14, state="readonly").pack(
+            side="left", padx=4
+        )
         entry = {"frame": row, "local": local_var, "share": share_var}
-        ttk.Button(row, text="✕", width=3,
-                   command=lambda: self._remove_map_row(entry)).pack(side="left")
+        ttk.Button(row, text="✕", width=3, command=lambda: self._remove_map_row(entry)).pack(
+            side="left"
+        )
         self.map_rows.append(entry)
 
     def _remove_map_row(self, entry: dict) -> None:
@@ -644,19 +685,27 @@ class App:
 
     def _pick_db(self) -> None:
         f = filedialog.askopenfilename(
-            filetypes=[("HAP SQLite database", "*.db"), ("All files", "*.*")])
+            filetypes=[("HAP SQLite database", "*.db"), ("All files", "*.*")]
+        )
         if f:
             self.diff_db.set(os.path.normpath(f))
 
     def _collect_maps(self) -> list[dict]:
-        return [{"local": r["local"].get().strip(), "share": r["share"].get()}
-                for r in self.map_rows if r["local"].get().strip()]
+        return [
+            {"local": r["local"].get().strip(), "share": r["share"].get()}
+            for r in self.map_rows
+            if r["local"].get().strip()
+        ]
 
     def _cfg(self) -> dict:
         """Build the config dict the engine expects, with _path set so the on-disk
         remote-index cache lands next to hap_sync.json — exactly like the CLI."""
-        return {"host": self.host_var.get().strip(), "mac": self.mac_var.get().strip(),
-                "maps": self._collect_maps(), "_path": str(CONFIG_PATH)}
+        return {
+            "host": self.host_var.get().strip(),
+            "mac": self.mac_var.get().strip(),
+            "maps": self._collect_maps(),
+            "_path": str(CONFIG_PATH),
+        }
 
     def _log(self, txt: tk.Text, line: str) -> None:
         txt.configure(state="normal")
@@ -758,8 +807,9 @@ class App:
         elif tag == "updated":
             self._on_updated(d["result"], d["version"])
         elif tag == "update_failed":
-            messagebox.showerror(self._T("gui.app_title"),
-                                 self._T("gui.update.failed", err=d["err"], url=d["url"]))
+            messagebox.showerror(
+                self._T("gui.app_title"), self._T("gui.update.failed", err=d["err"], url=d["url"])
+            )
 
     def _set_busy(self, busy: bool) -> None:
         for w in self._action_widgets:
@@ -767,8 +817,7 @@ class App:
                 w.configure(state="disabled" if busy else "normal")
         self.stop_btn.configure(state="normal" if busy else "disabled")
         # The Fix button has its own enable rule: only when a check found pending fixes.
-        self.fix_btn.configure(
-            state="normal" if (not busy and self._has_fixes) else "disabled")
+        self.fix_btn.configure(state="normal" if (not busy and self._has_fixes) else "disabled")
 
     # ---------- pre-flight ----------
 
@@ -781,6 +830,7 @@ class App:
     def _need_pysmb(self) -> bool:
         try:
             import smb  # noqa: F401
+
             return True
         except ImportError:
             messagebox.showerror(self._T("gui.app_title"), self._T("gui.msg.pysmb_needed"))
@@ -809,12 +859,17 @@ class App:
 
     def on_save_config(self) -> None:
         try:
-            core.save_config(CONFIG_PATH, self.host_var.get().strip(),
-                             self.mac_var.get().strip(), self._collect_maps())
+            core.save_config(
+                CONFIG_PATH,
+                self.host_var.get().strip(),
+                self.mac_var.get().strip(),
+                self._collect_maps(),
+            )
             self._info("gui.msg.config_saved", path=CONFIG_PATH)
         except OSError as e:
-            messagebox.showerror(self._T("gui.app_title"),
-                                 self._T("gui.msg.config_save_failed", err=e))
+            messagebox.showerror(
+                self._T("gui.app_title"), self._T("gui.msg.config_save_failed", err=e)
+            )
 
     def _persist(self) -> None:
         """Silently remember the current host / MAC / folders so they're pre-filled next
@@ -839,18 +894,24 @@ class App:
         the MAC; ARP is the fallback). The HAP must be awake and on the same
         network (click Wake first if it's asleep).
         """
+
         def job():
             prefixes = discover.local_subnet_prefixes()
             if not prefixes:
                 self._emit("error", msg=self._T("gui.log.net.no_interface"))
                 return
             self._status_t("gui.conn.detecting")
-            self._log_t("gui.log.net.scanning", port=API_PORT,
-                        subnets=", ".join(p + "0/24" for p in prefixes))
+            self._log_t(
+                "gui.log.net.scanning",
+                port=API_PORT,
+                subnets=", ".join(p + "0/24" for p in prefixes),
+            )
             scan = discover.find_hap(
                 prefixes=prefixes,
-                on_candidates=lambda hosts: self._log_t("gui.log.net.candidates",
-                                                        hosts=", ".join(hosts)))
+                on_candidates=lambda hosts: self._log_t(
+                    "gui.log.net.candidates", hosts=", ".join(hosts)
+                ),
+            )
             if not scan.candidates:
                 self._status_t("gui.conn.not_found")
                 self._log_t("gui.log.net.no_answer", port=API_PORT)
@@ -863,8 +924,10 @@ class App:
             self._emit("fill", ip=found.ip, mac=found.mac)
             self._emit("conn", ok=True)
             summary = self._T("gui.log.net.detected", model=found.model, ip=found.ip) + (
-                self._T("gui.log.net.mac", mac=found.mac) if found.mac
-                else self._T("gui.log.net.no_mac"))
+                self._T("gui.log.net.mac", mac=found.mac)
+                if found.mac
+                else self._T("gui.log.net.no_mac")
+            )
             self._emit("status", text=summary)
             self._emit("log", line=summary + "  —  " + self._T("gui.log.net.save_hint"))
 
@@ -908,7 +971,8 @@ class App:
         def job():
             self._log_t("gui.log.fix.applying")
             _changed, msg = smb_doctor.apply_fixes(
-                findings, on_log=lambda line: self._emit("log", line=line))
+                findings, on_log=lambda line: self._emit("log", line=line)
+            )
             self._emit("log", line=msg)
             # Re-diagnose so the report and the connection dot reflect the new state.
             after = smb_doctor.diagnose(host)
@@ -951,8 +1015,7 @@ class App:
     def _refresh_update_button(self) -> None:
         status = self._update_status
         if status is not None and status.available and status.latest is not None:
-            self.update_btn.configure(
-                text=self._T("gui.update.btn", version=status.latest.version))
+            self.update_btn.configure(text=self._T("gui.update.btn", version=status.latest.version))
             if not self.update_btn.winfo_manager():
                 self.update_btn.pack(side="right", padx=(0, 10))
         elif self.update_btn.winfo_manager():
@@ -963,9 +1026,13 @@ class App:
         self._refresh_update_button()
         if status.available and status.latest is not None:
             if not self.busy:
-                self.status_var.set(self._T("gui.update.available",
-                                            version=status.latest.version,
-                                            current=status.current))
+                self.status_var.set(
+                    self._T(
+                        "gui.update.available",
+                        version=status.latest.version,
+                        current=status.current,
+                    )
+                )
             if interactive:
                 self.on_update()
             return
@@ -1031,9 +1098,10 @@ class App:
             self._info("gui.update.launched", version=version)
             self._on_close()
         elif result.restart:
-            if messagebox.askyesno(self._T("gui.app_title"),
-                                   self._T("gui.update.applied_restart",
-                                           version=version, msg=result.message)):
+            if messagebox.askyesno(
+                self._T("gui.app_title"),
+                self._T("gui.update.applied_restart", version=version, msg=result.message),
+            ):
                 self._persist()
                 hap_update.restart_self()
         else:
@@ -1049,9 +1117,13 @@ class App:
         The worker must never touch a tk variable: outside the main loop such a
         call blocks (or raises "main thread is not in main loop").
         """
-        return {"cfg": self._cfg(), "maps": self._collect_maps(),
-                "include_unsupported": self.unsupported_var.get(),
-                "refresh": self.refresh_var.get(), "new_only": self.new_only_var.get()}
+        return {
+            "cfg": self._cfg(),
+            "maps": self._collect_maps(),
+            "include_unsupported": self.unsupported_var.get(),
+            "refresh": self.refresh_var.get(),
+            "new_only": self.new_only_var.get(),
+        }
 
     def _scan_maps(self, lazy: core.LazySmb, opts: dict) -> tuple[list[dict], int]:
         """Analyse every mapped folder; returns (scans, number of maps whose folder is gone).
@@ -1059,15 +1131,25 @@ class App:
         Runs on the worker thread with the options captured by `_scan_options`.
         """
         cfg, maps = opts["cfg"], opts["maps"]
-        include_unsup, refresh, new_only = (opts["include_unsupported"], opts["refresh"],
-                                            opts["new_only"])
+        include_unsup, refresh, new_only = (
+            opts["include_unsupported"],
+            opts["refresh"],
+            opts["new_only"],
+        )
         scans: list[dict] = []
         missing = 0
         for m in maps:
             self._log_t("gui.log.analyzing", local=m["local"], share=m["share"])
-            s = core.scan_map(cfg, lazy, m, include_unsup, refresh, new_only=new_only,
-                              on_scan=self._log_scan,
-                              on_progress=self._listing_progress(m["share"]))
+            s = core.scan_map(
+                cfg,
+                lazy,
+                m,
+                include_unsup,
+                refresh,
+                new_only=new_only,
+                on_scan=self._log_scan,
+                on_progress=self._listing_progress(m["share"]),
+            )
             if s is None:
                 self._log_t("gui.log.folder_missing", local=m["local"])
                 missing += 1
@@ -1087,8 +1169,12 @@ class App:
                 scans, _missing = self._scan_maps(lazy, opts)
                 total = len(core.jobs_for(scans))
                 self._status_t("gui.status.analysis_done", n=total)
-                self._emit("log", line="\n" + self._T("gui.log.plan", n=total)
-                           + (self._T("gui.log.plan_new_only") if opts["new_only"] else ""))
+                self._emit(
+                    "log",
+                    line="\n"
+                    + self._T("gui.log.plan", n=total)
+                    + (self._T("gui.log.plan_new_only") if opts["new_only"] else ""),
+                )
             finally:
                 lazy.close()
 
@@ -1115,9 +1201,13 @@ class App:
                 smb.reconnect()  # a long listing can desync SMB1 — upload on a fresh connection
                 self._emit("log", line="\n" + self._T("gui.log.transferring", n=len(jobs)))
                 index_by_share = {s["share"]: s["remote"] for s in scans}
-                done, failed = core.transfer(smb, jobs, index_by_share,
-                                             on_event=self._transfer_event,
-                                             should_cancel=self.stop_event.is_set)
+                done, failed = core.transfer(
+                    smb,
+                    jobs,
+                    index_by_share,
+                    on_event=self._transfer_event,
+                    should_cancel=self.stop_event.is_set,
+                )
                 for share, idx in index_by_share.items():
                     core.save_cache(cfg, share, idx)
                 self._status_t("gui.status.done", done=done, failed=failed)
@@ -1133,12 +1223,21 @@ class App:
         if kind == "file_done":
             self._emit("progress", value=e["i"])
             self._emit("status", text=f"{e['i']}/{e['total']} — {e['share']}:/{e['rel']}")
-            self._emit("log", line=f"  [{e['i']}/{e['total']}] {e['share']}:/{e['rel']}  "
-                                   f"({human_size(e['size'])})")
+            self._emit(
+                "log",
+                line=f"  [{e['i']}/{e['total']}] {e['share']}:/{e['rel']}  "
+                f"({human_size(e['size'])})",
+            )
         elif kind == "file_failed":
             self._emit("progress", value=e["i"])
-            self._log_t("gui.log.file_failed", i=e["i"], total=e["total"], share=e["share"],
-                        rel=e["rel"], error=e["error"])
+            self._log_t(
+                "gui.log.file_failed",
+                i=e["i"],
+                total=e["total"],
+                share=e["share"],
+                rel=e["rel"],
+                error=e["error"],
+            )
         elif kind == "cancelled":
             self._emit("log", line="\n" + self._T("gui.log.cancelled", i=e["i"], total=e["total"]))
 
@@ -1151,11 +1250,13 @@ class App:
         def job():
             self._emit("log", line=self._T("gui.log.scanning_folder", folder=folder) + "\n")
             r = comp.scan_folder(folder)
-            for key, value in (("gui.val.playable", r["n_ok"]),
-                               ("gui.val.unsupported", r["n_unsup"]),
-                               ("gui.val.junk", r["n_junk"]),
-                               ("gui.val.over_ceiling", r["n_hi"]),
-                               ("gui.val.missing_cover", len(r["no_cover"]))):
+            for key, value in (
+                ("gui.val.playable", r["n_ok"]),
+                ("gui.val.unsupported", r["n_unsup"]),
+                ("gui.val.junk", r["n_junk"]),
+                ("gui.val.over_ceiling", r["n_hi"]),
+                ("gui.val.missing_cover", len(r["no_cover"])),
+            ):
                 self._emit("log", line=f"{self._T(key):<32}: {value}")
             self._log_section(self._T("gui.val.sec.junk"), r["junk"])
             self._log_section(self._T("gui.val.sec.unsupported"), r["unsup"])
@@ -1180,10 +1281,12 @@ class App:
             r = comp.diff_library(db, folder)
             self._log_t("gui.diff.have", n=r["have_count"])
             self._emit("log", line=self._T("gui.diff.local", path=os.path.abspath(folder)) + "\n")
-            self._log_section(self._T("gui.diff.new", n=len(r["new"])), r["new"], "+",
-                              limit=len(r["new"]))
-            self._log_section(self._T("gui.diff.existing", n=len(r["existing"])),
-                              r["existing"], "=")
+            self._log_section(
+                self._T("gui.diff.new", n=len(r["new"])), r["new"], "+", limit=len(r["new"])
+            )
+            self._log_section(
+                self._T("gui.diff.existing", n=len(r["existing"])), r["existing"], "="
+            )
 
         self._run_async(job, self.diff_log)
 
@@ -1200,38 +1303,52 @@ class App:
         todo, remote = s["todo"], s["remote"]
         new_only = s.get("new_only")
         to_go = core.actionable(s)
-        self._emit("log", line="  " + self._T(
-            "gui.log.scan_summary", source=s["source"], remote=len(remote), n=len(to_go),
-            size=human_size(sum(t.size for t in to_go)),
-            junk=s["skipped"]["junk"], unsupported=s["skipped"]["unsupported"]))
+        self._emit(
+            "log",
+            line="  "
+            + self._T(
+                "gui.log.scan_summary",
+                source=s["source"],
+                remote=len(remote),
+                n=len(to_go),
+                size=human_size(sum(t.size for t in to_go)),
+                junk=s["skipped"]["junk"],
+                unsupported=s["skipped"]["unsupported"],
+            ),
+        )
 
         changed, new = core.split_plan(todo)
         cap = self.LOG_CAP
         # CHANGED first — these are the surprising ones (path already on the HAP, bytes differ).
         if changed:
-            head = ("\n  " + self._T("gui.log.changed_head", n=len(changed))
-                    + self._T("gui.log.changed_skipped" if new_only else "gui.log.changed_hint")
-                    + self._T("gui.log.changed_tail"))
+            head = (
+                "\n  "
+                + self._T("gui.log.changed_head", n=len(changed))
+                + self._T("gui.log.changed_skipped" if new_only else "gui.log.changed_hint")
+                + self._T("gui.log.changed_tail")
+            )
             self._emit("log", line=head)
             for entry in changed[:cap]:
-                self._emit("log",
-                           line=f"      ~ {entry.rel}  ({core.describe_changed(entry, remote)})")
+                self._emit(
+                    "log", line=f"      ~ {entry.rel}  ({core.describe_changed(entry, remote)})"
+                )
             if len(changed) > cap:
-                self._emit("log", line="      "
-                           + self._T("gui.log.more_in_file", n=len(changed) - cap))
+                self._emit(
+                    "log", line="      " + self._T("gui.log.more_in_file", n=len(changed) - cap)
+                )
         if new:
             self._emit("log", line="\n  " + self._T("gui.log.new_head", n=len(new)))
             for entry in new[:cap]:
                 self._emit("log", line=f"      + {entry.rel}  ({human_size(entry.size)})")
             if len(new) > cap:
-                self._emit("log", line="      "
-                           + self._T("gui.log.more_in_file", n=len(new) - cap))
+                self._emit("log", line="      " + self._T("gui.log.more_in_file", n=len(new) - cap))
 
         # Always dump the COMPLETE plan to a file so nothing is ever hidden behind a cap.
         try:
             plan_path = core.write_plan_file(s, CONFIG_PATH.parent)
-            self._emit("log", line="\n  "
-                       + self._T("gui.log.plan_saved", n=len(todo), path=plan_path))
+            self._emit(
+                "log", line="\n  " + self._T("gui.log.plan_saved", n=len(todo), path=plan_path)
+            )
         except OSError as e:
             self._emit("log", line="  " + self._T("gui.log.plan_save_failed", err=e))
 

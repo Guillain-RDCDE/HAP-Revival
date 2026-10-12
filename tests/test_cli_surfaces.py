@@ -52,10 +52,26 @@ def client_on_mock(device, monkeypatch):
 # ---------- the shared version ----------
 
 
-EVERY_TOOL = ["api-fuzzer", "call", "discover", "hap_client", "hap_companion", "hap_fixit",
-              "hap_intercept", "hap_library", "hap_notify", "hap_screen", "hap_sync",
-              "library_audit", "library_browser", "mock_hap", "smb_doctor", "smoke_live",
-              "webui", "hap_update"]
+EVERY_TOOL = [
+    "api-fuzzer",
+    "call",
+    "discover",
+    "hap_client",
+    "hap_companion",
+    "hap_fixit",
+    "hap_intercept",
+    "hap_library",
+    "hap_notify",
+    "hap_screen",
+    "hap_sync",
+    "library_audit",
+    "library_browser",
+    "mock_hap",
+    "smb_doctor",
+    "smoke_live",
+    "webui",
+    "hap_update",
+]
 
 
 @pytest.mark.parametrize("name", EVERY_TOOL)
@@ -145,6 +161,7 @@ def test_client_cli_radio_against_the_mock(client_on_mock, capsys):
 
 def test_client_cli_error_codes(client_on_mock, capsys, monkeypatch):
     host = client_on_mock
+
     # A method the device does not have: a JSON-RPC error → exit 1.
     def unsupported():
         raise KeyError("x")
@@ -154,8 +171,9 @@ def test_client_cli_error_codes(client_on_mock, capsys, monkeypatch):
     assert capsys.readouterr().err
     # A dead host → exit 2.
     monkeypatch.undo()
-    monkeypatch.setattr(hap_client, "HAP",
-                        lambda ip, *a, **k: hap_client.HAP.__init__ and _DeadHAP())
+    monkeypatch.setattr(
+        hap_client, "HAP", lambda ip, *a, **k: hap_client.HAP.__init__ and _DeadHAP()
+    )
     assert hap_client.main(["127.0.0.1", "system"]) == 2
     assert capsys.readouterr().err
 
@@ -177,8 +195,10 @@ def test_client_cli_radio_commands_with_a_recorder(monkeypatch, capsys):
             return {"pinCode": "SW94LN"}
 
         def radio_browse(self, path, scope=None):
-            return [{"path": "/1", "title": "Local Radio", "isBrowsable": True},
-                    {"path": "/1/1", "title": "FIP", "isPlayable": True, "uri": "netService:x"}]
+            return [
+                {"path": "/1", "title": "Local Radio", "isBrowsable": True},
+                {"path": "/1/1", "title": "FIP", "isPlayable": True, "uri": "netService:x"},
+            ]
 
         def play_station_uri(self, uri):
             return {}
@@ -309,18 +329,30 @@ def test_library_harvest_progress_estimates(lib_cli, capsys):
 
 def _harvest():
     return {
-        "host": "10.0.0.1", "artists": [], "albums": [
-            {"albumid": 1, "name": "Album", "number_of_tracks": 1, "album_artist": {"name": "X"}}],
-        "tracks": [{"trackid": 1, "name": "t", "filename": "01 - a.flac", "duration": 10,
-                    "album": {"albumid": 1, "name": "Album"}, "artist": {"name": "X"},
-                    "codec": {"codec_type": "flac", "sample_rate": 44100, "bit_width": 16}}],
+        "host": "10.0.0.1",
+        "artists": [],
+        "albums": [
+            {"albumid": 1, "name": "Album", "number_of_tracks": 1, "album_artist": {"name": "X"}}
+        ],
+        "tracks": [
+            {
+                "trackid": 1,
+                "name": "t",
+                "filename": "01 - a.flac",
+                "duration": 10,
+                "album": {"albumid": 1, "name": "Album"},
+                "artist": {"name": "X"},
+                "codec": {"codec_type": "flac", "sample_rate": 44100, "bit_width": 16},
+            }
+        ],
     }
 
 
 def _index():
-    return {"host": "10.0.0.1",
-            "shares": {"HAP_Internal": [["/X/Album", "01 - a.flac", 1],
-                                        ["/X/Album", "cover.jpg", 1]]}}
+    return {
+        "host": "10.0.0.1",
+        "shares": {"HAP_Internal": [["/X/Album", "01 - a.flac", 1], ["/X/Album", "cover.jpg", 1]]},
+    }
 
 
 def test_fixit_cli_needs_both_caches(capsys):
@@ -368,8 +400,11 @@ def test_fixit_cli_refuses_to_open_an_unlocated_album(monkeypatch, capsys):
 
 
 def test_fixit_cli_index_and_scan_local(monkeypatch, capsys, tmp_path):
-    monkeypatch.setattr(hap_fixit, "crawl_shares", lambda host, progress=None: (
-        progress("HAP_Internal", 100, 100, 5) or _index()))
+    monkeypatch.setattr(
+        hap_fixit,
+        "crawl_shares",
+        lambda host, progress=None: progress("HAP_Internal", 100, 100, 5) or _index(),
+    )
     assert hap_fixit.main(["10.0.0.1", "index"]) == 0
     out = capsys.readouterr().out
     assert "HAP_Internal 100/100 folders" in out and "'HAP_Internal': 2" in out
@@ -475,8 +510,9 @@ def test_fixit_editor_lookup_and_folder_opening(monkeypatch, tmp_path):
 
 
 def test_notify_cli_streams_and_counts(monkeypatch, capsys):
-    datagram = (b"NOTIFY * HTTP/1.1\r\nSEQ: 1\r\n\r\n"
-                b'{"event": "playingtrackChanged", "url": "http://p/x"}')
+    datagram = (
+        b'NOTIFY * HTTP/1.1\r\nSEQ: 1\r\n\r\n{"event": "playingtrackChanged", "url": "http://p/x"}'
+    )
     event = hap_notify.parse_notify(datagram)
 
     class Fake(hap_notify.HapNotifier):
@@ -686,15 +722,21 @@ def test_intercept_http_relay(monkeypatch):
         import http.client
 
         conn = http.client.HTTPConnection("127.0.0.1", proxy.server_address[1], timeout=10)
-        conn.request("GET", "/HAP/update.xml", headers={
-            "Host": "info.update.sony.net", "User-Agent": "HAP-Z1ES"})
+        conn.request(
+            "GET",
+            "/HAP/update.xml",
+            headers={"Host": "info.update.sony.net", "User-Agent": "HAP-Z1ES"},
+        )
         resp = conn.getresponse()
         body = resp.read()
         assert resp.status == 200 and body == b"firmware-list"
         assert resp.getheader("Content-Length") == str(len(body))
         assert resp.getheader("Transfer-Encoding") is None
-        assert seen == {"path": "/HAP/update.xml", "host": "info.update.sony.net",
-                        "agent": "HAP-Z1ES"}
+        assert seen == {
+            "path": "/HAP/update.xml",
+            "host": "info.update.sony.net",
+            "agent": "HAP-Z1ES",
+        }
 
         conn = http.client.HTTPConnection("127.0.0.1", proxy.server_address[1], timeout=10)
         conn.request("HEAD", "/x", headers={"Host": "info.update.sony.net"})
@@ -782,8 +824,9 @@ def test_intercept_main_runs_until_interrupted(monkeypatch, capsys, tmp_path):
 
     monkeypatch.setattr(hap_intercept.time, "sleep", interrupt)
     log = tmp_path / "sub" / "log.jsonl"
-    rc = hap_intercept.main(["--ip", "10.0.0.1", "--hijack", "Info.Update.Sony.Net",
-                             "--log", str(log)])
+    rc = hap_intercept.main(
+        ["--ip", "10.0.0.1", "--hijack", "Info.Update.Sony.Net", "--log", str(log)]
+    )
     assert rc == 0
     out = capsys.readouterr().out
     assert "HTTP relaying on 10.0.0.1:80 for: info.update.sony.net" in out

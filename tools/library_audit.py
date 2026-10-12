@@ -38,6 +38,7 @@ Usage:
 Getting the DB: it lives on the HDD's `/data` partition as `hdd_browse.db`.
 See docs/09-disk-layout.md. Stdlib only (sqlite3).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -354,14 +355,13 @@ def build_report(a, top: int) -> dict:
         "over_ceiling": [
             t for t in over if not looks_corrupt(t["srate"], t.get("bits"), t.get("dur"))
         ],
-        "corrupt": [
-            t for t in over if looks_corrupt(t["srate"], t.get("bits"), t.get("dur"))
-        ],
+        "corrupt": [t for t in over if looks_corrupt(t["srate"], t.get("bits"), t.get("dur"))],
         "top": top,
     }
 
 
 # ---------------- text output ----------------
+
 
 def khz(hz) -> str:
     hz = int(hz or 0)
@@ -384,14 +384,21 @@ def render_text(r: dict) -> str:  # noqa: C901 - one block per report section
     P("  HAP LIBRARY AUDIT")
     P("=" * 60)
     P(f"  source: {r['source']}")
-    P(f"  {fmt_int(t['tracks'])} tracks · {fmt_int(t['albums'])} albums · "
-      f"{fmt_int(t['artists'])} artists")
+    P(
+        f"  {fmt_int(t['tracks'])} tracks · {fmt_int(t['albums'])} albums · "
+        f"{fmt_int(t['artists'])} artists"
+    )
     P(f"  total playtime: {fmt_dur_long(t['playtime'])}")
     P(f"  lossless: {r['lossless_pct']:.1f}%   ·   hi-res or DSD: {r['hires_pct']:.1f}%")
     P("")
     P("-- quality mix " + "-" * 45)
-    labels = {"hires": "Hi-Res PCM", "dsd": "DSD", "cd": "CD-quality",
-              "lossy": "Lossy", "unknown": "Unknown"}
+    labels = {
+        "hires": "Hi-Res PCM",
+        "dsd": "DSD",
+        "cd": "CD-quality",
+        "lossy": "Lossy",
+        "unknown": "Unknown",
+    }
     for k in ("hires", "dsd", "cd", "lossy", "unknown"):
         c = r["buckets"][k]
         if c or k != "unknown":
@@ -411,8 +418,10 @@ def render_text(r: dict) -> str:  # noqa: C901 - one block per report section
         P(f"  {label:<8} {bar(c / n)} {fmt_int(c)}")
     P("")
     if not r["has_drm_and_channels"]:
-        P("  multichannel / DRM: not visible over the network API "
-          "(only the on-disk catalog carries those two fields)")
+        P(
+            "  multichannel / DRM: not visible over the network API "
+            "(only the on-disk catalog carries those two fields)"
+        )
     elif r["multich"] or r["drm"]:
         P(f"  multichannel tracks: {fmt_int(r['multich'])}   ·   DRM-flagged: {fmt_int(r['drm'])}")
 
@@ -425,8 +434,10 @@ def render_text(r: dict) -> str:  # noqa: C901 - one block per report section
     else:
         P(f"  {len(oc)} track(s) exceed 192 kHz PCM (HAP will downsample/refuse):")
         for row in oc[:top]:
-            P(f"    {khz(row['srate'])} {row['codec']}  "
-              f"· {row['artist'] or '?'} — {row['title'] or '?'}")
+            P(
+                f"    {khz(row['srate'])} {row['codec']}  "
+                f"· {row['artist'] or '?'} — {row['title'] or '?'}"
+            )
         if len(oc) > top:
             P(f"    … and {len(oc) - top} more")
 
@@ -437,8 +448,10 @@ def render_text(r: dict) -> str:  # noqa: C901 - one block per report section
         P(f"  {len(cor)} track(s) report impossible values — the indexer could not read")
         P("  them, and they are unlikely to play:")
         for row in cor[:top]:
-            P(f"    {khz(row['srate'])} {row['codec']}  "
-              f"· {row['artist'] or '?'} — {row['title'] or '?'}")
+            P(
+                f"    {khz(row['srate'])} {row['codec']}  "
+                f"· {row['artist'] or '?'} — {row['title'] or '?'}"
+            )
 
     mc = r["missing_cover"]
     P("")
@@ -473,6 +486,7 @@ def print_report(r: dict) -> None:
 
 # ---------------- HTML output ----------------
 
+
 def render_html(r: dict) -> str:
     t = r["totals"]
     n = max(1, t["tracks"])
@@ -488,8 +502,14 @@ def render_html(r: dict) -> str:
 
     qmix = "".join(
         bardiv(r["buckets"][k] / n, lbl, r["buckets"][k])
-        for k, lbl in (("hires", "Hi-Res PCM"), ("dsd", "DSD"), ("cd", "CD-quality"),
-                       ("lossy", "Lossy"), ("unknown", "Unknown")) if r["buckets"][k]
+        for k, lbl in (
+            ("hires", "Hi-Res PCM"),
+            ("dsd", "DSD"),
+            ("cd", "CD-quality"),
+            ("lossy", "Lossy"),
+            ("unknown", "Unknown"),
+        )
+        if r["buckets"][k]
     )
     fmts = "".join(bardiv(c / n, name, c) for name, c in r["codec_count"].items())
     srates = "".join(bardiv(c / n, khz(hz), c) for hz, c in r["srate_count"].items())
@@ -497,28 +517,37 @@ def render_html(r: dict) -> str:
     def listing(title, rows, fmt, empty):
         if not rows:
             return f"<h2>{e(title)}</h2><p class='ok'>{e(empty)} ✓</p>"
-        items = "".join(f"<li>{fmt(row)}</li>" for row in rows[: r['top']])
+        items = "".join(f"<li>{fmt(row)}</li>" for row in rows[: r["top"]])
         more = ""
         if len(rows) > r["top"]:
             more = f"<li class='muted'>… and {len(rows) - r['top']} more</li>"
         return f"<h2>{e(title)} <span class='pill'>{len(rows)}</span></h2><ul>{items}{more}</ul>"
 
     oc = listing(
-        "PCM above the 192 kHz ceiling", r["over_ceiling"],
-        lambda x: f"<b>{e(khz(x['srate']))}</b> {e(x['codec'])} · "
-                  f"{e(x['artist'] or '?')} — {e(x['title'] or '?')}",
+        "PCM above the 192 kHz ceiling",
+        r["over_ceiling"],
+        lambda x: (
+            f"<b>{e(khz(x['srate']))}</b> {e(x['codec'])} · "
+            f"{e(x['artist'] or '?')} — {e(x['title'] or '?')}"
+        ),
         "Every PCM track is within the HAP's native range.",
     )
     mc = listing(
-        "Albums missing cover art", r["missing_cover"],
-        lambda x: f"{e(x['aa'] or '?')} — <b>{e(x['name'] or '?')}</b> "
-                  f"<span class='muted'>({x['trks']} trk)</span>",
+        "Albums missing cover art",
+        r["missing_cover"],
+        lambda x: (
+            f"{e(x['aa'] or '?')} — <b>{e(x['name'] or '?')}</b> "
+            f"<span class='muted'>({x['trks']} trk)</span>"
+        ),
         "Every album has artwork.",
     )
     dup = listing(
-        "Likely duplicate tracks", r["duplicates"],
-        lambda x: f"<span class='pill'>×{x['n']}</span> {e(x['artist'] or '?')} — "
-                  f"<b>{e(x['title'])}</b> <span class='muted'>[{e(x['album'] or '?')}]</span>",
+        "Likely duplicate tracks",
+        r["duplicates"],
+        lambda x: (
+            f"<span class='pill'>×{x['n']}</span> {e(x['artist'] or '?')} — "
+            f"<b>{e(x['title'])}</b> <span class='muted'>[{e(x['album'] or '?')}]</span>"
+        ),
         "No duplicate titles within an album.",
     )
 
@@ -549,15 +578,15 @@ li{{padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}}
 b{{color:#fff;font-weight:600}}
 </style></head><body>
 <header><h1>🎵 HAP Library Audit</h1>
-<div class="big">{r['lossless_pct']:.1f}% lossless · {r['hires_pct']:.1f}% hi-res or DSD ·
-total playtime {e(fmt_dur_long(t['playtime']))}</div></header>
+<div class="big">{r["lossless_pct"]:.1f}% lossless · {r["hires_pct"]:.1f}% hi-res or DSD ·
+total playtime {e(fmt_dur_long(t["playtime"]))}</div></header>
 <main>
 <div class="cards">
-  <div class="stat"><div class="num">{fmt_int(t['tracks'])}</div><div class="cap">tracks</div></div>
-  <div class="stat"><div class="num">{fmt_int(t['albums'])}</div><div class="cap">albums</div></div>
-  <div class="stat"><div class="num">{fmt_int(t['artists'])}</div>
+  <div class="stat"><div class="num">{fmt_int(t["tracks"])}</div><div class="cap">tracks</div></div>
+  <div class="stat"><div class="num">{fmt_int(t["albums"])}</div><div class="cap">albums</div></div>
+  <div class="stat"><div class="num">{fmt_int(t["artists"])}</div>
     <div class="cap">artists</div></div>
-  <div class="stat"><div class="num">{r['buckets']['dsd']}</div>
+  <div class="stat"><div class="num">{r["buckets"]["dsd"]}</div>
     <div class="cap">DSD tracks</div></div>
 </div>
 <h2>Quality mix</h2>{qmix}

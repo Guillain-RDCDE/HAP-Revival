@@ -341,7 +341,7 @@ class HapNotifier:
         while end is None or time.monotonic() < end:
             sock = self._sock
             if sock is None:
-                return                      # closed while we were iterating
+                return  # closed while we were iterating
             if time.monotonic() >= self._next_rearm:
                 try:
                     self.subscribe()
@@ -361,7 +361,7 @@ class HapNotifier:
                 # is unharmed; keep listening.
                 continue
             except OSError:
-                return                      # socket closed under us
+                return  # socket closed under us
             event = self.handle_datagram(data, address[0])
             if event is not None:
                 yield event
@@ -381,11 +381,7 @@ class HapNotifier:
         path = event.readback_path
         if not path:
             return None
-        url = (
-            path
-            if path.startswith("http://")
-            else f"http://{self.ip}:{self.api_port}{path}"
-        )
+        url = path if path.startswith("http://") else f"http://{self.ip}:{self.api_port}{path}"
         request = Request(url, headers={"Accept": "application/json", "Connection": "close"})  # noqa: S310 - opened only by hap_common.http_open
         try:
             with http_open(request, timeout=self.timeout) as response:
@@ -407,10 +403,7 @@ def _describe(event: NotifyEvent, state: dict | None, raw: bool) -> str:
         lines.append(f"          {json.dumps(state, ensure_ascii=False)}")
     if raw:
         lines.append("          --- raw ---")
-        lines.extend(
-            "          " + ln
-            for ln in event.raw.decode("utf-8", "replace").splitlines()
-        )
+        lines.extend("          " + ln for ln in event.raw.decode("utf-8", "replace").splitlines())
     return "\n".join(lines)
 
 
@@ -425,9 +418,7 @@ def main(argv: list[str] | None = None) -> int:
         "--lang",
         help="Output language: en, fr, ja, de, es, it (default: auto from OS locale / HAP_LANG).",
     )
-    parser.add_argument(
-        "--api-port", type=int, default=DEFAULT_API_PORT, help="player API port"
-    )
+    parser.add_argument("--api-port", type=int, default=DEFAULT_API_PORT, help="player API port")
     parser.add_argument(
         "--port",
         type=int,
@@ -454,9 +445,7 @@ def main(argv: list[str] | None = None) -> int:
         _LANG = i18n.detect_lang(override=args.lang)
 
     try:
-        notifier = HapNotifier(
-            args.ip, api_port=args.api_port, listen_port=args.port
-        )
+        notifier = HapNotifier(args.ip, api_port=args.api_port, listen_port=args.port)
         notifier.open()
     except NotifyError as exc:
         print(_t("notify.err.subscribe", msg=str(exc)), file=sys.stderr)

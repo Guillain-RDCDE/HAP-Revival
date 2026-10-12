@@ -166,25 +166,29 @@ def fuzz_method(ip: str, port: int, service: str, method: str, sleep=time.sleep)
         if klass != "UNSUPPORTED_VERSION":
             snippet = json.dumps(reply.as_dict())[:140]
             print(f"  [{klass:18s}] {service:10s} {method:35s} v{version}: {snippet}")
-            findings.append({
-                "service": service,
-                "method": method,
-                "version": version,
-                "class": klass,
-                "response": reply.as_dict(),
-            })
+            findings.append(
+                {
+                    "service": service,
+                    "method": method,
+                    "version": version,
+                    "class": klass,
+                    "response": reply.as_dict(),
+                }
+            )
             if klass in DECISIVE:
                 return findings
         sleep(PAUSE_SEC)
     # Every version answered UNSUPPORTED_VERSION (or only transport noise).
     print(f"  [UNSUPPORTED_ALL  ] {service:10s} {method:35s} (all versions tried)")
-    findings.append({
-        "service": service,
-        "method": method,
-        "version": None,
-        "class": "UNSUPPORTED_VERSION_ALL",
-        "response": None,
-    })
+    findings.append(
+        {
+            "service": service,
+            "method": method,
+            "version": None,
+            "class": "UNSUPPORTED_VERSION_ALL",
+            "response": None,
+        }
+    )
     return findings
 
 

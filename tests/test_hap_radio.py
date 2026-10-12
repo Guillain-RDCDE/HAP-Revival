@@ -28,8 +28,13 @@ class Recorder:
 
     def __call__(self, service, method, version, params=None, *, send_client_id=True):
         self.calls.append(
-            {"service": service, "method": method, "version": version,
-             "params": params, "send_client_id": send_client_id}
+            {
+                "service": service,
+                "method": method,
+                "version": version,
+                "params": params,
+                "send_client_id": send_client_id,
+            }
         )
         return self.reply
 
@@ -53,9 +58,7 @@ def test_check_sends_the_confirmed_shape(hap, monkeypatch):
     assert rec.last["service"] == "avContent"
     assert rec.last["method"] == "registerDevice"
     assert rec.last["version"] == "1.0"
-    assert rec.last["params"] == [
-        {"uri": "netService:audio?serviceName=tunein", "method": "check"}
-    ]
+    assert rec.last["params"] == [{"uri": "netService:audio?serviceName=tunein", "method": "check"}]
 
 
 def test_getpin_is_accepted(hap, monkeypatch):
@@ -71,7 +74,7 @@ def test_unknown_registration_method_is_refused_locally(hap, monkeypatch):
     monkeypatch.setattr(hap, "call", rec)
     with pytest.raises(ValueError):
         hap.radio_registration("please-register-me")
-    assert rec.calls == []          # never reached the device
+    assert rec.calls == []  # never reached the device
 
 
 @pytest.mark.parametrize(
@@ -80,14 +83,14 @@ def test_unknown_registration_method_is_refused_locally(hap, monkeypatch):
         # what call() actually hands back, unwrapped — the real contract
         ({"isRegistered": True}, True),
         ({"isRegistered": False}, False),
-        ({}, False),                                      # key absent
+        ({}, False),  # key absent
         # tolerated variants, in case the device ever surprises us
-        ({"result": [{"isRegistered": True}]}, True),      # still wrapped
-        ({"results": [{"isRegistered": True}]}, True),     # plural spelling
-        ([{"isRegistered": True}], True),                  # bare list
-        ({"result": []}, False),                           # empty
-        (None, False),                                     # nothing at all
-        ("not a dict", False),                             # junk
+        ({"result": [{"isRegistered": True}]}, True),  # still wrapped
+        ({"results": [{"isRegistered": True}]}, True),  # plural spelling
+        ([{"isRegistered": True}], True),  # bare list
+        ({"result": []}, False),  # empty
+        (None, False),  # nothing at all
+        ("not a dict", False),  # junk
         ({"result": ["not a dict"]}, False),
     ],
 )
@@ -167,6 +170,7 @@ def test_station_ids_are_not_coerced_to_int(hap, monkeypatch):
     hap.play_station("s13606")
     assert "id=s13606" in rec.last["params"][0]["uri"]
 
+
 # ---------- verification, not gating ----------
 #
 # An earlier version refused to play on an "unregistered" player. That was
@@ -203,7 +207,7 @@ def test_verify_reports_not_started_on_the_silent_failure(hap, monkeypatch):
     monkeypatch.setattr(hap, "_playback_started", lambda settle_sec=8.0: False)
     result = hap.play_station("s13606", verify=True)
     assert result["started"] is False
-    assert result["uri"] == "audio:playinglist?id=1"      # raw reply preserved
+    assert result["uri"] == "audio:playinglist?id=1"  # raw reply preserved
 
 
 @pytest.mark.parametrize(
@@ -211,7 +215,7 @@ def test_verify_reports_not_started_on_the_silent_failure(hap, monkeypatch):
     [
         ("PLAYING", "Radio Paradise", "", True),
         ("PLAYING", "", "netService:audio?x", True),
-        ("PLAYING", "", "", False),        # playing nothing at all
+        ("PLAYING", "", "", False),  # playing nothing at all
         ("PAUSED", "Something", "", False),
         ("STOPPED", "", "", False),
         ("", "", "", False),
@@ -316,8 +320,8 @@ def test_play_station_uri_refuses_a_non_netservice_uri(hap, monkeypatch, bad):
         ("/1/1", "/1/1"),
         ("root", "/"),
         ("", "/"),
-        ("1/1", "/1/1"),                                   # missing leading slash
-        ("C:/Program Files/Git/", "/"),                    # Git Bash mangling
+        ("1/1", "/1/1"),  # missing leading slash
+        ("C:/Program Files/Git/", "/"),  # Git Bash mangling
         (r"C:\Program Files\Git" + "\\", "/"),
         ("D:/anything", "/"),
     ],

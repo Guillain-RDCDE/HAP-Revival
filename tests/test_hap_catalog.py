@@ -7,10 +7,21 @@ import pytest
 import hap_catalog
 
 
-@pytest.mark.parametrize("code,name", [
-    (49, "FLAC"), (81, "MP3"), (97, "AAC"), (65, "ALAC"), (129, "WMA"),
-    (17, "WAV"), (33, "AIFF"), (0, "?"), (None, "?"), (7, "#7"),
-])
+@pytest.mark.parametrize(
+    "code,name",
+    [
+        (49, "FLAC"),
+        (81, "MP3"),
+        (97, "AAC"),
+        (65, "ALAC"),
+        (129, "WMA"),
+        (17, "WAV"),
+        (33, "AIFF"),
+        (0, "?"),
+        (None, "?"),
+        (7, "#7"),
+    ],
+)
 def test_codec_name(code, name):
     assert hap_catalog.codec_name(code) == name
 

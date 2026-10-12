@@ -26,8 +26,14 @@ import urllib.parse
 
 #: ``PROP304B`` codec code -> name, as the front panel spells it.
 CODECS: dict[int, str] = {
-    49: "FLAC", 81: "MP3", 97: "AAC", 65: "ALAC",
-    129: "WMA", 17: "WAV", 33: "AIFF", 0: "?",
+    49: "FLAC",
+    81: "MP3",
+    97: "AAC",
+    65: "ALAC",
+    129: "WMA",
+    17: "WAV",
+    33: "AIFF",
+    0: "?",
 }
 
 

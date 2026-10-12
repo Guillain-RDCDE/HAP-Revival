@@ -67,35 +67,45 @@ def base(files) -> str:
 
 
 def release(version="9.9.9", **extra) -> Release:
-    return Release(version=version, tag=f"hap-sync-v{version}",
-                   url=f"https://github.com/x/y/releases/tag/hap-sync-v{version}", **extra)
+    return Release(
+        version=version,
+        tag=f"hap-sync-v{version}",
+        url=f"https://github.com/x/y/releases/tag/hap-sync-v{version}",
+        **extra,
+    )
 
 
 SAMPLE_API = {
     "tag_name": "hap-sync-v0.3.0",
     "html_url": "https://github.com/Guillain-RDCDE/HAP-Revival/releases/tag/hap-sync-v0.3.0",
     "body": "**Verify your download** — SHA-256 of `HapSync.exe`:\n\n```text\n"
-            + "5207e0d1" * 8 + "\n```\n",
+    + "5207e0d1" * 8
+    + "\n```\n",
     "published_at": "2026-09-25T09:26:28Z",
     "zipball_url": "https://api.github.com/repos/Guillain-RDCDE/HAP-Revival/zipball/hap-sync-v0.3.0",
-    "assets": [{
-        "name": "HapSync.exe",
-        "browser_download_url": "https://github.com/x/HapSync.exe",
-        "size": 14849799,
-        "digest": "sha256:" + "ab" * 32,
-    }],
+    "assets": [
+        {
+            "name": "HapSync.exe",
+            "browser_download_url": "https://github.com/x/HapSync.exe",
+            "size": 14849799,
+            "digest": "sha256:" + "ab" * 32,
+        }
+    ],
 }
 
 
 # ---------- versions ----------
 
 
-@pytest.mark.parametrize("text,parsed", [
-    ("0.4.0", (0, 4, 0, 1, "")),
-    ("v1.2.3", (1, 2, 3, 1, "")),
-    ("0.4.0-rc1", (0, 4, 0, 0, "rc1")),
-    ("0.4.0.dev2", (0, 4, 0, 0, "dev2")),
-])
+@pytest.mark.parametrize(
+    "text,parsed",
+    [
+        ("0.4.0", (0, 4, 0, 1, "")),
+        ("v1.2.3", (1, 2, 3, 1, "")),
+        ("0.4.0-rc1", (0, 4, 0, 0, "rc1")),
+        ("0.4.0.dev2", (0, 4, 0, 0, "dev2")),
+    ],
+)
 def test_parse_version(text, parsed):
     assert hap_update.parse_version(text) == parsed
 
@@ -145,22 +155,32 @@ def test_parse_release_rejects_a_tag_without_a_version():
 
 
 def test_resolve_sha256_falls_back_to_sums_file_then_notes(monkeypatch):
-    rel = hap_update.parse_release({**SAMPLE_API, "assets": [
-        {"name": "HapSync.exe", "browser_download_url": "u"},
-        {"name": "SHA256SUMS.txt", "browser_download_url": "sums"},
-    ]})
+    rel = hap_update.parse_release(
+        {
+            **SAMPLE_API,
+            "assets": [
+                {"name": "HapSync.exe", "browser_download_url": "u"},
+                {"name": "SHA256SUMS.txt", "browser_download_url": "sums"},
+            ],
+        }
+    )
     exe = rel.asset("HapSync.exe")
     assert exe.sha256 is None
-    monkeypatch.setattr(hap_update, "fetch_text",
-                        lambda url, timeout=0: f"{'cd' * 32}  *HapSync.exe\n{'ef' * 32}  other\n")
+    monkeypatch.setattr(
+        hap_update,
+        "fetch_text",
+        lambda url, timeout=0: f"{'cd' * 32}  *HapSync.exe\n{'ef' * 32}  other\n",
+    )
     assert hap_update.resolve_sha256(rel, exe) == "cd" * 32
 
-    no_sums = hap_update.parse_release({**SAMPLE_API, "assets": [
-        {"name": "HapSync.exe", "browser_download_url": "u"}]})
+    no_sums = hap_update.parse_release(
+        {**SAMPLE_API, "assets": [{"name": "HapSync.exe", "browser_download_url": "u"}]}
+    )
     assert hap_update.resolve_sha256(no_sums, no_sums.asset("HapSync.exe")) == "5207e0d1" * 8
 
-    nothing = hap_update.parse_release({**SAMPLE_API, "body": "", "assets": [
-        {"name": "HapSync.exe", "browser_download_url": "u"}]})
+    nothing = hap_update.parse_release(
+        {**SAMPLE_API, "body": "", "assets": [{"name": "HapSync.exe", "browser_download_url": "u"}]}
+    )
     assert hap_update.resolve_sha256(nothing, nothing.asset("HapSync.exe")) is None
 
 
@@ -292,15 +312,19 @@ def test_download_verifies_and_cleans_up(http_files, tmp_path):
     http_files["/HapSync.exe"] = payload
     dest = tmp_path / "HapSync.exe.new"
     seen = []
-    digest = hap_update.download(base(http_files) + "/HapSync.exe", dest,
-                                 expected_sha256=hashlib.sha256(payload).hexdigest().upper(),
-                                 progress=lambda d, t: seen.append((d, t)))
+    digest = hap_update.download(
+        base(http_files) + "/HapSync.exe",
+        dest,
+        expected_sha256=hashlib.sha256(payload).hexdigest().upper(),
+        progress=lambda d, t: seen.append((d, t)),
+    )
     assert dest.read_bytes() == payload and digest == hashlib.sha256(payload).hexdigest()
     assert seen[-1] == (len(payload), len(payload))
 
     with pytest.raises(UpdateError, match="checksum mismatch"):
-        hap_update.download(base(http_files) + "/HapSync.exe", tmp_path / "bad",
-                            expected_sha256="00" * 32)
+        hap_update.download(
+            base(http_files) + "/HapSync.exe", tmp_path / "bad", expected_sha256="00" * 32
+        )
     assert not (tmp_path / "bad").exists() and not (tmp_path / "bad.part").exists()
 
     with pytest.raises(UpdateError, match="download failed"):
@@ -314,8 +338,15 @@ def test_update_frozen_swaps_the_exe_and_starts_it(http_files, tmp_path):
     exe = tmp_path / "HapSync.exe"
     exe.write_bytes(b"old exe")
     (tmp_path / "HapSync.exe.old").write_bytes(b"older")  # a leftover from last time
-    rel = release(assets=(Asset("HapSync.exe", base(http_files) + "/HapSync.exe",
-                                sha256=hashlib.sha256(new_bytes).hexdigest()),))
+    rel = release(
+        assets=(
+            Asset(
+                "HapSync.exe",
+                base(http_files) + "/HapSync.exe",
+                sha256=hashlib.sha256(new_bytes).hexdigest(),
+            ),
+        )
+    )
     spawned = []
     result = hap_update.update_frozen(rel, executable=exe, spawn=lambda *a, **k: spawned.append(a))
     assert result.kind == "frozen" and result.restart and result.launched
@@ -326,8 +357,9 @@ def test_update_frozen_swaps_the_exe_and_starts_it(http_files, tmp_path):
     assert hap_update.remove_leftovers(exe) == ["HapSync.exe.old"]
     assert hap_update.remove_leftovers(exe) == []
 
-    quiet = hap_update.update_frozen(rel, executable=exe, launch=False,
-                                     spawn=lambda *a, **k: spawned.append(a))
+    quiet = hap_update.update_frozen(
+        rel, executable=exe, launch=False, spawn=lambda *a, **k: spawned.append(a)
+    )
     assert not quiet.launched and len(spawned) == 1
 
 
@@ -346,8 +378,15 @@ def test_update_frozen_restores_the_old_exe_when_the_swap_fails(http_files, tmp_
     http_files["/HapSync.exe"] = b"new"
     exe = tmp_path / "HapSync.exe"
     exe.write_bytes(b"old")
-    rel = release(assets=(Asset("HapSync.exe", base(http_files) + "/HapSync.exe",
-                                sha256=hashlib.sha256(b"new").hexdigest()),))
+    rel = release(
+        assets=(
+            Asset(
+                "HapSync.exe",
+                base(http_files) + "/HapSync.exe",
+                sha256=hashlib.sha256(b"new").hexdigest(),
+            ),
+        )
+    )
     real_rename = hap_update.Path.rename
 
     def rename(self, target):
@@ -419,10 +458,13 @@ def test_update_source_lays_the_release_over_the_folder(http_files, tmp_path):
     (root / "tools").mkdir(parents=True)
     (root / "tools" / "hap_update.py").write_text("old", encoding="utf-8")
     (root / "tools" / "hap_sync.json").write_text("mine", encoding="utf-8")
-    http_files["/zip"] = make_zip("Guillain-RDCDE-HAP-Revival-abc123", {
-        "tools/hap_update.py": b"new",
-        "docs/new.md": b"# new",
-    })
+    http_files["/zip"] = make_zip(
+        "Guillain-RDCDE-HAP-Revival-abc123",
+        {
+            "tools/hap_update.py": b"new",
+            "docs/new.md": b"# new",
+        },
+    )
     rel = release(zipball=base(http_files) + "/zip")
     result = hap_update.update_source(rel, root=root)
     assert result.kind == "source" and result.restart and result.message.startswith("2 files")
@@ -462,14 +504,21 @@ def test_apply_dispatches_on_the_install_kind(monkeypatch):
     assert hap_update.apply(status).kind == "git"
 
     monkeypatch.setattr(hap_update, "install_kind", lambda root=None: "frozen")
-    monkeypatch.setattr(hap_update, "update_frozen",
-                        lambda rel, progress=None, launch=True:
-                        hap_update.Result("frozen", rel.version, True, launch))
+    monkeypatch.setattr(
+        hap_update,
+        "update_frozen",
+        lambda rel, progress=None, launch=True: hap_update.Result(
+            "frozen", rel.version, True, launch
+        ),
+    )
     assert hap_update.apply(status, launch=False).message == "9.9.9"
 
     monkeypatch.setattr(hap_update, "install_kind", lambda root=None: "source")
-    monkeypatch.setattr(hap_update, "update_source",
-                        lambda rel, progress=None: hap_update.Result("source", "zip", True))
+    monkeypatch.setattr(
+        hap_update,
+        "update_source",
+        lambda rel, progress=None: hap_update.Result("source", "zip", True),
+    )
     assert hap_update.apply(status).message == "zip"
 
     assert hap_update.apply(Status(latest=release("0.0.1"))).message.endswith("latest release")
@@ -511,8 +560,7 @@ class Tty(io.StringIO):
 def test_notice_at_exit_prints_from_the_cache_on_a_terminal(enabled, monkeypatch):
     registered = []
     monkeypatch.setattr(hap_update.atexit, "register", lambda fn: registered.append(fn))
-    monkeypatch.setattr(hap_update, "check_in_background",
-                        lambda callback=None, force=False: None)
+    monkeypatch.setattr(hap_update, "check_in_background", lambda callback=None, force=False: None)
     monkeypatch.setattr(hap_update, "_NOTICE_INSTALLED", False)
 
     assert not hap_update.notice_at_exit(io.StringIO()), "a pipe never gets the notice"
@@ -523,8 +571,11 @@ def test_notice_at_exit_prints_from_the_cache_on_a_terminal(enabled, monkeypatch
     monkeypatch.setattr(hap_update, "cached_status", lambda path=None: Status())
     registered[0]()
     assert out.getvalue() == ""
-    monkeypatch.setattr(hap_update, "cached_status",
-                        lambda path=None: Status(current="0.1.0", latest=release("0.2.0")))
+    monkeypatch.setattr(
+        hap_update,
+        "cached_status",
+        lambda path=None: Status(current="0.1.0", latest=release("0.2.0")),
+    )
     registered[0]()
     assert "0.2.0" in out.getvalue() and "0.1.0" in out.getvalue()
 

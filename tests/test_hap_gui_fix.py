@@ -1,4 +1,4 @@
-﻿"""Drive the GUI's Fix tab without showing a window.
+"""Drive the GUI's Fix tab without showing a window.
 
 A tkinter callback that references a widget that does not exist raises only when
 a human clicks it â€” `self.ip_var` instead of `self.host_var` shipped exactly that
@@ -70,8 +70,14 @@ def test_the_fix_tab_exists_and_starts_empty(app):
 
 def test_every_fix_handler_is_wired_to_a_real_attribute(app):
     # The bug this catches: a handler naming a widget the App does not have.
-    for name in ("on_fix_scan", "on_fix_load", "on_fix_open",
-                 "on_fix_edit", "on_fix_copy", "on_fix_html"):
+    for name in (
+        "on_fix_scan",
+        "on_fix_load",
+        "on_fix_open",
+        "on_fix_edit",
+        "on_fix_copy",
+        "on_fix_html",
+    ):
         assert callable(getattr(app, name)), name
     assert hasattr(app, "host_var"), "the IP lives in host_var, not ip_var"
     assert not hasattr(app, "ip_var")
@@ -81,8 +87,7 @@ def test_load_without_caches_warns_instead_of_raising(app, monkeypatch):
     import hap_gui
 
     warned = []
-    monkeypatch.setattr(hap_gui.messagebox, "showwarning",
-                        lambda *a, **k: warned.append(a))
+    monkeypatch.setattr(hap_gui.messagebox, "showwarning", lambda *a, **k: warned.append(a))
     monkeypatch.setattr(hap_gui.hap_library, "load_harvest", lambda *_a, **_k: None)
     monkeypatch.setattr(hap_gui.hap_fixit, "load_index", lambda *_a, **_k: None)
     app.host_var.set("10.0.0.1")
@@ -99,17 +104,27 @@ def test_load_fills_the_list_from_the_caches(app, monkeypatch):
     import hap_fixit
 
     harvest = {
-        "host": "10.0.0.1", "artists": [], "tracks": [
-            {"trackid": 1, "name": "t", "filename": "01 - a.flac", "duration": 10,
-             "album": {"albumid": 1, "name": "Album"}, "artist": {"name": "X"},
-             "codec": {"codec_type": "flac", "sample_rate": 44100, "bit_width": 16}},
+        "host": "10.0.0.1",
+        "artists": [],
+        "tracks": [
+            {
+                "trackid": 1,
+                "name": "t",
+                "filename": "01 - a.flac",
+                "duration": 10,
+                "album": {"albumid": 1, "name": "Album"},
+                "artist": {"name": "X"},
+                "codec": {"codec_type": "flac", "sample_rate": 44100, "bit_width": 16},
+            },
         ],
-        "albums": [{"albumid": 1, "name": "Album", "number_of_tracks": 1,
-                    "album_artist": {"name": "X"}}],
+        "albums": [
+            {"albumid": 1, "name": "Album", "number_of_tracks": 1, "album_artist": {"name": "X"}}
+        ],
     }
-    index = {"host": "10.0.0.1",
-             "shares": {"HAP_Internal": [["/X/Album", "01 - a.flac", 1],
-                                         ["/X/Album", "cover.jpg", 1]]}}
+    index = {
+        "host": "10.0.0.1",
+        "shares": {"HAP_Internal": [["/X/Album", "01 - a.flac", 1], ["/X/Album", "cover.jpg", 1]]},
+    }
     monkeypatch.setattr(hap_gui.hap_library, "load_harvest", lambda *_a, **_k: harvest)
     monkeypatch.setattr(hap_gui.hap_fixit, "load_index", lambda *_a, **_k: index)
     app.host_var.set("10.0.0.1")
@@ -219,10 +234,12 @@ def test_the_list_marks_which_albums_have_a_local_copy(app, tmp_path):
 
     (tmp_path / "X" / "Here").mkdir(parents=True)
     maps = {"HAP_Internal": str(tmp_path)}
-    app._fix_show([
-        hap_fixit.Finding("cover", "Here", "d", ["HAP_Internal/X/Here"], "10.0.0.1", maps),
-        hap_fixit.Finding("cover", "Away", "d", ["HAP_Internal/X/Away"], "10.0.0.1", maps),
-    ])
+    app._fix_show(
+        [
+            hap_fixit.Finding("cover", "Here", "d", ["HAP_Internal/X/Here"], "10.0.0.1", maps),
+            hap_fixit.Finding("cover", "Away", "d", ["HAP_Internal/X/Away"], "10.0.0.1", maps),
+        ]
+    )
 
     assert "▪" in app.fix_list.get(0)
     assert "▪" not in app.fix_list.get(1)

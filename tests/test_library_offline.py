@@ -80,18 +80,32 @@ def test_audit_lists_the_problems(db_path):
 def test_text_report_mentions_every_section(db_path):
     report = library_audit.build_report(library_audit.Audit(str(db_path)), top=5)
     text = library_audit.render_text(report)
-    for needle in ("HAP LIBRARY AUDIT", "quality mix", "formats", "sample rates", "bit depths",
-                   "multichannel tracks: 1", "DRM-flagged: 1", "Sour Times", "Ghost",
-                   "Dummy", "DSD64", "352.8 kHz"):
+    for needle in (
+        "HAP LIBRARY AUDIT",
+        "quality mix",
+        "formats",
+        "sample rates",
+        "bit depths",
+        "multichannel tracks: 1",
+        "DRM-flagged: 1",
+        "Sour Times",
+        "Ghost",
+        "Dummy",
+        "DSD64",
+        "352.8 kHz",
+    ):
         assert needle in text, needle
 
 
 def test_text_report_shows_rest_limits_and_truncation():
-    audit = library_audit.RestAudit({
-        "host": "h", "artists": [], "albums": [
-            {"albumid": i, "name": f"A{i}", "number_of_tracks": 1} for i in range(4)],
-        "tracks": [],
-    })
+    audit = library_audit.RestAudit(
+        {
+            "host": "h",
+            "artists": [],
+            "albums": [{"albumid": i, "name": f"A{i}", "number_of_tracks": 1} for i in range(4)],
+            "tracks": [],
+        }
+    )
     text = library_audit.render_text(library_audit.build_report(audit, top=2))
     assert "not visible over the network API" in text
     assert "… and 2 more" in text
@@ -145,9 +159,18 @@ def test_audit_cli_from_player_needs_a_harvest(monkeypatch, capsys):
 
 
 def test_audit_cli_from_player_runs_on_a_harvest(monkeypatch, capsys):
-    harvest = {"host": "h", "artists": [], "albums": [], "tracks": [
-        {"name": "t", "duration": 100,
-         "codec": {"codec_type": "flac", "sample_rate": 44100, "bit_width": 16}}]}
+    harvest = {
+        "host": "h",
+        "artists": [],
+        "albums": [],
+        "tracks": [
+            {
+                "name": "t",
+                "duration": 100,
+                "codec": {"codec_type": "flac", "sample_rate": 44100, "bit_width": 16},
+            }
+        ],
+    }
     monkeypatch.setattr(library_audit.hap_library, "load_harvest", lambda host: harvest)
     assert library_audit.main(["--from-player", "1.2.3.4"]) == 0
     assert "the player, over REST" in capsys.readouterr().out

@@ -133,7 +133,8 @@ def crawl_shares(host: str, progress=None) -> dict:
         if failures:
             # Never report a partial index as a complete one.
             out.setdefault("warnings", []).append(
-                f"{share}: {failures} folder(s) could not be listed")
+                f"{share}: {failures} folder(s) could not be listed"
+            )
         out["shares"][share] = files
     return out
 
@@ -299,8 +300,9 @@ def local_locator(local_index: dict | None) -> Locator | None:
     return Locator({"host": "", "shares": {"": files}})
 
 
-def resolve_local(folders: list[str], filenames: list[str], maps: dict[str, str],
-                  local: Locator | None) -> list[str]:
+def resolve_local(
+    folders: list[str], filenames: list[str], maps: dict[str, str], local: Locator | None
+) -> list[str]:
     """Where this album lives on this machine, or [].
 
     Two routes, cheapest first. **Prefix swap** covers the tidy case — local
@@ -331,8 +333,16 @@ class Finding:
     **274 of 274** coverless albums resolved to a local folder.
     """
 
-    def __init__(self, kind: str, title: str, detail: str, folders: list[str], host: str,
-                 maps: dict[str, str] | None = None, local: list[str] | None = None):
+    def __init__(
+        self,
+        kind: str,
+        title: str,
+        detail: str,
+        folders: list[str],
+        host: str,
+        maps: dict[str, str] | None = None,
+        local: list[str] | None = None,
+    ):
         self.kind = kind
         self.title = title
         self.detail = detail
@@ -380,9 +390,13 @@ class Finding:
         return len(self.folders) > 1
 
 
-def build_findings(harvest: dict, index: dict, top: int = 0,
-                   maps: dict[str, str] | None = None,
-                   local_index: dict | None = None) -> list[Finding]:
+def build_findings(
+    harvest: dict,
+    index: dict,
+    top: int = 0,
+    maps: dict[str, str] | None = None,
+    local_index: dict | None = None,
+) -> list[Finding]:
     """Join the audit's findings to real folders. Ordered worst-first.
 
     `maps` is `{share: local folder}` from hap_sync.json; omit it to read the
@@ -410,8 +424,16 @@ def build_findings(harvest: dict, index: dict, top: int = 0,
         tracks_txt = i18n.t("fix.d.tracks", n=alb["trks"])
         if not folders:
             findings.append(
-                Finding("cover", alb["name"] or "?",
-                        f"{tracks_txt} · {i18n.t('fix.d.not_found')}", [], host, maps, []))
+                Finding(
+                    "cover",
+                    alb["name"] or "?",
+                    f"{tracks_txt} · {i18n.t('fix.d.not_found')}",
+                    [],
+                    host,
+                    maps,
+                    [],
+                )
+            )
             continue
         images = loc.loose_images(folders[0])
         parts = [tracks_txt]
@@ -423,9 +445,17 @@ def build_findings(harvest: dict, index: dict, top: int = 0,
             parts.append(i18n.t("fix.d.no_image"))
         if len(folders) > 1:
             parts.append(i18n.t("fix.d.copies", n=len(folders)))
-        findings.append(Finding(
-            "cover", alb["name"] or "?", " · ".join(parts), folders, host, maps,
-            resolve_local(folders, [n for n in names if n], maps, local)))
+        findings.append(
+            Finding(
+                "cover",
+                alb["name"] or "?",
+                " · ".join(parts),
+                folders,
+                host,
+                maps,
+                resolve_local(folders, [n for n in names if n], maps, local),
+            )
+        )
 
     for dup in audit.duplicates():
         names = [
@@ -435,16 +465,31 @@ def build_findings(harvest: dict, index: dict, top: int = 0,
         ]
         clean = [n for n in names if n][:4]
         folders, _ = loc.locate(clean)
-        findings.append(Finding(
-            "duplicate", f"{dup['title']} ×{dup['n']}",
-            f"{dup['artist'] or '?'} — {dup['album'] or '?'}", folders, host, maps,
-            resolve_local(folders, clean, maps, local)))
+        findings.append(
+            Finding(
+                "duplicate",
+                f"{dup['title']} ×{dup['n']}",
+                f"{dup['artist'] or '?'} — {dup['album'] or '?'}",
+                folders,
+                host,
+                maps,
+                resolve_local(folders, clean, maps, local),
+            )
+        )
 
     report = library_audit.build_report(audit, 9999)
     for bad in report.get("corrupt") or []:
         findings.append(
-            Finding("corrupt", bad["title"] or "?",
-                    f"{bad['artist'] or '?'} · {i18n.t('fix.d.corrupt')}", [], host, maps, []))
+            Finding(
+                "corrupt",
+                bad["title"] or "?",
+                f"{bad['artist'] or '?'} · {i18n.t('fix.d.corrupt')}",
+                [],
+                host,
+                maps,
+                [],
+            )
+        )
 
     order = {"cover": 0, "corrupt": 1, "duplicate": 2}
     findings.sort(key=lambda f: (order.get(f.kind, 9), f.title.lower()))
@@ -462,10 +507,12 @@ def find_editor() -> str:
     candidates = [
         Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Mp3tag" / "Mp3tag.exe",
         Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
-        / "Mp3tag" / "Mp3tag.exe",
+        / "Mp3tag"
+        / "Mp3tag.exe",
         Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Mp3tag" / "Mp3tag.exe",
         Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
-        / "MusicBrainz Picard" / "picard.exe",
+        / "MusicBrainz Picard"
+        / "picard.exe",
     ]
     for c in candidates:
         if c.is_file():
@@ -500,8 +547,9 @@ def open_in_editor(path: str, editor: str = "") -> str:
 
 def _counts_line(findings: list[Finding]) -> str:
     kinds = collections.Counter(f.kind for f in findings)
-    return i18n.t("fix.r.counts", cover=kinds["cover"],
-                  dup=kinds["duplicate"], corrupt=kinds["corrupt"])
+    return i18n.t(
+        "fix.r.counts", cover=kinds["cover"], dup=kinds["duplicate"], corrupt=kinds["corrupt"]
+    )
 
 
 def print_report(findings: list[Finding], top: int) -> None:
@@ -536,7 +584,7 @@ def render_html(findings: list[Finding], host: str) -> str:
     for i, f in enumerate(findings, 1):
         rendered = [
             f'<div class="p local"><span class="tag">{e(i18n.t("fix.r.local"))}</span>'
-            f'<code>{e(p)}</code>'
+            f"<code>{e(p)}</code>"
             f'<button onclick="cp(this)" data-p="{e(p)}">{e(i18n.t("fix.r.copy"))}</button></div>'
             for p in f.local_paths
         ] + [
@@ -548,7 +596,7 @@ def render_html(findings: list[Finding], host: str) -> str:
         rows.append(
             f'<tr class="{e(f.kind)}"><td class="n">{i}</td>'
             f'<td><span class="k">{e(i18n.t("fix.r.kind." + f.kind))}</span> '
-            f'<b>{e(f.title)}</b>'
+            f"<b>{e(f.title)}</b>"
             f'<div class="d">{e(f.detail)}</div>{paths}</td></tr>'
         )
     return f"""<!doctype html><meta charset="utf-8">
@@ -579,7 +627,7 @@ def render_html(findings: list[Finding], host: str) -> str:
 {e(i18n.t("fix.r.located", n=sum(1 for f in findings if f.folders), total=len(findings)))}<br>
 {e(i18n.t("fix.r.embedded_note"))}<br>
 {e(i18n.t("fix.r.local_note"))}</div>
-<table>{''.join(rows)}</table>
+<table>{"".join(rows)}</table>
 <script>
 function cp(b){{navigator.clipboard.writeText(b.dataset.p);
  const t=b.textContent;b.textContent='copied';setTimeout(()=>b.textContent=t,900);}}
@@ -598,9 +646,9 @@ def build_parser() -> argparse.ArgumentParser:
     loc = sub.add_parser(
         "scan-local",
         help="index local music folders, so albums are found even when your "
-             "folders are not named like the player's")
-    loc.add_argument("folders", nargs="*",
-                     help="folders to scan (default: those in hap_sync.json)")
+        "folders are not named like the player's",
+    )
+    loc.add_argument("folders", nargs="*", help="folders to scan (default: those in hap_sync.json)")
     rep = sub.add_parser("report", help="findings with their real folders")
     rep.add_argument("--top", type=int, default=40)
     rep.add_argument("--html", metavar="FILE")
@@ -621,8 +669,9 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - one branch per s
 
         def note(share, i, total, files):
             if i % 100 == 0 or i == total:
-                print(f"  {share} {i}/{total} folders, {files} files "
-                      f"({time.time() - started:.0f}s)")
+                print(
+                    f"  {share} {i}/{total} folders, {files} files ({time.time() - started:.0f}s)"
+                )
 
         try:
             index = crawl_shares(args.host, progress=note)
@@ -637,9 +686,11 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - one branch per s
     if args.cmd == "scan-local":
         roots = args.folders or sorted(set(load_sync_maps().values()))
         if not roots:
-            print("error: no folders given and none configured in hap_sync.json.\n"
-                  "Usage: python tools/hap_fixit.py <ip> scan-local D:\\Music",
-                  file=sys.stderr)
+            print(
+                "error: no folders given and none configured in hap_sync.json.\n"
+                "Usage: python tools/hap_fixit.py <ip> scan-local D:\\Music",
+                file=sys.stderr,
+            )
             return 2
         print("Scanning: " + ", ".join(roots))
         index = scan_local(roots)
@@ -653,13 +704,19 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - one branch per s
 
     harvest = hap_library.load_harvest(args.host)
     if harvest is None:
-        print(f"error: no library harvest for {args.host}. Run:\n"
-              f"    python tools/hap_library.py {args.host} harvest", file=sys.stderr)
+        print(
+            f"error: no library harvest for {args.host}. Run:\n"
+            f"    python tools/hap_library.py {args.host} harvest",
+            file=sys.stderr,
+        )
         return 2
     index = load_index(args.host)
     if index is None:
-        print(f"error: the shares have not been indexed. Run:\n"
-              f"    python tools/hap_fixit.py {args.host} index", file=sys.stderr)
+        print(
+            f"error: the shares have not been indexed. Run:\n"
+            f"    python tools/hap_fixit.py {args.host} index",
+            file=sys.stderr,
+        )
         return 2
 
     findings = build_findings(harvest, index)
@@ -668,8 +725,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - one branch per s
         if args.kind:
             findings = [f for f in findings if f.kind == args.kind]
         if args.html:
-            Path(args.html).write_bytes(
-                render_html(findings, args.host).encode("utf-8"))
+            Path(args.html).write_bytes(render_html(findings, args.host).encode("utf-8"))
             print(f"HTML report written to {args.html}")
         print_report(findings, args.top)
         return 0
@@ -691,8 +747,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - one branch per s
     else:
         used = open_in_editor(where)
         if not used:
-            print("error: no tag editor found. Set HAP_TAG_EDITOR to its .exe.",
-                  file=sys.stderr)
+            print("error: no tag editor found. Set HAP_TAG_EDITOR to its .exe.", file=sys.stderr)
             return 1
         print(used)
     print(f"  {where}")

@@ -16,13 +16,16 @@ import mock_hap
 # ---------- check_links ----------
 
 
-@pytest.mark.parametrize("heading,anchor", [
-    ("Own a HAP? Start here", "own-a-hap-start-here"),
-    ("`code` and *emphasis*", "code-and-emphasis"),
-    ("A [link](http://x) heading", "a-link-heading"),
-    ("  Spaces   kept  ", "spaces---kept"),
-    ("Accents: Dvořák", "accents-dvořák"),
-])
+@pytest.mark.parametrize(
+    "heading,anchor",
+    [
+        ("Own a HAP? Start here", "own-a-hap-start-here"),
+        ("`code` and *emphasis*", "code-and-emphasis"),
+        ("A [link](http://x) heading", "a-link-heading"),
+        ("  Spaces   kept  ", "spaces---kept"),
+        ("Accents: Dvořák", "accents-dvořák"),
+    ],
+)
 def test_anchor_for_matches_github(heading, anchor):
     assert check_links.anchor_for(heading) == anchor
 
@@ -39,7 +42,9 @@ def test_check_finds_missing_files_and_dead_anchors(tmp_path):
     (tmp_path / "README.md").write_text(
         "# Top\n[ok](docs/a.md#here) [self](#top) [dead](docs/a.md#nope) "
         "[gone](docs/b.md) [ext](https://example.com) [mail](mailto:x@y) "
-        "[img](docs/pic.png#frag) [bang](#!x)\n", encoding="utf-8")
+        "[img](docs/pic.png#frag) [bang](#!x)\n",
+        encoding="utf-8",
+    )
     (tmp_path / "docs" / "a.md").write_text("## Here\n", encoding="utf-8")
     (tmp_path / "docs" / "pic.png").write_bytes(b"\x89PNG")
     (tmp_path / "node_modules").mkdir()
@@ -87,12 +92,18 @@ def test_show_writes_a_png_and_rejects_anything_else(tmp_path, monkeypatch, caps
 
 def test_keys_are_validated_and_sent_in_sequence(monkeypatch, capsys):
     sent = []
-    monkeypatch.setattr(hap_screen, "tool_get",
-                        lambda host, target, cmd: sent.append((target, cmd)) or (b"None", ""))
+    monkeypatch.setattr(
+        hap_screen,
+        "tool_get",
+        lambda host, target, cmd: sent.append((target, cmd)) or (b"None", ""),
+    )
     monkeypatch.setattr(hap_screen.time, "sleep", lambda s: sent.append(("sleep", s)))
     assert hap_screen.cmd_key("h", ["down", "enter"]) == 0
-    assert sent == [("keyevent", "down"), ("sleep", hap_screen.KEY_SETTLE_SEC),
-                    ("keyevent", "enter")]
+    assert sent == [
+        ("keyevent", "down"),
+        ("sleep", hap_screen.KEY_SETTLE_SEC),
+        ("keyevent", "enter"),
+    ]
     assert hap_screen.cmd_key("h", ["down", "nuke"]) == 2
     assert "unknown key(s): nuke" in capsys.readouterr().err
     assert hap_screen.cmd_capture("h") == 0
@@ -147,9 +158,9 @@ def test_committed_icons_are_what_the_generator_draws():
     def pixels(png: bytes) -> bytes:
         pos, idat = 8, b""
         while pos < len(png):
-            n = struct.unpack(">I", png[pos:pos + 4])[0]
-            if png[pos + 4:pos + 8] == b"IDAT":
-                idat += png[pos + 8:pos + 8 + n]
+            n = struct.unpack(">I", png[pos : pos + 4])[0]
+            if png[pos + 4 : pos + 8] == b"IDAT":
+                idat += png[pos + 8 : pos + 8 + n]
             pos += 12 + n
         return zlib.decompress(idat)
 
@@ -186,8 +197,9 @@ def test_mock_main_serves_until_interrupted(monkeypatch, capsys):
             self.closed = True
 
     made = []
-    monkeypatch.setattr(mock_hap, "make_server",
-                        lambda bind, port, quiet: made.append(Server()) or made[-1])
+    monkeypatch.setattr(
+        mock_hap, "make_server", lambda bind, port, quiet: made.append(Server()) or made[-1]
+    )
     assert mock_hap.main(["--port", "61000", "--verbose"]) == 0
     out = capsys.readouterr().out
     assert "mock HAP-Z1ES listening on http://127.0.0.1:61000/sony/" in out and "Stopping" in out

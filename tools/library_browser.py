@@ -24,6 +24,7 @@ Usage:
 Stdlib only (sqlite3 + http.server). Read-only: the DB is opened immutable; nothing
 is ever written. Your library data never leaves your machine.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -121,14 +122,16 @@ class Library:
     def album(self, alid: int):
         a = self.q(
             "SELECT PROP3601 id, PROP7020 name, PROP7055 album_artist, "
-            "PROP6844 year, length(PROP78D9) thumb FROM FT000A WHERE PROP3601=?", (alid,),
+            "PROP6844 year, length(PROP78D9) thumb FROM FT000A WHERE PROP3601=?",
+            (alid,),
         )
         tracks = self.q(
             "SELECT t.PROP3601 id, t.PROP7020 title, t.PROP2053 trk, t.PROP10A3 disc, "
             "t.PROP304B codec, t.PROP3047 dur, t.PROP3048 srate, t.PROP10DE bits, "
             "t.PROP10DD multich, t.PROP58D3 drm, ar.PROP7020 artist "
             "FROM FT0002 t LEFT JOIN FT5202 ar ON ar.PROP3601=t.PROP7052 "
-            "WHERE t.PROPB2BB=? ORDER BY t.PROP10A3, t.PROP2053", (alid,),
+            "WHERE t.PROPB2BB=? ORDER BY t.PROP10A3, t.PROP2053",
+            (alid,),
         )
         return (a[0] if a else None), tracks
 
@@ -142,7 +145,8 @@ class Library:
             "al.PROP7020 album, ar.PROP7020 artist, t.PROP304B codec "
             "FROM FT0002 t LEFT JOIN FT000A al ON al.PROP3601=t.PROPB2BB "
             "LEFT JOIN FT5202 ar ON ar.PROP3601=t.PROP7052 "
-            "WHERE t.PROP7020 LIKE ? ORDER BY t.PROP7065 LIMIT 200", (f"%{term}%",),
+            "WHERE t.PROP7020 LIKE ? ORDER BY t.PROP7065 LIMIT 200",
+            (f"%{term}%",),
         )
 
 
@@ -185,10 +189,7 @@ ul.rows li{padding:8px 0;border-bottom:1px solid var(--line)}
 
 
 def page(title: str, body: str) -> bytes:
-    nav = (
-        '<a href="/">Home</a><a href="/artists">Artists</a>'
-        '<a href="/albums">Albums</a>'
-    )
+    nav = '<a href="/">Home</a><a href="/artists">Artists</a><a href="/albums">Albums</a>'
     doc = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)} · HAP Library</title><style>{CSS}</style></head><body>
@@ -207,7 +208,7 @@ def cover_style(alid, thumb) -> str:
 
 def album_card(al) -> str:
     aa = al["album_artist"] or ""
-    yr = f' · {al["year"]}' if al["year"] else ""
+    yr = f" · {al['year']}" if al["year"] else ""
     return (
         f'<div class="card"><a href="/album/{al["id"]}">'
         f'<span class="cover" style="{cover_style(al["id"], al["thumb"])}"></span>'
@@ -263,9 +264,9 @@ class Handler(BaseHTTPRequestHandler):
         )
         cards = "".join(album_card(a) for a in recent)
         body = (
-            f'<h1>Your HAP library</h1>'
+            f"<h1>Your HAP library</h1>"
             f'<p class="muted">{s["artists"]:,} artists · {s["albums"]:,} albums · '
-            f'{s["tracks"]:,} tracks · {s["genres"]:,} genres</p>'
+            f"{s['tracks']:,} tracks · {s['genres']:,} genres</p>"
             f'<h2>Newest albums</h2><div class="grid">{cards}</div>'
         )
         return page("Home", body)
@@ -276,8 +277,11 @@ class Handler(BaseHTTPRequestHandler):
         for r in rows:
             ini = (r["ini"] or "#").upper()[:1]
             by_ini.setdefault(ini, []).append(r)
-        alpha = '<div class="alpha">' + "".join(
-            f'<a href="#{k}">{html.escape(k)}</a>' for k in sorted(by_ini)) + "</div>"
+        alpha = (
+            '<div class="alpha">'
+            + "".join(f'<a href="#{k}">{html.escape(k)}</a>' for k in sorted(by_ini))
+            + "</div>"
+        )
         out = [f"<h1>Artists <span class='pill'>{len(rows):,}</span></h1>", alpha]
         for k in sorted(by_ini):
             out.append(f'<h2 id="{html.escape(k)}">{html.escape(k)}</h2><ul class="rows">')
@@ -303,8 +307,10 @@ class Handler(BaseHTTPRequestHandler):
     def albums_page(self) -> bytes:
         albums = self.lib.albums()
         cards = "".join(album_card(a) for a in albums)
-        body = (f'<h1>Albums <span class="pill">{len(albums)} shown</span></h1>'
-                f'<div class="grid">{cards}</div>')
+        body = (
+            f'<h1>Albums <span class="pill">{len(albums)} shown</span></h1>'
+            f'<div class="grid">{cards}</div>'
+        )
         return page("Albums", body)
 
     def album_page(self, alid: int) -> bytes:
@@ -315,7 +321,7 @@ class Handler(BaseHTTPRequestHandler):
         rows = []
         multi_disc = len({t["disc"] for t in tracks}) > 1
         for t in tracks:
-            num = f'{t["disc"]}.{t["trk"]}' if multi_disc else str(t["trk"] or "")
+            num = f"{t['disc']}.{t['trk']}" if multi_disc else str(t["trk"] or "")
             tags = ""
             if t["multich"]:
                 tags += '<span class="pill">multi-ch</span>'
@@ -327,32 +333,36 @@ class Handler(BaseHTTPRequestHandler):
                 f'<td class="q">{html.escape(fmt_quality(t["srate"], t["bits"]))}</td>'
                 f'<td class="n">{fmt_dur(t["dur"])}</td></tr>'
             )
-        yr = f' · {album["year"]}' if album["year"] else ""
+        yr = f" · {album['year']}" if album["year"] else ""
         body = (
             f'<div class="albumhead">'
             f'<span class="cover" style="{cover_style(alid, album["thumb"])}"></span>'
             f'<div><h1 style="margin-bottom:6px">{html.escape(album["name"] or "—")}</h1>'
             f'<p class="muted">{html.escape(album["album_artist"] or "")}{yr} · '
-            f'{len(tracks)} tracks · {fmt_dur(total)}</p></div></div>'
+            f"{len(tracks)} tracks · {fmt_dur(total)}</p></div></div>"
             f'<table><thead><tr><th class="n">#</th><th>Title</th><th>Codec</th>'
             f'<th>Quality</th><th class="n">Time</th></tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody></table>'
+            f"<tbody>{''.join(rows)}</tbody></table>"
         )
         return page(album["name"] or "Album", body)
 
     def search_page(self, term: str) -> bytes:
         term = term.strip()
         if not term:
-            return page("Search",
-                        "<h1>Search</h1><p class='muted'>Type something in the box above.</p>")
+            return page(
+                "Search", "<h1>Search</h1><p class='muted'>Type something in the box above.</p>"
+            )
         artists = self.lib.artists(term)[:50]
         albums = self.lib.albums(term, limit=60)
         tracks = self.lib.search_tracks(term)
         out = [f"<h1>Search: “{html.escape(term)}”</h1>"]
         if artists:
             out.append(f'<h2>Artists ({len(artists)})</h2><ul class="rows">')
-            out += [f'<li><a href="/artist/{a["id"]}">{html.escape(a["name"])}</a> '
-                    f'<span class="muted">· {a["albums"]} albums</span></li>' for a in artists]
+            out += [
+                f'<li><a href="/artist/{a["id"]}">{html.escape(a["name"])}</a> '
+                f'<span class="muted">· {a["albums"]} albums</span></li>'
+                for a in artists
+            ]
             out.append("</ul>")
         if albums:
             out.append(f'<h2>Albums ({len(albums)})</h2><div class="grid">')
@@ -360,10 +370,12 @@ class Handler(BaseHTTPRequestHandler):
             out.append("</div>")
         if tracks:
             out.append(f'<h2>Tracks ({len(tracks)})</h2><ul class="rows">')
-            out += [f'<li><a href="/album/{t["album_id"]}">{html.escape(t["title"] or "—")}</a> '
-                    f'<span class="muted">· {html.escape(t["artist"] or "")} · '
-                    f'{html.escape(t["album"] or "")} · {codec_name(t["codec"])}</span></li>'
-                    for t in tracks]
+            out += [
+                f'<li><a href="/album/{t["album_id"]}">{html.escape(t["title"] or "—")}</a> '
+                f'<span class="muted">· {html.escape(t["artist"] or "")} · '
+                f"{html.escape(t['album'] or '')} · {codec_name(t['codec'])}</span></li>"
+                for t in tracks
+            ]
             out.append("</ul>")
         if not (artists or albums or tracks):
             out.append("<p class='muted'>No matches.</p>")
@@ -387,8 +399,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Browse a HAP's hdd_browse.db in your web browser.")
     hap_update.add_version_flag(ap)
     ap.add_argument("db", help="path to hdd_browse.db")
-    ap.add_argument("port", nargs="?", type=int, default=DEFAULT_PORT,
-                    help=f"local HTTP port (default {DEFAULT_PORT})")
+    ap.add_argument(
+        "port",
+        nargs="?",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"local HTTP port (default {DEFAULT_PORT})",
+    )
     return ap
 
 

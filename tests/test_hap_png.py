@@ -15,10 +15,10 @@ def _decode(data: bytes) -> tuple[int, int, bytes]:
     width = height = 0
     idat = b""
     while pos < len(data):
-        length = struct.unpack(">I", data[pos:pos + 4])[0]
-        tag = data[pos + 4:pos + 8]
-        body = data[pos + 8:pos + 8 + length]
-        crc = struct.unpack(">I", data[pos + 8 + length:pos + 12 + length])[0]
+        length = struct.unpack(">I", data[pos : pos + 4])[0]
+        tag = data[pos + 4 : pos + 8]
+        body = data[pos + 8 : pos + 8 + length]
+        crc = struct.unpack(">I", data[pos + 8 + length : pos + 12 + length])[0]
         assert crc == zlib.crc32(tag + body) & 0xFFFFFFFF, f"bad CRC on {tag!r}"
         if tag == b"IHDR":
             width, height = struct.unpack(">II", body[:8])

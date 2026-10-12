@@ -17,9 +17,11 @@ import mock_hap
 
 def test_local_subnet_prefixes_skip_loopback_and_link_local(monkeypatch):
     monkeypatch.setattr(discover, "primary_lan_ip", lambda: "192.168.1.50")
-    monkeypatch.setattr(discover.socket, "gethostbyname_ex",
-                        lambda name: (name, [], ["127.0.0.1", "169.254.3.3", "10.0.0.7",
-                                                "192.168.1.50"]))
+    monkeypatch.setattr(
+        discover.socket,
+        "gethostbyname_ex",
+        lambda name: (name, [], ["127.0.0.1", "169.254.3.3", "10.0.0.7", "192.168.1.50"]),
+    )
     assert discover.local_subnet_prefixes() == ["192.168.1.", "10.0.0."]
 
 
@@ -112,8 +114,9 @@ def test_arp_mac_parses_the_table(monkeypatch):
 
 
 def test_find_hap_stops_at_the_first_confirmed_player(monkeypatch):
-    monkeypatch.setattr(discover, "scan_subnets",
-                        lambda prefixes, port: ["10.0.0.2", "10.0.0.3", "10.0.0.4"])
+    monkeypatch.setattr(
+        discover, "scan_subnets", lambda prefixes, port: ["10.0.0.2", "10.0.0.3", "10.0.0.4"]
+    )
     asked = []
 
     def fake_identify(ip, port):
@@ -209,8 +212,11 @@ def test_remote_index_walks_the_share(fake_pysmb):
     smb = core.Smb("1.2.3.4")
     progress = []
     index, skipped = core.remote_index(smb, "HAP_Internal", on_progress=progress.append)
-    assert index == {"Artist/loose.flac": 7, "Artist/Album/01.flac": 10,
-                     "Artist/Album/cover.jpg": 2}
+    assert index == {
+        "Artist/loose.flac": 7,
+        "Artist/Album/01.flac": 10,
+        "Artist/Album/cover.jpg": 2,
+    }
     assert skipped == 0 and progress == [3]
 
 
@@ -251,8 +257,9 @@ def test_cli_list_and_refresh_commands(fake_pysmb, tmp_path, capsys):
     import json
 
     cfg = tmp_path / "hap_sync.json"
-    cfg.write_text(json.dumps({"host": "1.2.3.4",
-                               "maps": [{"local": str(tmp_path), "share": "HAP_Internal"}]}))
+    cfg.write_text(
+        json.dumps({"host": "1.2.3.4", "maps": [{"local": str(tmp_path), "share": "HAP_Internal"}]})
+    )
     assert core.main(["--config", str(cfg), "refresh"]) == 0
     assert "HAP_Internal: live scan, 3 files  -> cached" in capsys.readouterr().out
     assert core.main(["--config", str(cfg), "list", "HAP_Internal"]) == 0
@@ -271,9 +278,14 @@ def test_cli_sync_transfers_through_the_fake_session(fake_pysmb, tmp_path, capsy
     (music / "02.flac").write_bytes(b"new audio")
     (music / "01.flac").write_bytes(b"0123456789")  # same size as on the share
     cfg = tmp_path / "hap_sync.json"
-    cfg.write_text(json.dumps({"host": "1.2.3.4",
-                               "maps": [{"local": str(tmp_path / "music"),
-                                         "share": "HAP_Internal"}]}))
+    cfg.write_text(
+        json.dumps(
+            {
+                "host": "1.2.3.4",
+                "maps": [{"local": str(tmp_path / "music"), "share": "HAP_Internal"}],
+            }
+        )
+    )
     stored = []
     fake_pysmb.createDirectory = lambda self, share, path: None
     fake_pysmb.storeFile = lambda self, share, path, fp: stored.append((share, path, fp.read()))
@@ -293,12 +305,19 @@ def test_cli_check_uses_smb_doctor(fake_pysmb, tmp_path, capsys, monkeypatch):
     import smb_doctor
 
     cfg = tmp_path / "hap_sync.json"
-    cfg.write_text(json.dumps({"host": "1.2.3.4",
-                               "maps": [{"local": str(tmp_path), "share": "HAP_Internal"}]}))
-    monkeypatch.setattr(smb_doctor, "diagnose", lambda host: [
-        smb_doctor.Finding("pysmb", "transfer", smb_doctor.OK),
-        smb_doctor.Finding("signing", "signing", smb_doctor.PROBLEM, fix_cmd="Set-X",
-                           needs_admin=True)])
+    cfg.write_text(
+        json.dumps({"host": "1.2.3.4", "maps": [{"local": str(tmp_path), "share": "HAP_Internal"}]})
+    )
+    monkeypatch.setattr(
+        smb_doctor,
+        "diagnose",
+        lambda host: [
+            smb_doctor.Finding("pysmb", "transfer", smb_doctor.OK),
+            smb_doctor.Finding(
+                "signing", "signing", smb_doctor.PROBLEM, fix_cmd="Set-X", needs_admin=True
+            ),
+        ],
+    )
     monkeypatch.setattr(core, "tcp_port_open", lambda host, port, timeout=3.0: True)
     assert core.main(["--config", str(cfg), "check"]) == 0
     out = capsys.readouterr().out

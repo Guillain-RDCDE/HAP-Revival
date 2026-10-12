@@ -23,13 +23,26 @@ HARVEST = {
     "host": "127.0.0.1",
     "artists": [{"artistid": 1, "name": "X"}],
     "albums": [
-        {"albumid": 1, "name": "A", "number_of_tracks": 4,
-         "album_artist": {"name": "X"},
-         "image": {"url": "http://p/cover/1"}},
-        {"albumid": 2, "name": "No cover", "number_of_tracks": 9,
-         "album_artist": {"name": "Y"}},                       # no `image` key
-        {"albumid": 3, "name": "Empty cover", "number_of_tracks": 2,
-         "album_artist": {"name": "Z"}, "image": {}},
+        {
+            "albumid": 1,
+            "name": "A",
+            "number_of_tracks": 4,
+            "album_artist": {"name": "X"},
+            "image": {"url": "http://p/cover/1"},
+        },
+        {
+            "albumid": 2,
+            "name": "No cover",
+            "number_of_tracks": 9,
+            "album_artist": {"name": "Y"},
+        },  # no `image` key
+        {
+            "albumid": 3,
+            "name": "Empty cover",
+            "number_of_tracks": 2,
+            "album_artist": {"name": "Z"},
+            "image": {},
+        },
     ],
     "tracks": [
         track("CD track", "flac", 44100, 16),
@@ -69,7 +82,7 @@ def test_quality_buckets_match_what_the_classifier_says():
         )
     assert counts["dsd"] == 1
     assert counts["lossy"] == 1
-    assert counts["hires"] == 2          # 96/24 and the 352.8 kHz one
+    assert counts["hires"] == 2  # 96/24 and the 352.8 kHz one
     assert counts["cd"] == 3
 
 

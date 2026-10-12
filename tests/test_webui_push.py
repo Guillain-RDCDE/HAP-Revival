@@ -48,7 +48,7 @@ def test_blocks_until_an_event_arrives(watcher):
     started = time.monotonic()
     assert watcher.wait_for_change(since=0, timeout=5.0) == 1
     elapsed = time.monotonic() - started
-    assert 0.05 < elapsed < 4.0        # released early, not by the timeout
+    assert 0.05 < elapsed < 4.0  # released early, not by the timeout
 
 
 def test_times_out_and_reports_the_current_generation(watcher):

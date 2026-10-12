@@ -38,7 +38,11 @@ def test_rpc_request_shape():
     req = hap_client.rpc_request("http://h:1/sony/system", "getPowerStatus", "1.1")
     assert req.get_method() == "POST"
     assert json.loads(req.data) == {
-        "method": "getPowerStatus", "id": 1, "params": [], "version": "1.1"}
+        "method": "getPowerStatus",
+        "id": 1,
+        "params": [],
+        "version": "1.1",
+    }
     assert req.get_header("Content-type") == "application/json"
     assert not req.has_header("X-hap-device-id"), "the header is opt-in"
     assert not req.has_header("Expect"), "100-continue makes the player answer 417"
@@ -91,8 +95,10 @@ def test_hap_call_maps_replies_to_exceptions(device):
 
 
 def test_upnp_field_reads_plain_and_namespaced_tags():
-    xml = ("<root><device><UDN>uuid:abc-123</UDN>"
-           "<av:X_HAP_Version> 1.2 </av:X_HAP_Version></device></root>")
+    xml = (
+        "<root><device><UDN>uuid:abc-123</UDN>"
+        "<av:X_HAP_Version> 1.2 </av:X_HAP_Version></device></root>"
+    )
     assert hap_client.upnp_field(xml, "UDN") == "uuid:abc-123"
     assert hap_client.upnp_field(xml, "X_HAP_Version") == "1.2"
     assert hap_client.upnp_field(xml, "modelName") is None
@@ -117,11 +123,30 @@ def test_device_uuid_short_strips_the_prefix(monkeypatch):
 
 def test_call_prints_the_reply_and_saves_a_capture(device, tmp_path, capsys, monkeypatch):
     host, port = device
-    monkeypatch.setattr(call_tool, "save_capture",
-                        lambda prefix, payload, tool: tmp_path / f"{prefix}.json"
-                        if (tmp_path / f"{prefix}.json").write_text(json.dumps(payload)) else None)
-    rc = call_tool.main(["--target", host, "--port", str(port), "--service", "system",
-                         "--method", "getPowerStatus", "--version", "1.1", "--save"])
+    monkeypatch.setattr(
+        call_tool,
+        "save_capture",
+        lambda prefix, payload, tool: (
+            tmp_path / f"{prefix}.json"
+            if (tmp_path / f"{prefix}.json").write_text(json.dumps(payload))
+            else None
+        ),
+    )
+    rc = call_tool.main(
+        [
+            "--target",
+            host,
+            "--port",
+            str(port),
+            "--service",
+            "system",
+            "--method",
+            "getPowerStatus",
+            "--version",
+            "1.1",
+            "--save",
+        ]
+    )
     assert rc == 0
     out, err = capsys.readouterr()
     assert json.loads(out)["result"] == [{"status": "active", "standbyDetail": ""}]
@@ -132,15 +157,41 @@ def test_call_prints_the_reply_and_saves_a_capture(device, tmp_path, capsys, mon
 
 
 def test_call_rejects_bad_params_json(capsys):
-    rc = call_tool.main(["--target", "h", "--service", "s", "--method", "m", "--version", "1.0",
-                         "--params", "{oops"])
+    rc = call_tool.main(
+        [
+            "--target",
+            "h",
+            "--service",
+            "s",
+            "--method",
+            "m",
+            "--version",
+            "1.0",
+            "--params",
+            "{oops",
+        ]
+    )
     assert rc == 2
     assert "not valid JSON" in capsys.readouterr().err
 
 
 def test_call_fails_when_the_device_is_unreachable(capsys):
-    rc = call_tool.main(["--target", "127.0.0.1", "--port", "1", "--service", "system",
-                         "--method", "m", "--version", "1.0", "--timeout", "1"])
+    rc = call_tool.main(
+        [
+            "--target",
+            "127.0.0.1",
+            "--port",
+            "1",
+            "--service",
+            "system",
+            "--method",
+            "m",
+            "--version",
+            "1.0",
+            "--timeout",
+            "1",
+        ]
+    )
     assert rc == 1
     assert "HTTP 0" in capsys.readouterr().err
 
@@ -149,16 +200,25 @@ def test_call_fails_when_the_device_is_unreachable(capsys):
 
 
 def test_ssdp_responses_are_folded_per_device():
-    hap = (b"HTTP/1.1 200 OK\r\nST: urn:schemas-upnp-org:device:MediaServer:1\r\n"
-           b"SERVER: Linux UPnP/1.0 Sony-HAP/1.0\r\nLOCATION: http://1.2.3.4:60100/hap.xml\r\n\r\n")
+    hap = (
+        b"HTTP/1.1 200 OK\r\nST: urn:schemas-upnp-org:device:MediaServer:1\r\n"
+        b"SERVER: Linux UPnP/1.0 Sony-HAP/1.0\r\nLOCATION: http://1.2.3.4:60100/hap.xml\r\n\r\n"
+    )
     other = b"HTTP/1.1 200 OK\r\nST: upnp:rootdevice\r\nSERVER: Something Else\r\n\r\n"
-    devices = discover.collect_ssdp([("1.2.3.4", hap), ("9.9.9.9", other),
-                                     ("1.2.3.4", hap.replace(b"MediaServer", b"MediaRenderer"))])
+    devices = discover.collect_ssdp(
+        [
+            ("1.2.3.4", hap),
+            ("9.9.9.9", other),
+            ("1.2.3.4", hap.replace(b"MediaServer", b"MediaRenderer")),
+        ]
+    )
     assert len(devices) == 1
     assert devices[0]["ip"] == "1.2.3.4"
     assert devices[0]["headers"]["location"] == "http://1.2.3.4:60100/hap.xml"
-    assert devices[0]["services"] == ["urn:schemas-upnp-org:device:MediaServer:1",
-                                      "urn:schemas-upnp-org:device:MediaRenderer:1"]
+    assert devices[0]["services"] == [
+        "urn:schemas-upnp-org:device:MediaServer:1",
+        "urn:schemas-upnp-org:device:MediaRenderer:1",
+    ]
     assert discover.ssdp_message().startswith(b"M-SEARCH * HTTP/1.1\r\n")
 
 
@@ -186,8 +246,9 @@ def test_probe_device_records_every_known_method(device, capsys):
 def test_discover_main_direct_target_saves_a_report(device, tmp_path, capsys, monkeypatch):
     host, _port = device
     monkeypatch.setattr(discover, "probe_device", lambda ip: {"ip": ip, "api_probe": []})
-    monkeypatch.setattr(discover, "save_capture",
-                        lambda prefix, payload, tool: tmp_path / "report.json")
+    monkeypatch.setattr(
+        discover, "save_capture", lambda prefix, payload, tool: tmp_path / "report.json"
+    )
     assert discover.main(["--target", host]) == 0
     assert "Report saved" in capsys.readouterr().out
 
@@ -199,12 +260,16 @@ def test_discover_main_without_devices_fails(monkeypatch, capsys):
 
 
 def test_discover_main_quick_skips_the_probe(monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr(discover, "ssdp_search",
-                        lambda: [{"ip": "1.2.3.4", "headers": {}, "services": ["x"]}])
+    monkeypatch.setattr(
+        discover, "ssdp_search", lambda: [{"ip": "1.2.3.4", "headers": {}, "services": ["x"]}]
+    )
     monkeypatch.setattr(discover, "probe_device", lambda ip: pytest.fail("must not probe"))
     saved = {}
-    monkeypatch.setattr(discover, "save_capture",
-                        lambda prefix, payload, tool: saved.update(payload) or tmp_path / "r.json")
+    monkeypatch.setattr(
+        discover,
+        "save_capture",
+        lambda prefix, payload, tool: saved.update(payload) or tmp_path / "r.json",
+    )
     assert discover.main(["--quick"]) == 0
     assert saved["devices"] == [{"ip": "1.2.3.4", "services": ["x"], "headers": {}}]
 
@@ -212,16 +277,19 @@ def test_discover_main_quick_skips_the_probe(monkeypatch, tmp_path, capsys):
 # ---------- api-fuzzer.py ----------
 
 
-@pytest.mark.parametrize("reply,klass", [
-    (hap_client.RpcReply(0, None, "refused"), "TRANSPORT"),
-    (hap_client.RpcReply(500, None, "HTTP 500: boom"), "TRANSPORT"),
-    (hap_client.RpcReply(200, {"result": [{}]}), "OK"),
-    (hap_client.RpcReply(200, {"error": [12, "No Such Method"]}), "NO_SUCH_METHOD"),
-    (hap_client.RpcReply(200, {"error": [14, "Unsupported Version"]}), "UNSUPPORTED_VERSION"),
-    (hap_client.RpcReply(200, {"error": [5, "illegal Request"]}), "ILLEGAL_REQUEST"),
-    (hap_client.RpcReply(200, {"error": [7, "something"]}), "OTHER"),
-    (hap_client.RpcReply(200, {"error": []}), "OTHER"),
-])
+@pytest.mark.parametrize(
+    "reply,klass",
+    [
+        (hap_client.RpcReply(0, None, "refused"), "TRANSPORT"),
+        (hap_client.RpcReply(500, None, "HTTP 500: boom"), "TRANSPORT"),
+        (hap_client.RpcReply(200, {"result": [{}]}), "OK"),
+        (hap_client.RpcReply(200, {"error": [12, "No Such Method"]}), "NO_SUCH_METHOD"),
+        (hap_client.RpcReply(200, {"error": [14, "Unsupported Version"]}), "UNSUPPORTED_VERSION"),
+        (hap_client.RpcReply(200, {"error": [5, "illegal Request"]}), "ILLEGAL_REQUEST"),
+        (hap_client.RpcReply(200, {"error": [7, "something"]}), "OTHER"),
+        (hap_client.RpcReply(200, {"error": []}), "OTHER"),
+    ],
+)
 def test_classify(reply, klass):
     assert fuzzer.classify(reply) == klass
 
@@ -252,24 +320,33 @@ def test_fuzz_keeps_a_transport_error_next_to_the_decisive_answer(monkeypatch):
     monkeypatch.setattr(fuzzer, "call", fake_call)
     findings = fuzzer.fuzz_method("h", 1, "system", "getX", sleep=lambda s: None)
     assert [(f["class"], f["version"]) for f in findings] == [
-        ("TRANSPORT", "1.0"), ("ILLEGAL_REQUEST", "1.2")]
+        ("TRANSPORT", "1.0"),
+        ("ILLEGAL_REQUEST", "1.2"),
+    ]
 
     monkeypatch.setattr(fuzzer, "call", lambda *a: hap_client.RpcReply(0, None, "down"))
     findings = fuzzer.fuzz_method("h", 1, "system", "getX", sleep=lambda s: None)
     assert [f["class"] for f in findings] == ["TRANSPORT"] * len(fuzzer.VERSIONS_TO_TRY) + [
-        "UNSUPPORTED_VERSION_ALL"]
+        "UNSUPPORTED_VERSION_ALL"
+    ]
 
 
 def test_fuzz_records_a_method_no_version_accepts(monkeypatch):
-    monkeypatch.setattr(fuzzer, "call", lambda *a: hap_client.RpcReply(
-        200, {"error": [14, "Unsupported Version"]}))
+    monkeypatch.setattr(
+        fuzzer, "call", lambda *a: hap_client.RpcReply(200, {"error": [14, "Unsupported Version"]})
+    )
     (finding,) = fuzzer.fuzz_method("h", 1, "system", "getX", sleep=lambda s: None)
     assert finding["class"] == "UNSUPPORTED_VERSION_ALL" and finding["version"] is None
 
 
 def test_fuzz_filters_and_summarises(monkeypatch):
-    monkeypatch.setattr(fuzzer, "call", lambda ip, port, s, m, v, p: hap_client.RpcReply(
-        200, {"result": [{}]} if m == "getVersions" else {"error": [5, "illegal Request"]}))
+    monkeypatch.setattr(
+        fuzzer,
+        "call",
+        lambda ip, port, s, m, v, p: hap_client.RpcReply(
+            200, {"result": [{}]} if m == "getVersions" else {"error": [5, "illegal Request"]}
+        ),
+    )
     findings = fuzzer.fuzz("h", 1, "guide", None, sleep=lambda s: None)
     assert {f["service"] for f in findings} == {"guide"}
     assert len(findings) == len(fuzzer.CANDIDATES["guide"])
@@ -282,9 +359,23 @@ def test_fuzz_filters_and_summarises(monkeypatch):
 def test_fuzzer_main_against_the_mock(device, tmp_path, capsys, monkeypatch):
     host, port = device
     monkeypatch.setattr(fuzzer, "VERSIONS_TO_TRY", ["1.0"])
-    monkeypatch.setattr(fuzzer, "save_capture",
-                        lambda prefix, payload, tool: tmp_path / f"{prefix}.json")
-    assert fuzzer.main(["--target", host, "--port", str(port), "--service", "system",
-                        "--method", "getSystemInformation"]) == 0
+    monkeypatch.setattr(
+        fuzzer, "save_capture", lambda prefix, payload, tool: tmp_path / f"{prefix}.json"
+    )
+    assert (
+        fuzzer.main(
+            [
+                "--target",
+                host,
+                "--port",
+                str(port),
+                "--service",
+                "system",
+                "--method",
+                "getSystemInformation",
+            ]
+        )
+        == 0
+    )
     out = capsys.readouterr().out
     assert "system.getSystemInformation v1.0: OK" in out and "Report saved" in out

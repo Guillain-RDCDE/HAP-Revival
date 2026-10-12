@@ -19,23 +19,23 @@ import hap_companion as comp
 def test_scan_folder_full_accounting(tmp_path):
     a = tmp_path / "Artist" / "Album"
     a.mkdir(parents=True)
-    write_flac(a / "01.flac", 96000)            # ok, within ceiling
-    write_flac(a / "02.flac", 352800)           # > 192 kHz -> hi-res flag
-    write_wav(a / "03.wav", 384000)             # > 192 kHz -> hi-res flag
-    (a / "cover.jpg").write_bytes(b"img")        # has cover
-    (a / "Thumbs.db").write_bytes(b"j")          # junk
-    (a / "movie.mkv").write_bytes(b"v")          # unsupported
-    (a / "booklet.pdf").write_bytes(b"p")        # sidecar: neither counted nor flagged
+    write_flac(a / "01.flac", 96000)  # ok, within ceiling
+    write_flac(a / "02.flac", 352800)  # > 192 kHz -> hi-res flag
+    write_wav(a / "03.wav", 384000)  # > 192 kHz -> hi-res flag
+    (a / "cover.jpg").write_bytes(b"img")  # has cover
+    (a / "Thumbs.db").write_bytes(b"j")  # junk
+    (a / "movie.mkv").write_bytes(b"v")  # unsupported
+    (a / "booklet.pdf").write_bytes(b"p")  # sidecar: neither counted nor flagged
 
-    b = tmp_path / "Artist2" / "Album2"          # audio but NO cover
+    b = tmp_path / "Artist2" / "Album2"  # audio but NO cover
     b.mkdir(parents=True)
     (b / "song.mp3").write_bytes(b"m")
 
     r = comp.scan_folder(str(tmp_path))
-    assert r["n_ok"] == 4                          # 2 flac + 1 wav + 1 mp3
+    assert r["n_ok"] == 4  # 2 flac + 1 wav + 1 mp3
     assert r["n_junk"] == 1
     assert r["n_unsup"] == 1
-    assert r["n_hi"] == 2                          # the 352.8k flac + the 384k wav
+    assert r["n_hi"] == 2  # the 352.8k flac + the 384k wav
     assert any("movie.mkv" in u for u in r["unsup"])
     assert any("Thumbs.db" in j for j in r["junk"])
     assert any("352.8 kHz" in h for h in r["hires"])
@@ -86,8 +86,8 @@ def _build_catalog(db_path):
     """Build a tiny DB matching the real HAP schema the decoder reads:
     tracks (FT0002) join artists (FT5202) and albums (FT000A) on PROP ids."""
     db = sqlite3.connect(str(db_path))
-    db.execute("CREATE TABLE FT5202 (PROP3601 INTEGER, PROP7020 TEXT)")   # artists
-    db.execute("CREATE TABLE FT000A (PROP3601 INTEGER, PROP7020 TEXT)")   # albums
+    db.execute("CREATE TABLE FT5202 (PROP3601 INTEGER, PROP7020 TEXT)")  # artists
+    db.execute("CREATE TABLE FT000A (PROP3601 INTEGER, PROP7020 TEXT)")  # albums
     db.execute("CREATE TABLE FT0002 (PROP7052 INTEGER, PROPB2BB INTEGER)")  # tracks
     db.execute("INSERT INTO FT5202 VALUES (1, 'Miles Davis')")
     db.execute("INSERT INTO FT000A VALUES (10, 'Kind of Blue')")
@@ -101,9 +101,9 @@ def test_diff_library(tmp_path):
     _build_catalog(db)
 
     music = tmp_path / "music"
-    (music / "Miles Davis" / "Kind of Blue").mkdir(parents=True)   # already on HAP
-    (music / "Bonobo" / "Black Sands").mkdir(parents=True)         # new
-    (music / "loose_file.txt").write_text("ignored")               # not a dir -> skipped
+    (music / "Miles Davis" / "Kind of Blue").mkdir(parents=True)  # already on HAP
+    (music / "Bonobo" / "Black Sands").mkdir(parents=True)  # new
+    (music / "loose_file.txt").write_text("ignored")  # not a dir -> skipped
 
     r = comp.diff_library(str(db), str(music))
     assert r["have_count"] == 1

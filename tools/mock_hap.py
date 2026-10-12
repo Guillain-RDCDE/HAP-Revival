@@ -60,8 +60,12 @@ from hap_screen import KEYS as KEYEVENTS
 # ---------------------------------------------------------------------------
 
 
-def gradient_png(top: tuple[int, int, int], bottom: tuple[int, int, int], size: int = 320,
-                 height: int | None = None) -> bytes:
+def gradient_png(
+    top: tuple[int, int, int],
+    bottom: tuple[int, int, int],
+    size: int = 320,
+    height: int | None = None,
+) -> bytes:
     """A vertical gradient PNG from `top` to `bottom`, `size`×`height`, RGB.
 
     Square by default, which is what a cover wants. `height` makes it oblong —
@@ -132,24 +136,64 @@ CONTENTDB_BASE = "/sony/contentdb/v100"
 
 DEMO_TRACKS: list[Track] = [
     Track(
-        163756, "Symphony No. 2 — V. Im Tempo des Scherzos", "Gustav Mahler",
-        "Mahler: Symphony No. 2 'Resurrection'", "Gustav Mahler",
-        "05 - Im Tempo des Scherzos.flac", "flac", 96000, 24, 4608000, 1487.0,
-        "storage:internal", (93, 160, 80),
+        163756,
+        "Symphony No. 2 — V. Im Tempo des Scherzos",
+        "Gustav Mahler",
+        "Mahler: Symphony No. 2 'Resurrection'",
+        "Gustav Mahler",
+        "05 - Im Tempo des Scherzos.flac",
+        "flac",
+        96000,
+        24,
+        4608000,
+        1487.0,
+        "storage:internal",
+        (93, 160, 80),
     ),
     Track(
-        163902, "So What", "Miles Davis", "Kind of Blue (DSD)", "Miles Davis",
-        "01 - So What.dsf", "dsd", 2822400, 1, 5644800, 562.0,
-        "storage:internal", (176, 122, 64),
+        163902,
+        "So What",
+        "Miles Davis",
+        "Kind of Blue (DSD)",
+        "Miles Davis",
+        "01 - So What.dsf",
+        "dsd",
+        2822400,
+        1,
+        5644800,
+        562.0,
+        "storage:internal",
+        (176, 122, 64),
     ),
     Track(
-        164120, "Teardrop", "Massive Attack", "Mezzanine", "R. Del Naja",
-        "04 - Teardrop.flac", "flac", 44100, 16, 1001000, 330.0,
-        "storage:usb1", (66, 110, 180),
+        164120,
+        "Teardrop",
+        "Massive Attack",
+        "Mezzanine",
+        "R. Del Naja",
+        "04 - Teardrop.flac",
+        "flac",
+        44100,
+        16,
+        1001000,
+        330.0,
+        "storage:usb1",
+        (66, 110, 180),
     ),
     Track(
-        0, "Black Sands", "Bonobo", "Black Sands", "",
-        "", "", 0, 0, 0, 245.0, "storage:spotify", (138, 90, 184),
+        0,
+        "Black Sands",
+        "Bonobo",
+        "Black Sands",
+        "",
+        "",
+        "",
+        0,
+        0,
+        0,
+        245.0,
+        "storage:spotify",
+        (138, 90, 184),
         streaming=True,
     ),
 ]
@@ -225,9 +269,7 @@ def _track_json(t: Track, host: str) -> dict:
             "number_of_tracks": 1,
             "duration": int(t.duration),
             "album_artist": {"name": t.artist},
-            "image": {
-                "url": f"{base}/audio/albums/images/cover_art/{t.cover_id}"
-            },
+            "image": {"url": f"{base}/audio/albums/images/cover_art/{t.cover_id}"},
         },
         "genre": {"genreid": 1, "name": "Demo", "url": f"{base}/audio/genres/1"},
     }
@@ -282,9 +324,7 @@ def _page(items: list[dict], key: str, query: dict, host: str, path: str) -> dic
             "limit": limit,
             "total": len(items),
             "next": f"{base}?offset={offset + limit}&limit={limit}" if has_next else "",
-            "previous": (
-                f"{base}?offset={max(0, offset - limit)}&limit={limit}" if offset else ""
-            ),
+            "previous": (f"{base}?offset={max(0, offset - limit)}&limit={limit}" if offset else ""),
         },
     }
 
@@ -544,12 +584,17 @@ def contentplayer_get(path: str) -> tuple[int, dict]:
             return 200, {"power_state": "on" if STATE.power == "active" else "standby"}
         if parts == ["playinginfo"]:
             info = now_playing("mock")
-            return 200, {"state": info.get("state"), "title": info.get("title", ""),
-                         "artist": info.get("artist", ""),
-                         "position_sec": info.get("positionSec", 0)}
+            return 200, {
+                "state": info.get("state"),
+                "title": info.get("title", ""),
+                "artist": info.get("artist", ""),
+                "position_sec": info.get("positionSec", 0),
+            }
         if parts == ["playqueue"]:
-            return 200, {"queue": [{"trackid": t.id, "name": t.title} for t in DEMO_TRACKS],
-                         "index": STATE.index}
+            return 200, {
+                "queue": [{"trackid": t.id, "name": t.title} for t in DEMO_TRACKS],
+                "index": STATE.index,
+            }
         if parts == ["volumelevel"]:
             # A Z1ES has no volume stage: the real one answers 500 here.
             return 500, {"error_code": 500, "description": "Internal Server Error"}
@@ -652,18 +697,40 @@ def sleep_timer() -> dict:
 
 def volume_information() -> dict:
     # HAP-Z1ES has no internal amp: the device forces these sentinel values.
-    return {"target": "speaker", "volume": -1, "mute": "toggle",
-            "maxVolume": -1, "minVolume": -1, "step": 1}
+    return {
+        "target": "speaker",
+        "volume": -1,
+        "mute": "toggle",
+        "maxVolume": -1,
+        "minVolume": -1,
+        "step": 1,
+    }
 
 
 def storage_list() -> list[dict]:
     return [
-        {"uri": "storage:internal", "deviceName": "Internal HDD", "isAvailable": True,
-         "freeCapacityMB": 248320, "wholeCapacityMB": 953869, "systemAreaCapacityMB": 0,
-         "formattable": "unavailable", "mounted": True, "permission": "rw"},
-        {"uri": "storage:usb1", "deviceName": "USB Drive", "isAvailable": True,
-         "freeCapacityMB": 102400, "wholeCapacityMB": 512000, "systemAreaCapacityMB": 0,
-         "formattable": "unavailable", "mounted": True, "permission": "rw"},
+        {
+            "uri": "storage:internal",
+            "deviceName": "Internal HDD",
+            "isAvailable": True,
+            "freeCapacityMB": 248320,
+            "wholeCapacityMB": 953869,
+            "systemAreaCapacityMB": 0,
+            "formattable": "unavailable",
+            "mounted": True,
+            "permission": "rw",
+        },
+        {
+            "uri": "storage:usb1",
+            "deviceName": "USB Drive",
+            "isAvailable": True,
+            "freeCapacityMB": 102400,
+            "wholeCapacityMB": 512000,
+            "systemAreaCapacityMB": 0,
+            "formattable": "unavailable",
+            "mounted": True,
+            "permission": "rw",
+        },
     ]
 
 
@@ -702,10 +769,20 @@ RADIO_TREE: dict[str, list[dict]] = {
         {"path": "/2", "title": "Music", "isBrowsable": True, "isPlayable": False},
     ],
     "/1": [
-        {"path": "/1/1", "title": "FIP", "isBrowsable": False, "isPlayable": True,
-         "uri": f"{TUNEIN_URI}&path=/1/1&id=s50706"},
-        {"path": "/1/2", "title": "Radio Paradise", "isBrowsable": False, "isPlayable": True,
-         "uri": f"{TUNEIN_URI}&path=/1/2&id=s13606"},
+        {
+            "path": "/1/1",
+            "title": "FIP",
+            "isBrowsable": False,
+            "isPlayable": True,
+            "uri": f"{TUNEIN_URI}&path=/1/1&id=s50706",
+        },
+        {
+            "path": "/1/2",
+            "title": "Radio Paradise",
+            "isBrowsable": False,
+            "isPlayable": True,
+            "uri": f"{TUNEIN_URI}&path=/1/2&id=s13606",
+        },
     ],
     "/2": [],
 }
@@ -853,8 +930,9 @@ class MockHandler(BaseHTTPRequestHandler):
         host, port = self.server.server_address[:2]
         return self.headers.get("Host") or f"{host}:{port}"
 
-    def _send(self, status: int, content_type: str, body: bytes,
-              extra: dict[str, str] | None = None) -> None:
+    def _send(
+        self, status: int, content_type: str, body: bytes, extra: dict[str, str] | None = None
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -886,7 +964,7 @@ class MockHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         # The push readback surface: /sony/contentplayer/v100/...
         if self.path.startswith(CONTENTPLAYER_BASE):
-            rest = self.path[len(CONTENTPLAYER_BASE):].partition("?")[0]
+            rest = self.path[len(CONTENTPLAYER_BASE) :].partition("?")[0]
             status, payload = contentplayer_get(rest)
             self._send_json(status, payload)
             return
@@ -900,8 +978,9 @@ class MockHandler(BaseHTTPRequestHandler):
                 # 480×272, the real panel's size, tinted by what is playing so a
                 # client can see the picture change.
                 tr = STATE.current()
-                self._send(200, "image/png",
-                           gradient_png(tr.accent, (12, 12, 16), size=480, height=272))
+                self._send(
+                    200, "image/png", gradient_png(tr.accent, (12, 12, 16), size=480, height=272)
+                )
                 return
             if target == "screen" and cmd == "capture_png":
                 self._send(200, "text/plain", b"None")
@@ -916,7 +995,7 @@ class MockHandler(BaseHTTPRequestHandler):
 
         # The REST library API: /sony/contentdb/v100/...
         if self.path.startswith(CONTENTDB_BASE):
-            rest = self.path[len(CONTENTDB_BASE):]
+            rest = self.path[len(CONTENTDB_BASE) :]
             path, _, query = rest.partition("?")
             payload = contentdb_get(path.strip("/"), urllib.parse.parse_qs(query), self._host())
             if payload is None:
@@ -953,7 +1032,7 @@ class MockHandler(BaseHTTPRequestHandler):
         if not self.path.startswith("/sony/"):
             self.send_error(404)
             return
-        service = self.path[len("/sony/"):].split("?", 1)[0].strip("/")
+        service = self.path[len("/sony/") :].split("?", 1)[0].strip("/")
         length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(length) if length else b""
         try:
@@ -1020,8 +1099,12 @@ def serve_in_thread(bind: str = "127.0.0.1", port: int = API_PORT) -> ThreadingH
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     hap_update.add_version_flag(parser)
-    parser.add_argument("--port", type=int, default=API_PORT,
-                        help=f"Listen port (default {API_PORT}, the real HAP port)")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=API_PORT,
+        help=f"Listen port (default {API_PORT}, the real HAP port)",
+    )
     parser.add_argument("--bind", default="127.0.0.1", help="Bind address (default 127.0.0.1)")
     parser.add_argument("--verbose", action="store_true", help="Log each request")
     return parser

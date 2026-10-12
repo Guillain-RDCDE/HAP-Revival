@@ -15,21 +15,38 @@ import hap_media
 # ---------- is_junk ----------
 
 
-@pytest.mark.parametrize("name", [
-    "Thumbs.db", "THUMBS.DB", ".DS_Store", "desktop.ini",
-    "._AppleDouble", "._cover.jpg",
-    "track.flac.ffs_tmp", "album.part", "x.partial", "y.tmp", "z.crdownload",
-    "scan.ffs_lock",
-])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Thumbs.db",
+        "THUMBS.DB",
+        ".DS_Store",
+        "desktop.ini",
+        "._AppleDouble",
+        "._cover.jpg",
+        "track.flac.ffs_tmp",
+        "album.part",
+        "x.partial",
+        "y.tmp",
+        "z.crdownload",
+        "scan.ffs_lock",
+    ],
+)
 def test_is_junk_true(name):
     assert hap_media.is_junk(name) is True
 
 
-@pytest.mark.parametrize("name", [
-    "01 - Song.flac", "cover.jpg", "folder.png", "notes.txt",
-    "temple.flac",   # ends with 'le' not '._' — must not trip the AppleDouble rule
-    "thumbs.dbx",    # not exactly thumbs.db
-])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "01 - Song.flac",
+        "cover.jpg",
+        "folder.png",
+        "notes.txt",
+        "temple.flac",  # ends with 'le' not '._' — must not trip the AppleDouble rule
+        "thumbs.dbx",  # not exactly thumbs.db
+    ],
+)
 def test_is_junk_false(name):
     assert hap_media.is_junk(name) is False
 
@@ -37,15 +54,31 @@ def test_is_junk_false(name):
 # ---------- classify ----------
 
 
-@pytest.mark.parametrize("name,kind", [
-    ("a.flac", "audio"), ("a.FLAC", "audio"), ("a.dsf", "audio"), ("a.mp3", "audio"),
-    ("a.m4a", "audio"), ("a.wav", "audio"), ("a.aiff", "audio"), ("a.at3", "audio"),
-    ("cover.jpg", "sidecar"), ("notes.txt", "sidecar"), ("list.m3u", "sidecar"),
-    ("lyrics.lrc", "sidecar"), ("art.webp", "sidecar"),
-    ("README", "sidecar"),                # no extension -> sidecar bucket
-    ("Thumbs.db", "junk"), ("._x.flac", "junk"), ("x.ffs_tmp", "junk"),
-    ("movie.mkv", "unsupported"), ("a.ogg", "unsupported"), ("a.opus", "unsupported"),
-])
+@pytest.mark.parametrize(
+    "name,kind",
+    [
+        ("a.flac", "audio"),
+        ("a.FLAC", "audio"),
+        ("a.dsf", "audio"),
+        ("a.mp3", "audio"),
+        ("a.m4a", "audio"),
+        ("a.wav", "audio"),
+        ("a.aiff", "audio"),
+        ("a.at3", "audio"),
+        ("cover.jpg", "sidecar"),
+        ("notes.txt", "sidecar"),
+        ("list.m3u", "sidecar"),
+        ("lyrics.lrc", "sidecar"),
+        ("art.webp", "sidecar"),
+        ("README", "sidecar"),  # no extension -> sidecar bucket
+        ("Thumbs.db", "junk"),
+        ("._x.flac", "junk"),
+        ("x.ffs_tmp", "junk"),
+        ("movie.mkv", "unsupported"),
+        ("a.ogg", "unsupported"),
+        ("a.opus", "unsupported"),
+    ],
+)
 def test_classify(name, kind):
     assert hap_media.classify(name) == kind
 

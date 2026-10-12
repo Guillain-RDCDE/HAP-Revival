@@ -57,8 +57,10 @@ def test_a_tie_stays_a_tie():
     # album is somewhere it also is not.
     loc = hap_fixit.Locator(index(HAP_Internal=DUMMY))
     folders, _ = loc.locate(["01 - Mysterons.flac", "02 - Sour times.flac"])
-    assert folders == ["HAP_Internal/Portishead/(1994) Dummy",
-                       "HAP_Internal/Portishead/Dummy (1994)"]
+    assert folders == [
+        "HAP_Internal/Portishead/(1994) Dummy",
+        "HAP_Internal/Portishead/Dummy (1994)",
+    ]
 
 
 def test_a_weak_match_resolves_to_nothing():
@@ -100,8 +102,12 @@ def test_unc_paths_are_windows_shaped():
 
 
 def harvest_with(album_name, filenames, has_image=False):
-    album = {"albumid": 1, "name": album_name, "number_of_tracks": len(filenames),
-             "album_artist": {"name": "Portishead"}}
+    album = {
+        "albumid": 1,
+        "name": album_name,
+        "number_of_tracks": len(filenames),
+        "album_artist": {"name": "Portishead"},
+    }
     if has_image:
         album["image"] = {"url": "http://p/1"}
     return {
@@ -109,10 +115,15 @@ def harvest_with(album_name, filenames, has_image=False):
         "artists": [],
         "albums": [album],
         "tracks": [
-            {"trackid": i, "name": f"t{i}", "filename": fn, "duration": 100 + i,
-             "album": {"albumid": 1, "name": album_name},
-             "artist": {"name": "Portishead"},
-             "codec": {"codec_type": "flac", "sample_rate": 44100, "bit_width": 16}}
+            {
+                "trackid": i,
+                "name": f"t{i}",
+                "filename": fn,
+                "duration": 100 + i,
+                "album": {"albumid": 1, "name": album_name},
+                "artist": {"name": "Portishead"},
+                "codec": {"codec_type": "flac", "sample_rate": 44100, "bit_width": 16},
+            }
             for i, fn in enumerate(filenames)
         ],
     }
@@ -200,11 +211,17 @@ def test_findings_carry_no_local_route_when_nothing_is_mapped():
 
 def test_load_sync_maps_reads_the_shared_config(tmp_path):
     cfg = tmp_path / "hap_sync.json"
-    cfg.write_bytes(json.dumps({
-        "host": "1.2.3.4",
-        "maps": [{"local": "D:\\FLAC\\Internal", "share": "HAP_Internal"},
-                 {"local": "", "share": "HAP_External"}],
-    }).encode("utf-8"))
+    cfg.write_bytes(
+        json.dumps(
+            {
+                "host": "1.2.3.4",
+                "maps": [
+                    {"local": "D:\\FLAC\\Internal", "share": "HAP_Internal"},
+                    {"local": "", "share": "HAP_External"},
+                ],
+            }
+        ).encode("utf-8")
+    )
 
     maps = hap_fixit.load_sync_maps(cfg)
 
@@ -231,7 +248,7 @@ def test_a_differently_filed_local_library_is_still_found(tmp_path):
     found = hap_fixit.resolve_local(
         ["HAP_Internal/Portishead/Dummy (1994)"],
         ["01 - Mysterons.flac", "02 - Sour times.flac"],
-        {},          # no mapping at all
+        {},  # no mapping at all
         loc,
     )
     assert found == [str(local)]
@@ -248,8 +265,10 @@ def test_the_prefix_swap_wins_when_it_works(tmp_path):
 
     loc = hap_fixit.local_locator(hap_fixit.scan_local([str(tmp_path)]))
     found = hap_fixit.resolve_local(
-        ["HAP_Internal/X/Album"], ["01 - a.flac"],
-        {"HAP_Internal": str(tmp_path / "Sync")}, loc,
+        ["HAP_Internal/X/Album"],
+        ["01 - a.flac"],
+        {"HAP_Internal": str(tmp_path / "Sync")},
+        loc,
     )
     assert found == [str(mirrored)]
 
@@ -300,8 +319,9 @@ def test_the_html_report_escapes_and_lists_every_finding():
     h = harvest_with("A & B <script>", ["01 - Mysterons.flac", "02 - Sour times.flac"])
     found = hap_fixit.build_findings(h, index(HAP_Internal=DUMMY))
     page = hap_fixit.render_html(found, "192.168.1.28")
-    assert "<script>" not in page.split("<script>\nfunction cp")[0].replace(
-        "&lt;script&gt;", ""), "titles must be escaped"
+    assert "<script>" not in page.split("<script>\nfunction cp")[0].replace("&lt;script&gt;", ""), (
+        "titles must be escaped"
+    )
     assert "A &amp; B" in page
     assert page.count("<tr") == len(found)
 

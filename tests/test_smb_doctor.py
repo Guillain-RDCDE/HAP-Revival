@@ -26,18 +26,31 @@ def test_pending_fixes_and_summary():
     fixes = smb_doctor.pending_fixes(findings)
     assert [f.key for f in fixes] == ["signing", "mappings"]
     assert smb_doctor.summary(findings) == {
-        "transfer_ok": True, "problems": 3, "fixable": 2, "needs_admin": True}
+        "transfer_ok": True,
+        "problems": 3,
+        "fixable": 2,
+        "needs_admin": True,
+    }
     assert smb_doctor.summary([])["transfer_ok"] is False
 
 
 def test_format_report_shows_glyphs_scope_and_fix_commands():
-    lines = smb_doctor.format_report([
-        Finding("pysmb", "Transfer access", OK, "Connected."),
-        Finding("signing", "Signing required", PROBLEM, "Blocks Explorer.",
-                fix_cmd="Set-SmbClientConfiguration", needs_admin=True, native_only=True),
-        Finding("mappings", "Stale mapping", PROBLEM, fix_cmd="net use x: /delete"),
-        Finding("x", "Unknown status", "weird"),
-    ])
+    lines = smb_doctor.format_report(
+        [
+            Finding("pysmb", "Transfer access", OK, "Connected."),
+            Finding(
+                "signing",
+                "Signing required",
+                PROBLEM,
+                "Blocks Explorer.",
+                fix_cmd="Set-SmbClientConfiguration",
+                needs_admin=True,
+                native_only=True,
+            ),
+            Finding("mappings", "Stale mapping", PROBLEM, fix_cmd="net use x: /delete"),
+            Finding("x", "Unknown status", "weird"),
+        ]
+    )
     assert lines[0] == "✓ Transfer access"
     assert lines[1] == "     Connected."
     assert lines[2] == "✗ Signing required  (native path only)"
@@ -116,8 +129,9 @@ def test_probe_guest_share_falls_back_to_netbios_then_fails(monkeypatch):
 def test_diagnose_off_windows_skips_native_checks(monkeypatch):
     monkeypatch.setattr(smb_doctor, "IS_WINDOWS", False)
     monkeypatch.setattr(smb_doctor, "tcp_port_open", lambda host, port, timeout=3.0: port == 139)
-    monkeypatch.setattr(smb_doctor, "probe_guest_share",
-                        lambda host: Finding("pysmb", "transfer", OK))
+    monkeypatch.setattr(
+        smb_doctor, "probe_guest_share", lambda host: Finding("pysmb", "transfer", OK)
+    )
     keys = [f.key for f in smb_doctor.diagnose("1.2.3.4")]
     assert keys == ["reach", "pysmb", "native"]
     findings = smb_doctor.diagnose("1.2.3.4")
@@ -135,13 +149,18 @@ def test_diagnose_unreachable_player(monkeypatch):
 def test_diagnose_on_windows_runs_every_native_check(monkeypatch):
     monkeypatch.setattr(smb_doctor, "IS_WINDOWS", True)
     monkeypatch.setattr(smb_doctor, "tcp_port_open", lambda host, port, timeout=3.0: True)
-    monkeypatch.setattr(smb_doctor, "probe_guest_share",
-                        lambda host: Finding("pysmb", "transfer", OK))
-    monkeypatch.setattr(smb_doctor, "windows_smb_client",
-                        lambda: [Finding("signing", "s", OK), Finding("guest", "g", OK)])
+    monkeypatch.setattr(
+        smb_doctor, "probe_guest_share", lambda host: Finding("pysmb", "transfer", OK)
+    )
+    monkeypatch.setattr(
+        smb_doctor,
+        "windows_smb_client",
+        lambda: [Finding("signing", "s", OK), Finding("guest", "g", OK)],
+    )
     monkeypatch.setattr(smb_doctor, "windows_smb1_feature", lambda: Finding("smb1", "f", OK))
-    monkeypatch.setattr(smb_doctor, "windows_stale_mappings",
-                        lambda host: Finding("mappings", "m", OK))
+    monkeypatch.setattr(
+        smb_doctor, "windows_stale_mappings", lambda host: Finding("mappings", "m", OK)
+    )
     keys = [f.key for f in smb_doctor.diagnose("1.2.3.4")]
     assert keys == ["reach", "pysmb", "signing", "guest", "smb1", "mappings"]
 
@@ -150,15 +169,27 @@ def test_diagnose_on_windows_runs_every_native_check(monkeypatch):
 
 
 def test_windows_smb_client_reads_effective_values(monkeypatch):
-    monkeypatch.setattr(smb_doctor, "_ps", lambda script, timeout=20: (
-        0, json.dumps({"RequireSecuritySignature": True, "EnableInsecureGuestLogons": False})))
+    monkeypatch.setattr(
+        smb_doctor,
+        "_ps",
+        lambda script, timeout=20: (
+            0,
+            json.dumps({"RequireSecuritySignature": True, "EnableInsecureGuestLogons": False}),
+        ),
+    )
     sign, guest = smb_doctor.windows_smb_client()
     assert sign.status == PROBLEM and "RequireSecuritySignature $false" in sign.fix_cmd
     assert guest.status == PROBLEM and "AllowInsecureGuestAuth 1" in guest.fix_cmd
     assert sign.needs_admin and guest.native_only
 
-    monkeypatch.setattr(smb_doctor, "_ps", lambda script, timeout=20: (
-        0, json.dumps({"RequireSecuritySignature": False, "EnableInsecureGuestLogons": True})))
+    monkeypatch.setattr(
+        smb_doctor,
+        "_ps",
+        lambda script, timeout=20: (
+            0,
+            json.dumps({"RequireSecuritySignature": False, "EnableInsecureGuestLogons": True}),
+        ),
+    )
     sign, guest = smb_doctor.windows_smb_client()
     assert sign.status == OK and guest.status == OK
 
@@ -249,7 +280,9 @@ def test_ps_survives_a_missing_powershell(monkeypatch):
 def test_apply_fixes_refuses_off_windows(monkeypatch):
     monkeypatch.setattr(smb_doctor, "IS_WINDOWS", False)
     assert smb_doctor.apply_fixes([Finding("x", "x", PROBLEM, fix_cmd="y")]) == (
-        False, "Automatic fixing is Windows-only.")
+        False,
+        "Automatic fixing is Windows-only.",
+    )
 
 
 def test_apply_fixes_runs_user_fixes_then_one_elevated_script(monkeypatch, tmp_path):
@@ -257,8 +290,11 @@ def test_apply_fixes_runs_user_fixes_then_one_elevated_script(monkeypatch, tmp_p
     import os
 
     script = tmp_path / "fix.ps1"
-    monkeypatch.setattr(smb_doctor.tempfile, "mkstemp", lambda suffix, text: (
-        os.open(str(script), os.O_RDWR | os.O_CREAT), str(script)))
+    monkeypatch.setattr(
+        smb_doctor.tempfile,
+        "mkstemp",
+        lambda suffix, text: (os.open(str(script), os.O_RDWR | os.O_CREAT), str(script)),
+    )
     ran = []
     monkeypatch.setattr(smb_doctor, "_ps", lambda script, timeout=20: ran.append(script) or (0, ""))
     log = []
@@ -286,14 +322,18 @@ def test_apply_fixes_reports_a_declined_uac(monkeypatch, tmp_path):
 
 
 def test_admin_script_and_launcher_shape():
-    script = smb_doctor._build_admin_script([
-        Finding("a", "Fix A", PROBLEM, fix_cmd="Set-A"),
-        Finding("b", "Fix B", PROBLEM, fix_cmd="Set-B"),
-    ])
+    script = smb_doctor._build_admin_script(
+        [
+            Finding("a", "Fix A", PROBLEM, fix_cmd="Set-A"),
+            Finding("b", "Fix B", PROBLEM, fix_cmd="Set-B"),
+        ]
+    )
     assert script.split("\r\n") == [
         "$ErrorActionPreference = 'Continue'",
-        "Write-Host '>> Fix A'", "Set-A",
-        "Write-Host '>> Fix B'", "Set-B",
+        "Write-Host '>> Fix A'",
+        "Set-A",
+        "Write-Host '>> Fix B'",
+        "Set-B",
         "Write-Host 'Done. You can close this window.'",
     ]
     launcher = smb_doctor._elevation_launcher(r"C:\t\fix.ps1", wait=False)
@@ -305,17 +345,22 @@ def test_admin_script_and_launcher_shape():
 
 
 def test_main_prints_the_report_and_exit_code(monkeypatch, capsys):
-    monkeypatch.setattr(smb_doctor, "diagnose", lambda host: [
-        Finding("pysmb", "transfer", OK),
-        Finding("signing", "Signing", PROBLEM, fix_cmd="Set-A", needs_admin=True),
-    ])
+    monkeypatch.setattr(
+        smb_doctor,
+        "diagnose",
+        lambda host: [
+            Finding("pysmb", "transfer", OK),
+            Finding("signing", "Signing", PROBLEM, fix_cmd="Set-A", needs_admin=True),
+        ],
+    )
     assert smb_doctor.main(["1.2.3.4"]) == 0
     out = capsys.readouterr().out
     assert "Transfer (our tool): WORKS" in out and "Re-run with --fix" in out
 
     applied = []
-    monkeypatch.setattr(smb_doctor, "apply_fixes",
-                        lambda findings, on_log=None: applied.append(1) or (True, "done"))
+    monkeypatch.setattr(
+        smb_doctor, "apply_fixes", lambda findings, on_log=None: applied.append(1) or (True, "done")
+    )
     assert smb_doctor.main(["1.2.3.4", "--fix"]) == 0 and applied
 
     monkeypatch.setattr(smb_doctor, "diagnose", lambda host: [Finding("reach", "dead", PROBLEM)])

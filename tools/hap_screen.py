@@ -54,8 +54,7 @@ HTTP_TIMEOUT_SEC = 20
 #   `next` — advances. Twice in a row, each time a different title at ~7 s in.
 #   `prev` — accepted, but the track did not change. Effect unconfirmed.
 # So `prev` is kept out of the UI until somebody can show it doing something.
-KEYS = ("home", "up", "down", "left", "right", "enter", "back", "option", "play",
-        "next", "prev")
+KEYS = ("home", "up", "down", "left", "right", "enter", "back", "option", "play", "next", "prev")
 KEYS_UNVERIFIED = ("prev",)
 
 # The pages leave this long between a key and the follow-up screen grab.
@@ -80,8 +79,7 @@ def cmd_show(host: str, out: Path) -> int:
     body, ctype = tool_get(host, "screen", "display_png")
     if not body.startswith(b"\x89PNG"):
         print(
-            f"not a PNG (Content-Type: {ctype or 'none'}, {len(body)} bytes): "
-            f"{body[:64]!r}",
+            f"not a PNG (Content-Type: {ctype or 'none'}, {len(body)} bytes): {body[:64]!r}",
             file=sys.stderr,
         )
         return 1
@@ -115,17 +113,13 @@ def cmd_capture(host: str) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Mirror the HAP front panel and press its keys."
-    )
+    parser = argparse.ArgumentParser(description="Mirror the HAP front panel and press its keys.")
     hap_update.add_version_flag(parser)
     parser.add_argument("host", help="player IP or hostname")
     sub = parser.add_subparsers(dest="action", required=True)
 
     p_show = sub.add_parser("show", help="fetch the front panel as a PNG")
-    p_show.add_argument(
-        "-o", "--output", type=Path, default=Path("screen.png"), help="output file"
-    )
+    p_show.add_argument("-o", "--output", type=Path, default=Path("screen.png"), help="output file")
 
     p_key = sub.add_parser("key", help="inject one or more front-panel keys")
     p_key.add_argument("keys", nargs="+", metavar="KEY", help=f"one of: {', '.join(KEYS)}")

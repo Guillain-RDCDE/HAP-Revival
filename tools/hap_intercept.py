@@ -67,6 +67,7 @@ QTYPE_NAMES = {1: "A", 2: "NS", 5: "CNAME", 12: "PTR", 16: "TXT", 28: "AAAA"}
 QTYPE_A = 1
 QTYPE_AAAA = 28
 
+
 def now_iso() -> str:
     """Timestamp for the log, UTC, second resolution."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -287,9 +288,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         status = status_line.decode("latin-1", "replace").strip()
         summary = {
-            k.decode("latin-1").split(":", 1)[0].lower(): k.decode(
-                "latin-1", "replace"
-            ).split(":", 1)[1].strip()
+            k.decode("latin-1").split(":", 1)[0].lower(): k.decode("latin-1", "replace")
+            .split(":", 1)[1]
+            .strip()
             for k in headers
             if b":" in k
         }
@@ -307,9 +308,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             lowered = line.lower()
             # Content-Length is re-derived below: the upstream one would not
             # match if the body arrived chunked, and two of them is malformed.
-            if lowered.startswith(
-                (b"connection:", b"transfer-encoding:", b"content-length:")
-            ):
+            if lowered.startswith((b"connection:", b"transfer-encoding:", b"content-length:")):
                 continue
             self.wfile.write(line)
         self.wfile.write(b"Content-Length: %d\r\n" % len(payload))
@@ -336,8 +335,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ip",
         default="",
-        help="this machine's LAN address, as the player will see it "
-        "(default: guessed)",
+        help="this machine's LAN address, as the player will see it (default: guessed)",
     )
     parser.add_argument(
         "--hijack",

@@ -85,8 +85,11 @@ FALLBACK_ACCENT = (60, 60, 80, 255)
 #: The "to fix" list is capped so one JSON answer stays small on a phone.
 FIX_ITEMS_LIMIT = 400
 
-NO_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache",
-            "Expires": "0"}
+NO_CACHE = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 
 # ===== Static assets =====
@@ -97,8 +100,9 @@ def read_asset(name: str) -> str:
     return (WEB_DIR / name).read_text(encoding="utf-8")
 
 
-def render_index(template: str, *, accent: tuple[int, int, int, int], cover_url: str,
-                 lang: str) -> str:
+def render_index(
+    template: str, *, accent: tuple[int, int, int, int], cover_url: str, lang: str
+) -> str:
     """Fill the page template's placeholders.
 
     The catalogs for every language are embedded so switching is instant and
@@ -172,8 +176,12 @@ def _sound_payload(hap: HAP) -> dict:
 
 def _sleep_payload(hap: HAP) -> dict:
     t = hap.sleep_timer()
-    return {"status": t.status, "remain_sec": t.remain_sec, "sleep_sec": t.sleep_sec,
-            "candidate_sec": t.candidate_sec}
+    return {
+        "status": t.status,
+        "remain_sec": t.remain_sec,
+        "sleep_sec": t.sleep_sec,
+        "candidate_sec": t.candidate_sec,
+    }
 
 
 def _volume_payload(hap: HAP) -> dict:
@@ -391,7 +399,8 @@ SIMPLE_ACTIONS: dict[str, Callable[[HAP, dict], None]] = {
     "/api/set-volume": lambda hap, p: hap.set_volume(int(p["volume"])),
     "/api/mute-toggle": lambda hap, p: hap.mute_toggle(),
     "/api/set-sleep-timer": lambda hap, p: hap.set_sleep_timer(
-        status=str(p.get("status", "off")), sleep_sec=int(p.get("sleep_sec", 0))),
+        status=str(p.get("status", "off")), sleep_sec=int(p.get("sleep_sec", 0))
+    ),
 }
 
 
@@ -412,8 +421,9 @@ class HAPHandler(BaseHTTPRequestHandler):
 
     def _send_json(self, status: int, payload: Any) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self._send_bytes(status, "application/json; charset=utf-8", body,
-                         {"Cache-Control": "no-store"})
+        self._send_bytes(
+            status, "application/json; charset=utf-8", body, {"Cache-Control": "no-store"}
+        )
 
     def _send_bytes(
         self, status: int, content_type: str, body: bytes, extra: dict[str, str] | None = None
@@ -435,9 +445,9 @@ class HAPHandler(BaseHTTPRequestHandler):
         if route is not None:
             route(self, parsed.query)
         elif path.startswith("/pwa/"):
-            self._serve_icon(path[len("/pwa/"):])
+            self._serve_icon(path[len("/pwa/") :])
         elif path.startswith("/api/library/"):
-            self._serve_library(path[len("/api/library/"):], parsed.query)
+            self._serve_library(path[len("/api/library/") :], parsed.query)
         else:
             self.send_error(404)
 
@@ -458,22 +468,30 @@ class HAPHandler(BaseHTTPRequestHandler):
         self._send_bytes(200, "text/html; charset=utf-8", html.encode("utf-8"), NO_CACHE)
 
     def _serve_manifest(self, query: str) -> None:
-        self._send_bytes(200, "application/manifest+json; charset=utf-8",
-                         read_asset("manifest.webmanifest").encode("utf-8"))
+        self._send_bytes(
+            200,
+            "application/manifest+json; charset=utf-8",
+            read_asset("manifest.webmanifest").encode("utf-8"),
+        )
 
     def _serve_service_worker(self, query: str) -> None:
         # Service-Worker-Allowed lets the SW control the whole origin even
         # though it is served from /sw.js.
-        self._send_bytes(200, "text/javascript; charset=utf-8", read_asset("sw.js").encode("utf-8"),
-                         {"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+        self._send_bytes(
+            200,
+            "text/javascript; charset=utf-8",
+            read_asset("sw.js").encode("utf-8"),
+            {"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
+        )
 
     def _serve_icon(self, name: str) -> None:
         target = pwa_icon_path(name)
         if target is None:
             self.send_error(404)
             return
-        self._send_bytes(200, "image/png", target.read_bytes(),
-                         {"Cache-Control": "public, max-age=86400"})
+        self._send_bytes(
+            200, "image/png", target.read_bytes(), {"Cache-Control": "public, max-age=86400"}
+        )
 
     def _serve_state(self, query: str) -> None:
         self._send_json(200, build_state(self.hap))
@@ -495,8 +513,9 @@ class HAPHandler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             since = 0
         generation = self.push.wait_for_change(since, EVENT_POLL_TIMEOUT)
-        self._send_json(200, {"push": self.push.active, "generation": generation,
-                              "error": self.push.last_error})
+        self._send_json(
+            200, {"push": self.push.active, "generation": generation, "error": self.push.last_error}
+        )
 
     def _serve_panel_screen(self, query: str) -> None:
         # The player's own front panel, proxied. Not fetched directly by the
@@ -524,33 +543,43 @@ class HAPHandler(BaseHTTPRequestHandler):
         harvest = HARVEST.data or hap_library.load_harvest(host)
         index = hap_fixit.load_index(host) if host else None
         if harvest is None or index is None:
-            self._send_json(200, {
-                "ready": False,
-                "needs": ([] if harvest else ["library"]) + ([] if index else ["shares"]),
-                "items": [],
-            })
+            self._send_json(
+                200,
+                {
+                    "ready": False,
+                    "needs": ([] if harvest else ["library"]) + ([] if index else ["shares"]),
+                    "items": [],
+                },
+            )
             return
 
         findings = [f for f in hap_fixit.build_findings(harvest, index) if f.kind == kind]
-        self._send_json(200, {
-            "ready": True,
-            "kind": kind,
-            "total": len(findings),
-            "located": sum(1 for f in findings if f.folders),
-            # Actions are only meaningful when the browser is on this machine;
-            # the page uses this to decide whether to offer the buttons.
-            "can_open": sys.platform == "win32",
-            "local": sum(1 for f in findings if f.is_local),
-            "items": [
-                # `paths` leads with the local copy when there is one: editing a
-                # synced source folder is a local write, and the next sync
-                # carries it to the player. `local` says which case this is.
-                {"title": f.title, "detail": f.detail,
-                 "paths": f.local_paths + f.paths,
-                 "local": f.is_local, "ambiguous": f.ambiguous}
-                for f in findings[:FIX_ITEMS_LIMIT]
-            ],
-        })
+        self._send_json(
+            200,
+            {
+                "ready": True,
+                "kind": kind,
+                "total": len(findings),
+                "located": sum(1 for f in findings if f.folders),
+                # Actions are only meaningful when the browser is on this machine;
+                # the page uses this to decide whether to offer the buttons.
+                "can_open": sys.platform == "win32",
+                "local": sum(1 for f in findings if f.is_local),
+                "items": [
+                    # `paths` leads with the local copy when there is one: editing a
+                    # synced source folder is a local write, and the next sync
+                    # carries it to the player. `local` says which case this is.
+                    {
+                        "title": f.title,
+                        "detail": f.detail,
+                        "paths": f.local_paths + f.paths,
+                        "local": f.is_local,
+                        "ambiguous": f.ambiguous,
+                    }
+                    for f in findings[:FIX_ITEMS_LIMIT]
+                ],
+            },
+        )
 
     def _serve_search(self, query: str) -> None:
         """Search the harvested catalog.
@@ -776,8 +805,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     hap_update.add_version_flag(parser)
     parser.add_argument("ip", nargs="?", help="HAP device IP address (omit when using --demo)")
-    parser.add_argument("--port", type=int, default=DEFAULT_HTTP_PORT,
-                        help=f"Local HTTP port (default {DEFAULT_HTTP_PORT})")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_HTTP_PORT,
+        help=f"Local HTTP port (default {DEFAULT_HTTP_PORT})",
+    )
     parser.add_argument("--bind", default="127.0.0.1", help="Bind address (default 127.0.0.1)")
     parser.add_argument(
         "--demo",
@@ -794,7 +827,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=hap_notify.DEFAULT_LISTEN_PORT,
         help="Local UDP port to receive notifications on "
-             f"(default {hap_notify.DEFAULT_LISTEN_PORT}).",
+        f"(default {hap_notify.DEFAULT_LISTEN_PORT}).",
     )
     return parser
 

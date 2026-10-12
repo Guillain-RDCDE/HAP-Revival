@@ -8,11 +8,22 @@ import i18n
 # ---------- normalize_lang ----------
 
 
-@pytest.mark.parametrize("code,expected", [
-    ("fr", "fr"), ("FR", "fr"), ("fr_FR", "fr"), ("fr-FR.UTF-8", "fr"),
-    ("ja", "ja"), ("de_DE", "de"), ("en-US", "en"),
-    ("xx", None), ("", None), (None, None), ("zz-ZZ", None),
-])
+@pytest.mark.parametrize(
+    "code,expected",
+    [
+        ("fr", "fr"),
+        ("FR", "fr"),
+        ("fr_FR", "fr"),
+        ("fr-FR.UTF-8", "fr"),
+        ("ja", "ja"),
+        ("de_DE", "de"),
+        ("en-US", "en"),
+        ("xx", None),
+        ("", None),
+        (None, None),
+        ("zz-ZZ", None),
+    ],
+)
 def test_normalize_lang(code, expected):
     assert i18n.normalize_lang(code) == expected
 
@@ -20,15 +31,18 @@ def test_normalize_lang(code, expected):
 # ---------- parse_accept_language ----------
 
 
-@pytest.mark.parametrize("header,expected", [
-    ("fr-FR,fr;q=0.9,en;q=0.8", "fr"),
-    ("de-DE,de;q=0.9,en;q=0.5", "de"),
-    ("en;q=0.8, ja;q=0.9", "ja"),           # q-weight wins over order
-    ("xx,zz", None),
-    ("", None),
-    (None, None),
-    ("it", "it"),
-])
+@pytest.mark.parametrize(
+    "header,expected",
+    [
+        ("fr-FR,fr;q=0.9,en;q=0.8", "fr"),
+        ("de-DE,de;q=0.9,en;q=0.5", "de"),
+        ("en;q=0.8, ja;q=0.9", "ja"),  # q-weight wins over order
+        ("xx,zz", None),
+        ("", None),
+        (None, None),
+        ("it", "it"),
+    ],
+)
 def test_parse_accept_language(header, expected):
     assert i18n.parse_accept_language(header) == expected
 
@@ -118,9 +132,9 @@ def test_all_catalogs_complete():
 def test_language_options_shape():
     opts = i18n.language_options()
     codes = [o["code"] for o in opts]
-    assert codes[0] == "en"                       # canonical order, EN first
+    assert codes[0] == "en"  # canonical order, EN first
     assert set(codes) == set(i18n.CATALOGS)
-    assert all(o["name"] for o in opts)           # every language has a display name
+    assert all(o["name"] for o in opts)  # every language has a display name
 
 
 def test_no_empty_braces_in_any_template():

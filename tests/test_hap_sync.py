@@ -34,13 +34,13 @@ def test_local_index_skips_junk_and_unsupported(tmp_path):
     rels = {f.rel for f in files}
     assert "Artist/Album/01 - a.flac" in rels
     assert "Artist/Album/02 - b.mp3" in rels
-    assert "Artist/Album/cover.jpg" in rels          # sidecar is carried, not skipped
+    assert "Artist/Album/cover.jpg" in rels  # sidecar is carried, not skipped
     # junk never appears
     assert not any("Thumbs.db" in r or "._a.flac" in r or "ffs_tmp" in r for r in rels)
     # unsupported excluded by default
     assert "Artist/Album/movie.mkv" not in rels
-    assert skipped["junk"] == 3                       # Thumbs.db, ._a.flac, notes.ffs_tmp
-    assert skipped["unsupported"] == 1                # movie.mkv
+    assert skipped["junk"] == 3  # Thumbs.db, ._a.flac, notes.ffs_tmp
+    assert skipped["unsupported"] == 1  # movie.mkv
 
 
 def test_local_index_can_include_unsupported(tmp_path):
@@ -48,13 +48,13 @@ def test_local_index_can_include_unsupported(tmp_path):
     files, skipped = core.local_index(str(root), include_unsupported=True)
     assert "Artist/Album/movie.mkv" in {f.rel for f in files}
     assert skipped["unsupported"] == 0
-    assert skipped["junk"] == 3                       # junk is ALWAYS skipped
+    assert skipped["junk"] == 3  # junk is ALWAYS skipped
 
 
 def test_local_index_uses_posix_separators_and_real_sizes(tmp_path):
     root = _build_tree(tmp_path)
     files, _ = core.local_index(str(root), include_unsupported=False)
-    assert all("\\" not in f.rel for f in files)      # forward slashes for SMB
+    assert all("\\" not in f.rel for f in files)  # forward slashes for SMB
     flac = next(f for f in files if f.rel.endswith("a.flac"))
     assert flac.size == 10 and flac.kind == "audio"
     assert flac.path.endswith("a.flac")
@@ -105,27 +105,38 @@ def test_describe_changed_shows_both_sizes_and_the_delta():
 
 def test_jobs_for_flattens_every_scan():
     scans = [
-        {"share": "HAP_Internal", "todo": [("a", "/a", 1, "new"), ("b", "/b", 2, "changed")],
-         "new_only": True},
+        {
+            "share": "HAP_Internal",
+            "todo": [("a", "/a", 1, "new"), ("b", "/b", 2, "changed")],
+            "new_only": True,
+        },
         {"share": "HAP_External", "todo": [("c", "/c", 3, "new")], "new_only": False},
     ]
     assert core.jobs_for(scans) == [
-        core.Job("HAP_Internal", "a", "/a", 1), core.Job("HAP_External", "c", "/c", 3)]
+        core.Job("HAP_Internal", "a", "/a", 1),
+        core.Job("HAP_External", "c", "/c", 3),
+    ]
 
 
 def test_scan_map_builds_the_plan_from_the_cache(tmp_path, capsys):
     root = _build_tree(tmp_path / "music")
     cfg = {"host": "1.2.3.4", "maps": [], "_path": str(tmp_path / "hap_sync.json")}
-    core.save_cache(cfg, "HAP_Internal",
-                    {"Artist/Album/01 - a.flac": 10, "Artist/Album/cover.jpg": 99})
+    core.save_cache(
+        cfg, "HAP_Internal", {"Artist/Album/01 - a.flac": 10, "Artist/Album/cover.jpg": 99}
+    )
 
     class NeverOpened:
         @property
         def smb(self):
             raise AssertionError("a cache hit must not open SMB")
 
-    s = core.scan_map(cfg, NeverOpened(), {"local": str(root), "share": "HAP_Internal"},
-                      include_unsupported=False, refresh=False)
+    s = core.scan_map(
+        cfg,
+        NeverOpened(),
+        {"local": str(root), "share": "HAP_Internal"},
+        include_unsupported=False,
+        refresh=False,
+    )
     assert s["source"].startswith("cache ")
     statuses = {t.rel: t.status for t in s["todo"]}
     assert statuses == {"Artist/Album/02 - b.mp3": "new", "Artist/Album/cover.jpg": "changed"}
@@ -138,18 +149,27 @@ def test_load_config_tolerant_never_raises(tmp_path):
     assert core.load_config_tolerant(tmp_path / "absent.json") == empty
     (tmp_path / "bad.json").write_bytes(b"{nope")
     assert core.load_config_tolerant(tmp_path / "bad.json")["host"] == ""
-    path = core.save_config(tmp_path / "hap_sync.json", "1.2.3.4", "80:56:F2:85:0E:27",
-                            [{"local": "D:/x", "share": "HAP_Internal"}])
+    path = core.save_config(
+        tmp_path / "hap_sync.json",
+        "1.2.3.4",
+        "80:56:F2:85:0E:27",
+        [{"local": "D:/x", "share": "HAP_Internal"}],
+    )
     cfg = core.load_config_tolerant(path)
     assert cfg["host"] == "1.2.3.4" and cfg["maps"][0]["share"] == "HAP_Internal"
     assert core.load_config(path)["mac"] == "80:56:F2:85:0E:27", "the same file the CLI reads"
 
 
 def test_plan_file_lists_everything(tmp_path):
-    s = {"local": "D:/Music", "share": "HAP_Internal", "source": "cache",
-         "remote": {"a.flac": 5}, "new_only": True,
-         "todo": [("a.flac", "/a", 10, "changed"), ("b.flac", "/b", 20, "new")],
-         "skipped": {"junk": 0, "unsupported": 0}}
+    s = {
+        "local": "D:/Music",
+        "share": "HAP_Internal",
+        "source": "cache",
+        "remote": {"a.flac": 5},
+        "new_only": True,
+        "todo": [("a.flac", "/a", 10, "changed"), ("b.flac", "/b", 20, "new")],
+        "skipped": {"junk": 0, "unsupported": 0},
+    }
     lines = core.plan_file_lines(s)
     assert lines[0] == "Transfer plan   D:/Music  ->  HAP_Internal"
     assert "would transfer: 1 (20 B)" in lines[1] and "new-only" in lines[1]
@@ -162,8 +182,12 @@ def test_plan_file_lists_everything(tmp_path):
 
 def test_scan_map_reports_a_missing_local_folder(tmp_path, capsys):
     cfg = {"host": "1.2.3.4", "maps": [], "_path": str(tmp_path / "hap_sync.json")}
-    assert core.scan_map(cfg, None, {"local": str(tmp_path / "nope"), "share": "HAP_Internal"},
-                         False, False) is None
+    assert (
+        core.scan_map(
+            cfg, None, {"local": str(tmp_path / "nope"), "share": "HAP_Internal"}, False, False
+        )
+        is None
+    )
     assert "not found" in capsys.readouterr().out
 
 
@@ -199,8 +223,12 @@ def test_a_corrupt_cache_means_rescan(tmp_path):
 
 def test_load_config_reads_and_validates(tmp_path):
     path = tmp_path / "hap_sync.json"
-    path.write_bytes(b"\xef\xbb\xbf" + json.dumps(
-        {"host": "1.2.3.4", "maps": [{"local": "D:/x", "share": "HAP_Internal"}]}).encode())
+    path.write_bytes(
+        b"\xef\xbb\xbf"
+        + json.dumps(
+            {"host": "1.2.3.4", "maps": [{"local": "D:/x", "share": "HAP_Internal"}]}
+        ).encode()
+    )
     cfg = core.load_config(path)
     assert cfg["host"] == "1.2.3.4" and cfg["_path"] == str(path.resolve())
 
@@ -250,8 +278,9 @@ def test_transfer_uploads_and_folds_into_the_cache(tmp_path):
     events = []
     jobs = [core.Job("HAP_Internal", "Artist/Album/a.flac", str(src), 5)]
 
-    done, failed = core.transfer(FakeSmb(conn), jobs, index,
-                                 on_event=lambda kind, **d: events.append((kind, d)))
+    done, failed = core.transfer(
+        FakeSmb(conn), jobs, index, on_event=lambda kind, **d: events.append((kind, d))
+    )
 
     assert (done, failed) == (1, 0)
     assert conn.stored == [("HAP_Internal", "/Artist/Album/a.flac", b"audio")]
@@ -276,9 +305,12 @@ def test_transfer_retries_once_then_counts_a_failure(tmp_path):
             raise OSError("dead")
 
     events = []
-    done, failed = core.transfer(FakeSmb(AlwaysFails()),
-                                 [core.Job("HAP_Internal", "a.flac", str(src), 5)], index,
-                                 on_event=lambda kind, **d: events.append(kind))
+    done, failed = core.transfer(
+        FakeSmb(AlwaysFails()),
+        [core.Job("HAP_Internal", "a.flac", str(src), 5)],
+        index,
+        on_event=lambda kind, **d: events.append(kind),
+    )
     assert (done, failed) == (0, 1)
     assert events == ["file_failed"]
 
@@ -288,9 +320,13 @@ def test_transfer_honours_cancellation(tmp_path):
     src.write_bytes(b"audio")
     events = []
     jobs = [core.Job("HAP_Internal", f"{i}.flac", str(src), 5) for i in range(3)]
-    done, _ = core.transfer(FakeSmb(FakeConn()), jobs, {"HAP_Internal": {}},
-                            on_event=lambda kind, **d: events.append(kind),
-                            should_cancel=lambda: len(events) >= 1)
+    done, _ = core.transfer(
+        FakeSmb(FakeConn()),
+        jobs,
+        {"HAP_Internal": {}},
+        on_event=lambda kind, **d: events.append(kind),
+        should_cancel=lambda: len(events) >= 1,
+    )
     assert done == 1
     assert events == ["file_done", "cancelled"]
 
@@ -342,8 +378,15 @@ def test_main_reports_a_missing_config(tmp_path, capsys):
 
 def test_main_wake_uses_the_configured_mac(tmp_path, monkeypatch, capsys):
     cfg = tmp_path / "hap_sync.json"
-    cfg.write_text(json.dumps({"host": "h", "mac": "80:56:F2:85:0E:27",
-                               "maps": [{"local": "x", "share": "HAP_Internal"}]}))
+    cfg.write_text(
+        json.dumps(
+            {
+                "host": "h",
+                "mac": "80:56:F2:85:0E:27",
+                "maps": [{"local": "x", "share": "HAP_Internal"}],
+            }
+        )
+    )
     sent = []
     monkeypatch.setattr(core, "send_wol", lambda mac: sent.append(mac))
     assert core.main(["--config", str(cfg), "wake"]) == 0
@@ -358,8 +401,9 @@ def test_main_wake_uses_the_configured_mac(tmp_path, monkeypatch, capsys):
 def test_main_plan_reports_an_smb_failure_as_an_error(tmp_path, monkeypatch, capsys):
     root = _build_tree(tmp_path / "music")
     cfg = tmp_path / "hap_sync.json"
-    cfg.write_text(json.dumps(
-        {"host": "h", "maps": [{"local": str(root), "share": "HAP_Internal"}]}))
+    cfg.write_text(
+        json.dumps({"host": "h", "maps": [{"local": str(root), "share": "HAP_Internal"}]})
+    )
 
     def boom(host):
         raise core.SmbError("SMB connection to h failed")
@@ -372,8 +416,9 @@ def test_main_plan_reports_an_smb_failure_as_an_error(tmp_path, monkeypatch, cap
 def test_main_plan_from_cache_counts_the_files(tmp_path, monkeypatch, capsys):
     root = _build_tree(tmp_path / "music")
     cfg_path = tmp_path / "hap_sync.json"
-    cfg_path.write_text(json.dumps(
-        {"host": "h", "maps": [{"local": str(root), "share": "HAP_Internal"}]}))
+    cfg_path.write_text(
+        json.dumps({"host": "h", "maps": [{"local": str(root), "share": "HAP_Internal"}]})
+    )
     core.save_cache({"host": "h", "_path": str(cfg_path)}, "HAP_Internal", {})
     assert core.main(["--config", str(cfg_path), "plan"]) == 0
     assert "Plan: 3 file(s) would transfer" in capsys.readouterr().out

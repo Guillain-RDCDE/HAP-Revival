@@ -374,8 +374,13 @@ class HAP:
         """
         url = rpc_url(self.ip, service, self.port)
         reply = rpc_post(
-            self.ip, service, method, version, params,
-            port=self.port, timeout=self.timeout,
+            self.ip,
+            service,
+            method,
+            version,
+            params,
+            port=self.port,
+            timeout=self.timeout,
             client_id=self.client_id if send_client_id else None,
         )
         if reply.error is not None:
@@ -639,9 +644,7 @@ class HAP:
         if scope:
             params["scope"] = scope
         # The x-hap-device-id header makes this exact call fail with [1, "Any"].
-        result = self.call(
-            "avContent", "getContentList", "1.3", [params], send_client_id=False
-        )
+        result = self.call("avContent", "getContentList", "1.3", [params], send_client_id=False)
         if isinstance(result, list) and result and isinstance(result[0], list):
             return result[0]
         return result if isinstance(result, list) else []
@@ -659,8 +662,7 @@ class HAP:
             "avContent",
             "createPlayingListAndQuickPlay",
             "1.0",
-            [{"uri": uri, "listIndex": 0, "listCount": 0,
-              "playbackControlMode": "station"}],
+            [{"uri": uri, "listIndex": 0, "listCount": 0, "playbackControlMode": "station"}],
         )
 
     def radio_is_registered(self) -> bool:
@@ -718,10 +720,7 @@ class HAP:
             "1.0",
             [
                 {
-                    "uri": (
-                        "netService:audio?serviceName=tunein"
-                        f"&path={path}&id={station_id}"
-                    ),
+                    "uri": (f"netService:audio?serviceName=tunein&path={path}&id={station_id}"),
                     "listIndex": 0,
                     "listCount": 0,
                     "playbackControlMode": "station",
@@ -1032,7 +1031,7 @@ def _cli_radio_browse(hap: HAP, args) -> None:
             kind = "folder "
         else:
             kind = "       "
-        print(f"  [{kind}] {it.get('path','?'):12} {it.get('title','')}")
+        print(f"  [{kind}] {it.get('path', '?'):12} {it.get('title', '')}")
     print()
     print(f"{len(items)} item(s). Descend with `radio-browse <path>`, play with")
     print("`play-station --uri <uri>` using the uri printed by --uris.")
@@ -1089,9 +1088,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("now-playing", help="Show current playback").set_defaults(
-        func=_cli_now_playing
-    )
+    sub.add_parser("now-playing", help="Show current playback").set_defaults(func=_cli_now_playing)
     sub.add_parser("pause").set_defaults(func=_cli_pause)
     sub.add_parser("resume").set_defaults(func=_cli_resume)
     sub.add_parser("next").set_defaults(func=_cli_next)

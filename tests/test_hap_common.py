@@ -22,7 +22,7 @@ def test_wol_packet_shape():
     pkt = hap_common.wol_packet("80:56:F2:85:0E:27")
     mac_bytes = bytes.fromhex("8056F2850E27")
     assert pkt == b"\xff" * 6 + mac_bytes * 16
-    assert len(pkt) == 6 + 6 * 16          # 102 bytes
+    assert len(pkt) == 6 + 6 * 16  # 102 bytes
 
 
 @pytest.mark.parametrize("mac", ["80:56:F2:85:0E:27", "80-56-f2-85-0e-27", "8056F2850E27"])
@@ -126,12 +126,20 @@ def test_utc_stamp_format():
 # ---------- small helpers ----------
 
 
-@pytest.mark.parametrize("n,expected", [
-    (0, "0 B"), (512, "512 B"), (1023, "1023 B"),
-    (1024, "1.0 KB"), (1536, "1.5 KB"),
-    (1024 * 1024, "1.0 MB"), (1024 ** 3, "1.0 GB"), (1024 ** 4, "1.0 TB"),
-    (5 * 1024 ** 4, "5.0 TB"),
-])
+@pytest.mark.parametrize(
+    "n,expected",
+    [
+        (0, "0 B"),
+        (512, "512 B"),
+        (1023, "1023 B"),
+        (1024, "1.0 KB"),
+        (1536, "1.5 KB"),
+        (1024 * 1024, "1.0 MB"),
+        (1024**3, "1.0 GB"),
+        (1024**4, "1.0 TB"),
+        (5 * 1024**4, "5.0 TB"),
+    ],
+)
 def test_human_size(n, expected):
     assert hap_common.human_size(n) == expected
 
@@ -160,7 +168,8 @@ def test_threads_can_probe_concurrently():
     results = []
     threads = [
         threading.Thread(
-            target=lambda: results.append(hap_common.tcp_port_open("127.0.0.1", 1, 0.5)))
+            target=lambda: results.append(hap_common.tcp_port_open("127.0.0.1", 1, 0.5))
+        )
         for _ in range(8)
     ]
     for t in threads:

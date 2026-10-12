@@ -63,8 +63,9 @@ def get(base, path, headers=None):
 
 def post(base, path, payload=None, raw=None):
     body = raw if raw is not None else json.dumps(payload or {}).encode("utf-8")
-    req = urllib.request.Request(base + path, data=body, method="POST",
-                                 headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(
+        base + path, data=body, method="POST", headers={"Content-Type": "application/json"}
+    )
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status, json.loads(r.read().decode("utf-8"))
@@ -111,7 +112,10 @@ def test_manifest_and_service_worker_are_served(ui):
     manifest = json.loads(body)
     assert manifest["display"] == "standalone"
     assert [i["src"] for i in manifest["icons"]] == [
-        "/pwa/icon-192.png", "/pwa/icon-512.png", "/pwa/icon-maskable-512.png"]
+        "/pwa/icon-192.png",
+        "/pwa/icon-512.png",
+        "/pwa/icon-maskable-512.png",
+    ]
     status, headers, body = get(ui, "/sw.js")
     assert status == 200 and headers["Service-Worker-Allowed"] == "/"
     assert b'startsWith("/api/")' in body, "the worker must never cache device state"
@@ -292,11 +296,22 @@ def test_fix_reports_what_is_missing_then_lists_findings(ui, tmp_path, monkeypat
     assert json.loads(body) == {"ready": False, "needs": ["library", "shares"], "items": []}
 
     harvest = {
-        "host": HAPHandler.library.host, "artists": [], "albums": [
-            {"albumid": 1, "name": "Album", "number_of_tracks": 1, "album_artist": {"name": "X"}}],
-        "tracks": [{"trackid": 1, "name": "t", "filename": "01 - a.flac", "duration": 10,
-                    "album": {"albumid": 1, "name": "Album"}, "artist": {"name": "X"},
-                    "codec": {"codec_type": "flac", "sample_rate": 44100, "bit_width": 16}}],
+        "host": HAPHandler.library.host,
+        "artists": [],
+        "albums": [
+            {"albumid": 1, "name": "Album", "number_of_tracks": 1, "album_artist": {"name": "X"}}
+        ],
+        "tracks": [
+            {
+                "trackid": 1,
+                "name": "t",
+                "filename": "01 - a.flac",
+                "duration": 10,
+                "album": {"albumid": 1, "name": "Album"},
+                "artist": {"name": "X"},
+                "codec": {"codec_type": "flac", "sample_rate": 44100, "bit_width": 16},
+            }
+        ],
     }
     index = {"host": harvest["host"], "shares": {"HAP_Internal": [["/X/Album", "01 - a.flac", 1]]}}
     webui.HARVEST.data = harvest
@@ -347,6 +362,7 @@ def test_main_wires_the_handler_and_serves(monkeypatch, capsys, device):
             self.closed = True
 
     servers = []
+
     def fake_server(address, handler):
         servers.append(Server(address, handler))
         return servers[-1]
@@ -358,8 +374,9 @@ def test_main_wires_the_handler_and_serves(monkeypatch, capsys, device):
     # The mock lives on an ephemeral port; point both client classes at it.
     real, real_lib = hap_client.HAP, hap_library.Library
     monkeypatch.setattr(webui, "HAP", lambda ip: real(ip, port=port, timeout=10))
-    monkeypatch.setattr(webui.hap_library, "Library",
-                        lambda ip: real_lib(ip, port=port, timeout=10))
+    monkeypatch.setattr(
+        webui.hap_library, "Library", lambda ip: real_lib(ip, port=port, timeout=10)
+    )
 
     assert webui.main([host, "--port", "0", "--notify-port", "0"]) == 0
     out = capsys.readouterr().out
@@ -402,8 +419,9 @@ def test_main_demo_starts_the_mock(monkeypatch, capsys):
     import mock_hap
 
     spawned = []
-    monkeypatch.setattr(mock_hap, "serve_in_thread",
-                        lambda bind, port: spawned.append((bind, port)))
+    monkeypatch.setattr(
+        mock_hap, "serve_in_thread", lambda bind, port: spawned.append((bind, port))
+    )
     monkeypatch.setattr(webui, "HAP", lambda ip: hap_client.HAP(ip, port=1, timeout=1))
     assert webui.main(["--demo", "--no-push"]) == 0
     assert spawned == [("127.0.0.1", 60200)]
@@ -425,8 +443,9 @@ def test_parser_defaults():
 def _release(version="9.9.9"):
     import hap_update
 
-    return hap_update.Release(version, f"hap-sync-v{version}",
-                              f"https://github.com/x/y/releases/tag/hap-sync-v{version}")
+    return hap_update.Release(
+        version, f"hap-sync-v{version}", f"https://github.com/x/y/releases/tag/hap-sync-v{version}"
+    )
 
 
 def test_update_route_reports_the_check_and_who_may_apply(ui, monkeypatch):
@@ -459,20 +478,32 @@ def test_update_route_reports_the_check_and_who_may_apply(ui, monkeypatch):
 def test_update_apply_pulls_then_restarts_the_server(ui, monkeypatch):
     import hap_update
 
-    monkeypatch.setattr(hap_update, "check",
-                        lambda force=False: hap_update.Status(current="0.1.0", latest=_release()))
+    monkeypatch.setattr(
+        hap_update,
+        "check",
+        lambda force=False: hap_update.Status(current="0.1.0", latest=_release()),
+    )
     launched = []
-    monkeypatch.setattr(hap_update, "apply", lambda status, progress=None, launch=True:
-                        launched.append(launch) or hap_update.Result("git", "Fast-forward",
-                                                                     restart=True))
+    monkeypatch.setattr(
+        hap_update,
+        "apply",
+        lambda status, progress=None, launch=True: (
+            launched.append(launch) or hap_update.Result("git", "Fast-forward", restart=True)
+        ),
+    )
     scheduled = []
     monkeypatch.setattr(webui, "schedule_restart", lambda server: scheduled.append(server))
     status, payload = post(ui, "/api/update/apply", {})
     assert status == 200 and payload["applied"] and payload["restart"]
     assert payload["message"] == "Fast-forward" and launched == [False] and len(scheduled) == 1
 
-    monkeypatch.setattr(hap_update, "apply", lambda status, progress=None, launch=True:
-                        hap_update.Result("git", "0.1.0 is the latest release"))
+    monkeypatch.setattr(
+        hap_update,
+        "apply",
+        lambda status, progress=None, launch=True: hap_update.Result(
+            "git", "0.1.0 is the latest release"
+        ),
+    )
     status, payload = post(ui, "/api/update/apply", {})
     assert status == 200 and not payload["restart"] and len(scheduled) == 1
 
@@ -491,9 +522,11 @@ def test_schedule_restart_stops_the_server_and_flags_main(monkeypatch):
     import types
 
     timers = []
-    monkeypatch.setattr(webui.threading, "Timer",
-                        lambda delay, fn: timers.append((delay, fn)) or types.SimpleNamespace(
-                            start=lambda: None))
+    monkeypatch.setattr(
+        webui.threading,
+        "Timer",
+        lambda delay, fn: timers.append((delay, fn)) or types.SimpleNamespace(start=lambda: None),
+    )
     server = types.SimpleNamespace(shutdown=lambda: None)
     try:
         webui.schedule_restart(server, delay=0.1)

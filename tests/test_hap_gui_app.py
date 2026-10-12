@@ -192,8 +192,13 @@ def test_autodetect_fills_ip_and_mac(app, monkeypatch):
 
     monkeypatch.setattr(discover, "local_subnet_prefixes", lambda: ["10.0.0."])
     found = discover.FoundHap("10.0.0.9", "HAP-Z1ES", "80:56:F2:85:0E:27")
-    monkeypatch.setattr(discover, "find_hap", lambda prefixes, on_candidates: (
-        on_candidates(["10.0.0.9"]) or discover.LanScan(prefixes, ["10.0.0.9"], found)))
+    monkeypatch.setattr(
+        discover,
+        "find_hap",
+        lambda prefixes, on_candidates: (
+            on_candidates(["10.0.0.9"]) or discover.LanScan(prefixes, ["10.0.0.9"], found)
+        ),
+    )
     app.on_autodetect()
     drain(app)
     assert app.host_var.get() == "10.0.0.9" and app.mac_var.get() == "80:56:F2:85:0E:27"
@@ -206,13 +211,17 @@ def test_autodetect_reports_nothing_found(app, monkeypatch):
     import discover
 
     monkeypatch.setattr(discover, "local_subnet_prefixes", lambda: ["10.0.0."])
-    monkeypatch.setattr(discover, "find_hap",
-                        lambda prefixes, on_candidates: discover.LanScan(prefixes, [], None))
+    monkeypatch.setattr(
+        discover, "find_hap", lambda prefixes, on_candidates: discover.LanScan(prefixes, [], None)
+    )
     app.on_autodetect()
     drain(app)
     assert "No device answered" in log_text(app.transfer_log)
-    monkeypatch.setattr(discover, "find_hap", lambda prefixes, on_candidates: (
-        discover.LanScan(prefixes, ["10.0.0.3"], None)))
+    monkeypatch.setattr(
+        discover,
+        "find_hap",
+        lambda prefixes, on_candidates: discover.LanScan(prefixes, ["10.0.0.3"], None),
+    )
     app.on_autodetect()
     drain(app)
     assert "none was a HAP" in log_text(app.transfer_log)
@@ -225,9 +234,12 @@ def test_autodetect_reports_nothing_found(app, monkeypatch):
 def test_check_reports_and_arms_the_fix_button(app, monkeypatch):
     import smb_doctor
 
-    findings = [smb_doctor.Finding("pysmb", "Transfer access", smb_doctor.OK),
-                smb_doctor.Finding("signing", "Signing", smb_doctor.PROBLEM, fix_cmd="Set-X",
-                                   needs_admin=True)]
+    findings = [
+        smb_doctor.Finding("pysmb", "Transfer access", smb_doctor.OK),
+        smb_doctor.Finding(
+            "signing", "Signing", smb_doctor.PROBLEM, fix_cmd="Set-X", needs_admin=True
+        ),
+    ]
     monkeypatch.setattr(smb_doctor, "diagnose", lambda host: findings)
     app.host_var.set("1.2.3.4")
     app.on_check()
@@ -243,17 +255,24 @@ def test_fix_applies_after_confirmation(app, monkeypatch):
 
     import smb_doctor
 
-    app._findings = [smb_doctor.Finding("signing", "Signing", smb_doctor.PROBLEM, fix_cmd="Set-X",
-                                        needs_admin=True)]
+    app._findings = [
+        smb_doctor.Finding(
+            "signing", "Signing", smb_doctor.PROBLEM, fix_cmd="Set-X", needs_admin=True
+        )
+    ]
     app._has_fixes = True
     asked = []
-    monkeypatch.setattr(hap_gui.messagebox, "askyesno",
-                        lambda title, msg: asked.append(msg) or False)
+    monkeypatch.setattr(
+        hap_gui.messagebox, "askyesno", lambda title, msg: asked.append(msg) or False
+    )
     app.on_fix()
     assert "UAC" in asked[0] and "• Signing" in asked[0]
     monkeypatch.setattr(hap_gui.messagebox, "askyesno", lambda title, msg: True)
-    monkeypatch.setattr(smb_doctor, "apply_fixes",
-                        lambda findings, on_log: on_log(">> x") or (True, "Fixes applied."))
+    monkeypatch.setattr(
+        smb_doctor,
+        "apply_fixes",
+        lambda findings, on_log: on_log(">> x") or (True, "Fixes applied."),
+    )
     monkeypatch.setattr(smb_doctor, "diagnose", lambda host: [])
     app.on_fix()
     drain(app)
@@ -311,9 +330,14 @@ def test_plan_logs_the_changed_and_new_files(app, monkeypatch, tmp_path):
     import hap_sync
 
     _ready_to_sync(app, monkeypatch, tmp_path)
-    monkeypatch.setattr(hap_sync, "get_remote",
-                        lambda cfg, lazy, share, refresh, on_progress=None: (
-                            {"Artist/Album/01.flac": 5}, "cache 2026"))
+    monkeypatch.setattr(
+        hap_sync,
+        "get_remote",
+        lambda cfg, lazy, share, refresh, on_progress=None: (
+            {"Artist/Album/01.flac": 5},
+            "cache 2026",
+        ),
+    )
     app.new_only_var.set(False)
     app.on_plan()
     drain(app)
@@ -339,8 +363,9 @@ def test_plan_reports_a_missing_folder(app, monkeypatch, tmp_path):
 
     _ready_to_sync(app, monkeypatch, tmp_path)
     app.map_rows[0]["local"].set(str(tmp_path / "gone"))
-    monkeypatch.setattr(hap_sync, "get_remote",
-                        lambda *a, **k: pytest.fail("no listing without a local folder"))
+    monkeypatch.setattr(
+        hap_sync, "get_remote", lambda *a, **k: pytest.fail("no listing without a local folder")
+    )
     app.on_plan()
     drain(app)
     assert "! folder not found" in log_text(app.transfer_log)
@@ -350,9 +375,11 @@ def test_sync_transfers_through_the_engine(app, monkeypatch, tmp_path):
     import hap_sync
 
     _ready_to_sync(app, monkeypatch, tmp_path)
-    monkeypatch.setattr(hap_sync, "get_remote",
-                        lambda cfg, lazy, share, refresh, on_progress=None: (
-                            {"Artist/Album/01.flac": 10}, "cache"))
+    monkeypatch.setattr(
+        hap_sync,
+        "get_remote",
+        lambda cfg, lazy, share, refresh, on_progress=None: ({"Artist/Album/01.flac": 10}, "cache"),
+    )
 
     class Session:
         def reconnect(self):
@@ -384,9 +411,14 @@ def test_sync_when_nothing_changed(app, monkeypatch, tmp_path):
     import hap_sync
 
     _ready_to_sync(app, monkeypatch, tmp_path)
-    monkeypatch.setattr(hap_sync, "get_remote",
-                        lambda cfg, lazy, share, refresh, on_progress=None: (
-                            {"Artist/Album/01.flac": 10, "Artist/Album/02.flac": 3}, "cache"))
+    monkeypatch.setattr(
+        hap_sync,
+        "get_remote",
+        lambda cfg, lazy, share, refresh, on_progress=None: (
+            {"Artist/Album/01.flac": 10, "Artist/Album/02.flac": 3},
+            "cache",
+        ),
+    )
     app.on_sync()
     drain(app)
     assert "already in sync" in log_text(app.transfer_log)
@@ -491,8 +523,13 @@ def test_fix_scan_runs_the_crawler(app, monkeypatch):
     import hap_fixit
 
     app.host_var.set("1.2.3.4")
-    monkeypatch.setattr(hap_fixit, "crawl_shares", lambda ip, progress: (
-        progress("HAP_Internal", 100, 100, 7) or {"host": ip, "shares": {"HAP_Internal": []}}))
+    monkeypatch.setattr(
+        hap_fixit,
+        "crawl_shares",
+        lambda ip, progress: (
+            progress("HAP_Internal", 100, 100, 7) or {"host": ip, "shares": {"HAP_Internal": []}}
+        ),
+    )
     saved = []
     monkeypatch.setattr(hap_fixit, "save_index", lambda index: saved.append(index["host"]))
     app.on_fix_scan()
@@ -549,8 +586,9 @@ def test_queue_is_drained_in_order(app):
 def _release(version="9.9.9"):
     import hap_update
 
-    return hap_update.Release(version, f"hap-sync-v{version}",
-                              f"https://github.com/x/y/releases/tag/hap-sync-v{version}")
+    return hap_update.Release(
+        version, f"hap-sync-v{version}", f"https://github.com/x/y/releases/tag/hap-sync-v{version}"
+    )
 
 
 def test_startup_check_is_silent_when_opted_out(app):
@@ -590,11 +628,14 @@ def test_a_menu_check_reports_each_outcome(app, monkeypatch):
     assert hap_update.OPT_OUT_ENV in infos[-1]
     app._dispatch("update", {"status": hap_update.Status(error="offline"), "interactive": True})
     assert "offline" in warns[-1]
-    app._dispatch("update", {"status": hap_update.Status(latest=_release("0.0.1")),
-                             "interactive": True})
+    app._dispatch(
+        "update", {"status": hap_update.Status(latest=_release("0.0.1")), "interactive": True}
+    )
     assert "latest version" in infos[-1] and app.status_var.get() == "Ready."
-    app._dispatch("update", {"status": hap_update.Status(current="0.1.0", latest=_release()),
-                             "interactive": True})
+    app._dispatch(
+        "update",
+        {"status": hap_update.Status(current="0.1.0", latest=_release()), "interactive": True},
+    )
     assert "9.9.9" in asked[-1], "an interactive check goes straight to the confirmation"
     assert not app.busy, "and a declined confirmation starts nothing"
     app._dispatch("update", {"status": hap_update.Status(), "interactive": False})
@@ -626,8 +667,10 @@ def test_one_click_update_installs_the_exe_and_closes(app, monkeypatch):
     import hap_gui
     import hap_update
 
-    app._dispatch("update", {"status": hap_update.Status(current="0.1.0", latest=_release()),
-                             "interactive": False})
+    app._dispatch(
+        "update",
+        {"status": hap_update.Status(current="0.1.0", latest=_release()), "interactive": False},
+    )
     monkeypatch.setattr(hap_update, "install_kind", lambda root=None: "frozen")
     asked, infos, closed, calls = [], [], [], []
     monkeypatch.setattr(hap_gui.messagebox, "askyesno", lambda t, m: asked.append(m) or True)
@@ -639,8 +682,9 @@ def test_one_click_update_installs_the_exe_and_closes(app, monkeypatch):
         for done in (0, 50, 50, 100):
             progress(done, 100)
         progress(1, 0)  # unknown size: ignored
-        return hap_update.Result("frozen", "installed HapSync.exe 9.9.9", restart=True,
-                                 launched=True)
+        return hap_update.Result(
+            "frozen", "installed HapSync.exe 9.9.9", restart=True, launched=True
+        )
 
     monkeypatch.setattr(hap_update, "apply", fake_apply)
     app.on_update()
@@ -655,16 +699,24 @@ def test_one_click_update_from_a_clone_offers_a_restart(app, monkeypatch):
     import hap_gui
     import hap_update
 
-    app._dispatch("update", {"status": hap_update.Status(current="0.1.0", latest=_release()),
-                             "interactive": False})
+    app._dispatch(
+        "update",
+        {"status": hap_update.Status(current="0.1.0", latest=_release()), "interactive": False},
+    )
     monkeypatch.setattr(hap_update, "install_kind", lambda root=None: "git")
     answers = [False]  # decline the confirmation first
     asked = []
-    monkeypatch.setattr(hap_gui.messagebox, "askyesno",
-                        lambda t, m: asked.append(m) or answers.pop(0))
+    monkeypatch.setattr(
+        hap_gui.messagebox, "askyesno", lambda t, m: asked.append(m) or answers.pop(0)
+    )
     applied, restarted = [], []
-    monkeypatch.setattr(hap_update, "apply", lambda status, progress=None, launch=True:
-                        applied.append(1) or hap_update.Result("git", "Fast-forward", restart=True))
+    monkeypatch.setattr(
+        hap_update,
+        "apply",
+        lambda status, progress=None, launch=True: (
+            applied.append(1) or hap_update.Result("git", "Fast-forward", restart=True)
+        ),
+    )
     monkeypatch.setattr(hap_update, "restart_self", lambda: restarted.append(1))
     app.on_update()
     assert "started again" in asked[-1] and applied == [] and not app.busy
@@ -685,8 +737,10 @@ def test_a_failed_update_is_explained_with_the_download_link(app, monkeypatch):
     import hap_gui
     import hap_update
 
-    app._dispatch("update", {"status": hap_update.Status(current="0.1.0", latest=_release()),
-                             "interactive": False})
+    app._dispatch(
+        "update",
+        {"status": hap_update.Status(current="0.1.0", latest=_release()), "interactive": False},
+    )
     monkeypatch.setattr(hap_gui.messagebox, "askyesno", lambda t, m: True)
     errors = []
     monkeypatch.setattr(hap_gui.messagebox, "showerror", lambda t, m: errors.append(m))

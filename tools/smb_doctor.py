@@ -16,6 +16,7 @@ There are two *independent* questions, and people constantly conflate them:
 The module is import-safe on every OS; Windows-only checks degrade to a 'na' finding elsewhere.
 Nothing here imports tkinter or argparse — it is a pure engine shared by the GUI and the CLI.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -68,6 +69,7 @@ class Finding:
 
 # --------------------------------------------------------------------------- helpers
 
+
 def _ps(script: str, timeout: int = 20) -> tuple[int, str]:
     """Run a PowerShell snippet (no profile, non-interactive); return (rc, stdout-stripped).
     Returns (1, 'error: …') on any launch failure. Windows only — callers guard on IS_WINDOWS."""
@@ -75,7 +77,10 @@ def _ps(script: str, timeout: int = 20) -> tuple[int, str]:
         # Windows PowerShell from PATH; `script` is always one of ours.
         p = subprocess.run(  # noqa: S603
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],  # noqa: S607
-            capture_output=True, text=True, timeout=timeout, creationflags=_NO_WINDOW,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            creationflags=_NO_WINDOW,
         )
         return p.returncode, (p.stdout or "").strip()
     except Exception as e:
@@ -84,19 +89,32 @@ def _ps(script: str, timeout: int = 20) -> tuple[int, str]:
 
 # --------------------------------------------------------------------------- probes
 
+
 def probe_guest_share(host: str, timeout: int = 8) -> Finding:
     """Authoritative test: open the HAP's share anonymously over SMB1 exactly as the transfer
     does (pysmb, ports 445 then 139). Independent of every Windows SMB setting."""
     try:
-        c, port = connect_smb(host, "hap-doctor", timeout=timeout,
-                              transports=((True, SMB_DIRECT_PORT), (False, SMB_NETBIOS_PORT)))
+        c, port = connect_smb(
+            host,
+            "hap-doctor",
+            timeout=timeout,
+            transports=((True, SMB_DIRECT_PORT), (False, SMB_NETBIOS_PORT)),
+        )
     except ImportError:
-        return Finding("pysmb", "Transfer access (anonymous SMB1)", NA,
-                       "pysmb not installed — run `pip install pysmb` to enable transfers.")
+        return Finding(
+            "pysmb",
+            "Transfer access (anonymous SMB1)",
+            NA,
+            "pysmb not installed — run `pip install pysmb` to enable transfers.",
+        )
     except SmbConnectError as e:
-        return Finding("pysmb", "Transfer access (anonymous SMB1)", PROBLEM,
-                       f"Could not open an anonymous SMB1 session ({e.last}). "
-                       "Make sure the HAP is awake (Wake) and on the same LAN.")
+        return Finding(
+            "pysmb",
+            "Transfer access (anonymous SMB1)",
+            PROBLEM,
+            f"Could not open an anonymous SMB1 session ({e.last}). "
+            "Make sure the HAP is awake (Wake) and on the same LAN.",
+        )
     shares: list[str] = []
     try:
         with contextlib.suppress(Exception):
@@ -104,21 +122,28 @@ def probe_guest_share(host: str, timeout: int = 8) -> Finding:
     finally:
         c.close()
     tail = f" Shares: {', '.join(shares)}." if shares else ""
-    return Finding("pysmb", "Transfer access (anonymous SMB1)", OK,
-                   f"Connected anonymously on port {port}.{tail} "
-                   "Transfers will work regardless of Windows settings.")
+    return Finding(
+        "pysmb",
+        "Transfer access (anonymous SMB1)",
+        OK,
+        f"Connected anonymously on port {port}.{tail} "
+        "Transfers will work regardless of Windows settings.",
+    )
 
 
 # --------------------------------------------------------------------------- Windows checks
+
 
 def windows_smb_client() -> list[Finding]:
     """RequireSecuritySignature (must be False) and EnableInsecureGuestLogons (must be True),
     read as *effective* values from Get-SmbClientConfiguration. Reading needs no admin; the
     new 24H2/25H2 default lives in code, not the registry, so the cmdlet — not winreg — is
     authoritative here."""
-    rc, out = _ps("Get-SmbClientConfiguration | "
-                  "Select-Object RequireSecuritySignature,EnableInsecureGuestLogons | "
-                  "ConvertTo-Json -Compress")
+    rc, out = _ps(
+        "Get-SmbClientConfiguration | "
+        "Select-Object RequireSecuritySignature,EnableInsecureGuestLogons | "
+        "ConvertTo-Json -Compress"
+    )
     sign = guest = None
     if rc == 0 and out:
         try:
@@ -131,35 +156,75 @@ def windows_smb_client() -> list[Finding]:
     out_findings: list[Finding] = []
 
     if sign is None:
-        out_findings.append(Finding("signing", "SMB signing requirement", WARN,
-                                    "Could not read the SMB client configuration.",
-                                    native_only=True))
+        out_findings.append(
+            Finding(
+                "signing",
+                "SMB signing requirement",
+                WARN,
+                "Could not read the SMB client configuration.",
+                native_only=True,
+            )
+        )
     elif sign:
-        out_findings.append(Finding(
-            "signing", "SMB signing is required — this blocks the HAP", PROBLEM,
-            "Windows 11 24H2/25H2 turned this on by default; the HAP's Samba 3.0.37 can't "
-            "sign, so Explorer is refused (often shown as a password prompt).",
-            fix_cmd="Set-SmbClientConfiguration -RequireSecuritySignature $false -Force",
-            needs_admin=True, native_only=True))
+        out_findings.append(
+            Finding(
+                "signing",
+                "SMB signing is required — this blocks the HAP",
+                PROBLEM,
+                "Windows 11 24H2/25H2 turned this on by default; the HAP's Samba 3.0.37 can't "
+                "sign, so Explorer is refused (often shown as a password prompt).",
+                fix_cmd="Set-SmbClientConfiguration -RequireSecuritySignature $false -Force",
+                needs_admin=True,
+                native_only=True,
+            )
+        )
     else:
-        out_findings.append(Finding("signing", "SMB signing not required", OK,
-                                    "RequireSecuritySignature = False.", native_only=True))
+        out_findings.append(
+            Finding(
+                "signing",
+                "SMB signing not required",
+                OK,
+                "RequireSecuritySignature = False.",
+                native_only=True,
+            )
+        )
 
     if guest is None:
-        out_findings.append(Finding("guest", "Insecure guest logons", WARN,
-                                    "Could not read the SMB client configuration.",
-                                    native_only=True))
+        out_findings.append(
+            Finding(
+                "guest",
+                "Insecure guest logons",
+                WARN,
+                "Could not read the SMB client configuration.",
+                native_only=True,
+            )
+        )
     elif not guest:
-        out_findings.append(Finding(
-            "guest", "Insecure guest logons are disabled", PROBLEM,
-            "Explorer refuses the HAP's anonymous share with "
-            "“security policies block unauthenticated guest access.”",
-            fix_cmd=("Set-SmbClientConfiguration -EnableInsecureGuestLogons $true -Force; "
-                     f"Set-ItemProperty '{_LANMAN_PARAMS}' AllowInsecureGuestAuth 1"),
-            needs_admin=True, native_only=True))
+        out_findings.append(
+            Finding(
+                "guest",
+                "Insecure guest logons are disabled",
+                PROBLEM,
+                "Explorer refuses the HAP's anonymous share with "
+                "“security policies block unauthenticated guest access.”",
+                fix_cmd=(
+                    "Set-SmbClientConfiguration -EnableInsecureGuestLogons $true -Force; "
+                    f"Set-ItemProperty '{_LANMAN_PARAMS}' AllowInsecureGuestAuth 1"
+                ),
+                needs_admin=True,
+                native_only=True,
+            )
+        )
     else:
-        out_findings.append(Finding("guest", "Insecure guest logons enabled", OK,
-                                    "EnableInsecureGuestLogons = True.", native_only=True))
+        out_findings.append(
+            Finding(
+                "guest",
+                "Insecure guest logons enabled",
+                OK,
+                "EnableInsecureGuestLogons = True.",
+                native_only=True,
+            )
+        )
     return out_findings
 
 
@@ -168,24 +233,39 @@ def windows_smb1_feature() -> Finding:
     (4 = Disabled) — no admin, unlike Get-WindowsOptionalFeature which requires elevation."""
     try:
         import winreg
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
-                            r"SYSTEM\CurrentControlSet\Services\mrxsmb10") as k:
+
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Services\mrxsmb10"
+        ) as k:
             start, _ = winreg.QueryValueEx(k, "Start")
     except FileNotFoundError:
         return Finding(
-            "smb1", "SMB1 client feature is not installed", PROBLEM,
+            "smb1",
+            "SMB1 client feature is not installed",
+            PROBLEM,
             "Explorer and HAP Music Transfer can't reach an SMB1-only device without it.",
             fix_cmd=_ENABLE_SMB1,
-            needs_admin=True, native_only=True)
+            needs_admin=True,
+            native_only=True,
+        )
     except OSError as e:
-        return Finding("smb1", "SMB1 client feature", WARN,
-                       f"Could not read the driver state ({e}).", native_only=True)
+        return Finding(
+            "smb1",
+            "SMB1 client feature",
+            WARN,
+            f"Could not read the driver state ({e}).",
+            native_only=True,
+        )
     if start == 4:  # SERVICE_DISABLED
         return Finding(
-            "smb1", "SMB1 client is disabled", PROBLEM,
+            "smb1",
+            "SMB1 client is disabled",
+            PROBLEM,
             "The mrxsmb10 driver start type is Disabled.",
             fix_cmd=_ENABLE_SMB1,
-            needs_admin=True, native_only=True)
+            needs_admin=True,
+            native_only=True,
+        )
     return Finding("smb1", "SMB1 client enabled", OK, "mrxsmb10 driver active.", native_only=True)
 
 
@@ -203,35 +283,56 @@ def windows_stale_mappings(host: str) -> Finding:
         "$p = if ($_.LocalPath) { $_.LocalPath + '\\' } else { $_.RemotePath }; "
         "[pscustomobject]@{ Local = $_.LocalPath; Remote = $_.RemotePath; "
         "Accessible = [bool](Test-Path -LiteralPath $p) } } | ConvertTo-Json -Compress",
-        timeout=25)
+        timeout=25,
+    )
     if rc != 0:
-        return Finding("mappings", "Drive mappings", WARN,
-                       "Could not enumerate mapped drives.", native_only=True)
+        return Finding(
+            "mappings",
+            "Drive mappings",
+            WARN,
+            "Could not enumerate mapped drives.",
+            native_only=True,
+        )
     if not out:  # no mappings at all
         return Finding("mappings", "No stale drive mappings", OK, "", native_only=True)
     try:
         data = json.loads(out)
     except ValueError:
-        return Finding("mappings", "Drive mappings", WARN,
-                       "Could not parse mapped-drive list.", native_only=True)
+        return Finding(
+            "mappings",
+            "Drive mappings",
+            WARN,
+            "Could not parse mapped-drive list.",
+            native_only=True,
+        )
     if isinstance(data, dict):
         data = [data]
 
-    stale = [m for m in data
-             if host in str(m.get("Remote", "")) and not m.get("Accessible")]
+    stale = [m for m in data if host in str(m.get("Remote", "")) and not m.get("Accessible")]
     if not stale:
-        return Finding("mappings", "No stale drive mappings", OK,
-                       "Mappings to the HAP are accessible (or none exist).", native_only=True)
+        return Finding(
+            "mappings",
+            "No stale drive mappings",
+            OK,
+            "Mappings to the HAP are accessible (or none exist).",
+            native_only=True,
+        )
     targets = [str(m.get("Local") or m.get("Remote")) for m in stale]
     fix = "; ".join(f'net use "{t}" /delete /y' for t in targets)
     return Finding(
-        "mappings", f"Stale drive mapping(s): {', '.join(targets)}", PROBLEM,
+        "mappings",
+        f"Stale drive mapping(s): {', '.join(targets)}",
+        PROBLEM,
         "A Disconnected/Unavailable mapped drive keeps forcing a password prompt. "
         "Clearing it lets Windows reconnect fresh as guest.",
-        fix_cmd=fix, needs_admin=False, native_only=True)
+        fix_cmd=fix,
+        needs_admin=False,
+        native_only=True,
+    )
 
 
 # --------------------------------------------------------------------------- orchestration
+
 
 def diagnose(host: str) -> list[Finding]:
     """Full diagnosis for ``host``. Reachability + the authoritative pysmb probe (cross-platform),
@@ -241,22 +342,38 @@ def diagnose(host: str) -> list[Finding]:
     p445 = tcp_port_open(host, SMB_DIRECT_PORT)
     p139 = tcp_port_open(host, SMB_NETBIOS_PORT)
     if p445 or p139:
-        findings.append(Finding("reach", "HAP reachable on the network", OK,
-                                f"SMB port {SMB_DIRECT_PORT if p445 else SMB_NETBIOS_PORT} open."))
+        findings.append(
+            Finding(
+                "reach",
+                "HAP reachable on the network",
+                OK,
+                f"SMB port {SMB_DIRECT_PORT if p445 else SMB_NETBIOS_PORT} open.",
+            )
+        )
         findings.append(probe_guest_share(host))
     else:
-        findings.append(Finding(
-            "reach", "HAP not reachable", PROBLEM,
-            "No answer on ports 445/139. Is it awake (try Wake) and on the same LAN/subnet?"))
+        findings.append(
+            Finding(
+                "reach",
+                "HAP not reachable",
+                PROBLEM,
+                "No answer on ports 445/139. Is it awake (try Wake) and on the same LAN/subnet?",
+            )
+        )
 
     if IS_WINDOWS:
         findings.extend(windows_smb_client())
         findings.append(windows_smb1_feature())
         findings.append(windows_stale_mappings(host))
     else:
-        findings.append(Finding(
-            "native", "Native-OS SMB checks skipped", NA,
-            f"The Windows SMB-hardening checks/fixes don't apply on {sys.platform}."))
+        findings.append(
+            Finding(
+                "native",
+                "Native-OS SMB checks skipped",
+                NA,
+                f"The Windows SMB-hardening checks/fixes don't apply on {sys.platform}.",
+            )
+        )
     return findings
 
 
@@ -292,6 +409,7 @@ def format_report(findings: list[Finding]) -> list[str]:
 
 
 # --------------------------------------------------------------------------- applying fixes
+
 
 def _elevation_launcher(script_path: str, wait: bool) -> str:
     """The PowerShell one-liner that runs `script_path` elevated (one UAC prompt)."""
@@ -358,20 +476,25 @@ def apply_fixes(findings: list[Finding], on_log=None, wait: bool = True) -> tupl
                 with contextlib.suppress(OSError):
                     os.unlink(path)
 
-    return changed, ("Fixes applied. Reconnect to the HAP "
-                     "(stale mappings were cleared; reopen \\\\<hap-ip>).")
+    return changed, (
+        "Fixes applied. Reconnect to the HAP (stale mappings were cleared; reopen \\\\<hap-ip>)."
+    )
 
 
 # --------------------------------------------------------------------------- standalone CLI
 
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
-        prog="smb_doctor",
-        description="Diagnose (and optionally fix) SMB access to the HAP.")
+        prog="smb_doctor", description="Diagnose (and optionally fix) SMB access to the HAP."
+    )
     hap_update.add_version_flag(ap)
     ap.add_argument("host", help="HAP IP address, e.g. 192.168.1.28")
-    ap.add_argument("--fix", action="store_true",
-                    help="apply the fixes for any problems found (Windows asks for admin)")
+    ap.add_argument(
+        "--fix",
+        action="store_true",
+        help="apply the fixes for any problems found (Windows asks for admin)",
+    )
     return ap
 
 
@@ -386,8 +509,10 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("Transfer (our tool): " + ("WORKS" if s["transfer_ok"] else "NOT WORKING"))
     if s["fixable"]:
-        print(f"{s['fixable']} fixable native-Windows issue(s) found"
-              + (" (admin required)." if s["needs_admin"] else "."))
+        print(
+            f"{s['fixable']} fixable native-Windows issue(s) found"
+            + (" (admin required)." if s["needs_admin"] else ".")
+        )
         if args.fix:
             changed, msg = apply_fixes(findings, on_log=print)
             print(msg)

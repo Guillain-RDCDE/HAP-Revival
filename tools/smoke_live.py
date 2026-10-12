@@ -125,8 +125,13 @@ def build(ip: str, include_writes: bool, port: int = API_PORT) -> Smoke:  # noqa
     def sound():
         snd = hap.sound_settings()
         # At least one setting must be populated; all-None means we parsed nothing.
-        values = [snd.dsee, snd.dsd_remastering, snd.gapless_playback,
-                  snd.volume_normalization, snd.oversampling]
+        values = [
+            snd.dsee,
+            snd.dsd_remastering,
+            snd.gapless_playback,
+            snd.volume_normalization,
+            snd.oversampling,
+        ]
         if not any(v for v in values):
             raise AssertionError(f"every sound setting came back empty: {values!r}")
         return f"dsee={snd.dsee} dsd={snd.dsd_remastering} gapless={snd.gapless_playback}"
@@ -245,17 +250,17 @@ def build(ip: str, include_writes: bool, port: int = API_PORT) -> Smoke:  # noqa
 
         def idempotent_sound_write():
             current = _first_field(
-                json.loads(
-                    _http_get(f"{base}/sony/contentplayer/v100/settings/sound/dsee")[1]
-                ).get("setting", {}),
+                json.loads(_http_get(f"{base}/sony/contentplayer/v100/settings/sound/dsee")[1]).get(
+                    "setting", {}
+                ),
                 "value",
             )
             _nonempty(current, "dsee before")
-            hap.set_sound_setting("dsee", current)          # same value back
+            hap.set_sound_setting("dsee", current)  # same value back
             time.sleep(1.0)
-            after = json.loads(
-                _http_get(f"{base}/sony/contentplayer/v100/settings/sound/dsee")[1]
-            )["setting"]["value"]
+            after = json.loads(_http_get(f"{base}/sony/contentplayer/v100/settings/sound/dsee")[1])[
+                "setting"
+            ]["value"]
             if after != current:
                 raise AssertionError(f"dsee changed from {current!r} to {after!r}")
             return f"dsee {current!r} written back unchanged"
@@ -278,8 +283,12 @@ def main(argv: list[str] | None = None) -> int:
         help="also run idempotent writes (reads a value, writes the same value back)",
     )
     p.add_argument("--json", action="store_true", help="machine-readable output")
-    p.add_argument("--port", type=int, default=API_PORT,
-                   help=f"API port (default {API_PORT}; only the mock ever listens elsewhere)")
+    p.add_argument(
+        "--port",
+        type=int,
+        default=API_PORT,
+        help=f"API port (default {API_PORT}; only the mock ever listens elsewhere)",
+    )
     args = p.parse_args(argv)
     hap_update.notice_at_exit()
 
@@ -292,13 +301,19 @@ def main(argv: list[str] | None = None) -> int:
     smoke = build(args.ip, args.include_writes, port=args.port)
 
     if args.json:
-        print(json.dumps(
-            {"ip": smoke.ip,
-             "passed": len([r for r in smoke.results if r.ok and not r.skipped]),
-             "skipped": len([r for r in smoke.results if r.skipped]),
-             "failed": len(smoke.failed),
-             "checks": [vars(r) for r in smoke.results]},
-            indent=2, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "ip": smoke.ip,
+                    "passed": len([r for r in smoke.results if r.ok and not r.skipped]),
+                    "skipped": len([r for r in smoke.results if r.skipped]),
+                    "failed": len(smoke.failed),
+                    "checks": [vars(r) for r in smoke.results],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
         return 1 if smoke.failed else 0
 
     print(f"live smoke test against {smoke.ip}\n")
