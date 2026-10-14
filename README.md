@@ -12,7 +12,7 @@ The hardware still sings. This is the rest of the story.
 
 <br>
 
-**Already working:** get music onto it · a phone remote · internet radio · browse, search and audit your library · repair its tags and artwork.
+**Already working:** get music onto it · [a phone remote](docs/13-control-app.md) · internet radio · browse, search and audit your library · repair its tags and artwork.
 
 <br>
 
@@ -24,6 +24,7 @@ The hardware still sings. This is the rest of the story.
 
 [**Download HAP Sync**](https://github.com/Guillain-RDCDE/HAP-Revival/releases/latest) (it updates itself from then on) &nbsp;·&nbsp;
 [I own a HAP](docs/REFERENCE.md#own-a-hap-start-here) &nbsp;·&nbsp;
+[Phone remote](docs/13-control-app.md) &nbsp;·&nbsp;
 [How it works](docs/REFERENCE.md#under-the-hood) &nbsp;·&nbsp;
 [Documentation](docs/00-overview.md)
 
