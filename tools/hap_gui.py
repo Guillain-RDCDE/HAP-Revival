@@ -8,8 +8,9 @@ double-click window instead of a command line. No JSON to hand-edit, no terminal
 folder, hit a button, watch the progress bar.
 
 Three tabs:
-  - Transfer        : map local folders -> HAP shares, Analyze (dry-run) then Sync, with a
-                      live progress bar and a cancel button.
+  - Transfer        : map local folders -> HAP shares (and, after them, -> local folders such
+                      as backup disks, each with its delete mode), Analyze (dry-run) then
+                      Sync, with a live progress bar and a cancel button.
   - Validate        : scan a folder *before* transfer for junk / unsupported / >192 kHz /
                       missing cover.
   - Compare library : semantic diff of a local <Artist>/<Album>/ tree against the HAP's
@@ -132,7 +133,12 @@ class App:
         # two rows already wired to the two shares — the user only fills the local folders
         # once, and they persist from then on.
         for m in cfg["maps"]:
-            self._add_map_row(m.get("local", ""), m.get("share", SHARES[0]))
+            self._add_map_row(
+                m.get("local", ""),
+                m.get("share", SHARES[0]),
+                dest=m.get("dest", ""),
+                delete=m.get("delete", "keep"),
+            )
         if not self.map_rows:
             self._add_map_row("", "HAP_Internal")
             self._add_map_row("", "HAP_External")
@@ -651,24 +657,95 @@ class App:
         sb.pack(side="right", fill="y")
         return txt
 
-    def _add_map_row(self, local: str = "", share: str = SHARES[0]) -> None:
+    #: The target box offers the two shares, then a local folder (a backup disk).
+    LOCAL = "local"
+
+    def _add_map_row(
+        self, local: str = "", share: str = SHARES[0], *, dest: str = "", delete: str = "keep"
+    ) -> None:
+        """One line: source folder → a HAP share, or → a local folder with its delete mode.
+
+        `share` holds the internal choice (a share name or LOCAL); the comboboxes show
+        translated labels, like the Fix tab's category box, so nothing downstream ever
+        sees a localised string.
+        """
         row = ttk.Frame(self.maps_frame)
         row.pack(fill="x", pady=2)
         local_var = tk.StringVar(value=local)
-        share_var = tk.StringVar(value=share if share in SHARES else SHARES[0])
+        target = self.LOCAL if dest else (share if share in SHARES else SHARES[0])
+        share_var = tk.StringVar(value=target)
+        dest_var = tk.StringVar(value=dest)
+        delete_var = tk.StringVar(value=delete if delete in core.DELETE_MODES else "keep")
         ttk.Entry(row, textvariable=local_var).pack(side="left", fill="x", expand=True)
         ttk.Button(row, text="…", width=3, command=lambda: self._pick_dir(local_var)).pack(
             side="left", padx=4
         )
         ttk.Label(row, text="→").pack(side="left")
-        ttk.Combobox(row, textvariable=share_var, values=SHARES, width=14, state="readonly").pack(
+        target_box = ttk.Combobox(row, width=14, state="readonly")
+        target_box.pack(side="left", padx=4)
+        dest_frame = ttk.Frame(row)
+        ttk.Entry(dest_frame, textvariable=dest_var).pack(side="left", fill="x", expand=True)
+        ttk.Button(dest_frame, text="…", width=3, command=lambda: self._pick_dir(dest_var)).pack(
             side="left", padx=4
         )
-        entry = {"frame": row, "local": local_var, "share": share_var}
-        ttk.Button(row, text="✕", width=3, command=lambda: self._remove_map_row(entry)).pack(
-            side="left"
-        )
+        delete_box = ttk.Combobox(dest_frame, width=14, state="readonly")
+        delete_box.pack(side="left", padx=(0, 4))
+        entry = {
+            "frame": row,
+            "local": local_var,
+            "share": share_var,
+            "dest": dest_var,
+            "delete": delete_var,
+            "target_box": target_box,
+            "delete_box": delete_box,
+            "dest_frame": dest_frame,
+        }
+        remove = ttk.Button(row, text="✕", width=3, command=lambda: self._remove_map_row(entry))
+        remove.pack(side="left")
+        entry["remove"] = remove
+        target_box.bind("<<ComboboxSelected>>", lambda _e: self._on_target_pick(entry))
+        delete_box.bind("<<ComboboxSelected>>", lambda _e: self._on_delete_pick(entry))
+        # A trace, not just the pick handler: code (and tests) set the variable directly.
+        share_var.trace_add("write", lambda *_a: self._show_row_target(entry))
+        self._i18n.append((lambda _s: self._show_row_target(entry), "gui.dest.local"))
+        self._show_row_target(entry)
         self.map_rows.append(entry)
+
+    def _target_labels(self) -> list[str]:
+        return [*SHARES, self._T("gui.dest.local")]
+
+    def _delete_labels(self) -> list[str]:
+        return [self._T(f"gui.delete.{mode}") for mode in core.DELETE_MODES]
+
+    def _show_row_target(self, entry: dict) -> None:
+        """Refill a row's boxes in the current language, and show the destination
+        folder and delete mode only when the line goes to a local folder."""
+        target = entry["share"].get()
+        choices = [*SHARES, self.LOCAL]
+        labels = self._target_labels()
+        entry["target_box"].configure(values=labels)
+        entry["target_box"].set(labels[choices.index(target)] if target in choices else "")
+        deletes = self._delete_labels()
+        entry["delete_box"].configure(values=deletes)
+        mode = entry["delete"].get()
+        entry["delete_box"].set(deletes[core.DELETE_MODES.index(mode)])
+        frame = entry["dest_frame"]
+        if target == self.LOCAL and not frame.winfo_manager():
+            frame.pack(side="left", fill="x", expand=True, before=entry["remove"])
+        elif target != self.LOCAL and frame.winfo_manager():
+            frame.pack_forget()
+
+    def _on_target_pick(self, entry: dict) -> None:
+        labels = self._target_labels()
+        chosen = entry["target_box"].get()
+        if chosen in labels:
+            entry["share"].set([*SHARES, self.LOCAL][labels.index(chosen)])
+
+    def _on_delete_pick(self, entry: dict) -> None:
+        labels = self._delete_labels()
+        chosen = entry["delete_box"].get()
+        if chosen in labels:
+            entry["delete"].set(core.DELETE_MODES[labels.index(chosen)])
 
     def _remove_map_row(self, entry: dict) -> None:
         entry["frame"].destroy()
@@ -691,11 +768,20 @@ class App:
             self.diff_db.set(os.path.normpath(f))
 
     def _collect_maps(self) -> list[dict]:
-        return [
-            {"local": r["local"].get().strip(), "share": r["share"].get()}
-            for r in self.map_rows
-            if r["local"].get().strip()
-        ]
+        """The filled-in lines, in the shape hap_sync.json stores. A local line without
+        its destination folder yet is left out (`_need_maps` says so)."""
+        maps = []
+        for r in self.map_rows:
+            local = r["local"].get().strip()
+            if not local:
+                continue
+            if r["share"].get() != self.LOCAL:
+                maps.append({"local": local, "share": r["share"].get()})
+            elif r["dest"].get().strip():
+                maps.append(
+                    {"local": local, "dest": r["dest"].get().strip(), "delete": r["delete"].get()}
+                )
+        return maps
 
     def _cfg(self) -> dict:
         """Build the config dict the engine expects, with _path set so the on-disk
@@ -837,6 +923,12 @@ class App:
             return False
 
     def _need_maps(self) -> bool:
+        def lacks_dest(r: dict) -> bool:
+            return r["share"].get() == self.LOCAL and not r["dest"].get().strip()
+
+        if any(r["local"].get().strip() and lacks_dest(r) for r in self.map_rows):
+            self._warn("gui.warn.choose_dest")
+            return False
         if not self._collect_maps():
             self._warn("gui.warn.add_folder")
             return False
@@ -1138,8 +1230,10 @@ class App:
         )
         scans: list[dict] = []
         missing = 0
-        for m in maps:
-            self._log_t("gui.log.analyzing", local=m["local"], share=m["share"])
+        # The HAP lines first: keeping the player up to date is the point; copies follow.
+        for m in sorted(maps, key=core.is_local_map):
+            target = core.map_target(m)
+            self._log_t("gui.log.analyzing", local=m["local"], share=target)
             s = core.scan_map(
                 cfg,
                 lazy,
@@ -1148,10 +1242,14 @@ class App:
                 refresh,
                 new_only=new_only,
                 on_scan=self._log_scan,
-                on_progress=self._listing_progress(m["share"]),
+                on_progress=self._listing_progress(target),
             )
             if s is None:
-                self._log_t("gui.log.folder_missing", local=m["local"])
+                problem = core.local_map_problem(m) if core.is_local_map(m) else None
+                if problem in ("dest_unreachable", "overlap"):
+                    self._log_t(f"gui.log.{problem}", local=m["local"], dest=m["dest"])
+                else:
+                    self._log_t("gui.log.folder_missing", local=m["local"])
                 missing += 1
             else:
                 scans.append(s)
@@ -1167,7 +1265,7 @@ class App:
             lazy = core.LazySmb(opts["cfg"]["host"])
             try:
                 scans, _missing = self._scan_maps(lazy, opts)
-                total = len(core.jobs_for(scans))
+                total, removals = core.plan_totals(scans)
                 self._status_t("gui.status.analysis_done", n=total)
                 self._emit(
                     "log",
@@ -1175,6 +1273,8 @@ class App:
                     + self._T("gui.log.plan", n=total)
                     + (self._T("gui.log.plan_new_only") if opts["new_only"] else ""),
                 )
+                if removals:
+                    self._log_t("gui.log.plan_deletions", n=removals)
             finally:
                 lazy.close()
 
@@ -1192,31 +1292,72 @@ class App:
             try:
                 scans, _missing = self._scan_maps(lazy, opts)
                 jobs = core.jobs_for(scans)
-                if not jobs:
+                local_work = [s for s in scans if core.is_local_scan(s) and core.pending(s)]
+                if not jobs and not local_work:
                     self._status_t("gui.status.in_sync")
                     self._emit("log", line="\n" + self._T("gui.log.in_sync"))
                     return
-                self._emit("progmax", total=len(jobs))
-                smb = lazy.smb
-                smb.reconnect()  # a long listing can desync SMB1 — upload on a fresh connection
-                self._emit("log", line="\n" + self._T("gui.log.transferring", n=len(jobs)))
-                index_by_share = {s["share"]: s["remote"] for s in scans}
-                done, failed = core.transfer(
-                    smb,
-                    jobs,
-                    index_by_share,
-                    on_event=self._transfer_event,
-                    should_cancel=self.stop_event.is_set,
-                )
-                for share, idx in index_by_share.items():
-                    core.save_cache(cfg, share, idx)
+                done, failed = self._sync_hap(lazy, cfg, scans, jobs)
+                deleted = 0
+                for s in local_work:
+                    if self.stop_event.is_set():
+                        break
+                    self._emit("progmax", total=core.pending(s))
+                    self._emit(
+                        "log",
+                        line="\n"
+                        + self._T("gui.log.copying_local", n=core.pending(s), dest=s["dest"]),
+                    )
+                    d, f, rm = core.sync_local(
+                        s, on_event=self._transfer_event, should_cancel=self.stop_event.is_set
+                    )
+                    done, failed, deleted = done + d, failed + f, deleted + rm
                 self._status_t("gui.status.done", done=done, failed=failed)
                 self._emit("log", line="\n" + self._T("gui.log.done", done=done, failed=failed))
-                self._log_t("gui.log.reindex")
+                if deleted:
+                    self._log_t("gui.log.deleted_total", n=deleted)
+                if jobs:
+                    self._log_t("gui.log.reindex")
             finally:
                 lazy.close()
 
         self._run_async(job, self.transfer_log, use_progress=True)
+
+    def _sync_hap(
+        self, lazy: core.LazySmb, cfg: dict, scans: list[dict], jobs: list
+    ) -> tuple[int, int]:
+        """Upload the HAP part of a sync (worker thread). Returns (done, failed).
+
+        A share the HAP does not serve right now (a USB disk it has not mounted) is
+        reported once and its files skipped, instead of failing one by one.
+        """
+        if not jobs:
+            return 0, 0
+        smb = lazy.smb
+        smb.reconnect()  # a long listing can desync SMB1 — upload on a fresh connection
+        failed = 0
+        for share in core.unreachable_shares(smb, sorted({j.share for j in jobs})):
+            skipped = [j for j in jobs if j.share == share]
+            jobs = [j for j in jobs if j.share != share]
+            failed += len(skipped)
+            self._emit(
+                "log", line="\n" + self._T("gui.log.share_unreachable", share=share, n=len(skipped))
+            )
+        if not jobs:
+            return 0, failed
+        self._emit("progmax", total=len(jobs))
+        self._emit("log", line="\n" + self._T("gui.log.transferring", n=len(jobs)))
+        index_by_share = {s["share"]: s["remote"] for s in scans if not core.is_local_scan(s)}
+        done, f = core.transfer(
+            smb,
+            jobs,
+            index_by_share,
+            on_event=self._transfer_event,
+            should_cancel=self.stop_event.is_set,
+        )
+        for share, idx in index_by_share.items():
+            core.save_cache(cfg, share, idx)
+        return done, failed + f
 
     def _transfer_event(self, kind: str, **e) -> None:
         """Progress callback for `core.transfer` (runs on the worker thread)."""
@@ -1232,6 +1373,21 @@ class App:
             self._emit("progress", value=e["i"])
             self._log_t(
                 "gui.log.file_failed",
+                i=e["i"],
+                total=e["total"],
+                share=e["share"],
+                rel=e["rel"],
+                error=e["error"],
+            )
+        elif kind == "file_deleted":
+            self._emit("progress", value=e["i"])
+            self._log_t(
+                "gui.log.file_deleted", i=e["i"], total=e["total"], share=e["share"], rel=e["rel"]
+            )
+        elif kind == "delete_failed":
+            self._emit("progress", value=e["i"])
+            self._log_t(
+                "gui.log.delete_failed",
                 i=e["i"],
                 total=e["total"],
                 share=e["share"],
@@ -1303,45 +1459,57 @@ class App:
         todo, remote = s["todo"], s["remote"]
         new_only = s.get("new_only")
         to_go = core.actionable(s)
-        self._emit(
-            "log",
-            line="  "
-            + self._T(
+        local = core.is_local_scan(s)
+        size = human_size(sum(t.size for t in to_go))
+        junk = s["skipped"]["junk"]
+        if local:
+            summary = self._T(
+                "gui.log.local_summary", remote=len(remote), n=len(to_go), size=size, junk=junk
+            )
+        else:
+            summary = self._T(
                 "gui.log.scan_summary",
                 source=s["source"],
                 remote=len(remote),
                 n=len(to_go),
-                size=human_size(sum(t.size for t in to_go)),
-                junk=s["skipped"]["junk"],
+                size=size,
+                junk=junk,
                 unsupported=s["skipped"]["unsupported"],
-            ),
-        )
+            )
+        self._emit("log", line="  " + summary)
 
         changed, new = core.split_plan(todo)
         cap = self.LOG_CAP
+        where = "copy" if local else "HAP"
         # CHANGED first — these are the surprising ones (path already on the HAP, bytes differ).
         if changed:
-            head = (
-                "\n  "
-                + self._T("gui.log.changed_head", n=len(changed))
-                + self._T("gui.log.changed_skipped" if new_only else "gui.log.changed_hint")
-                + self._T("gui.log.changed_tail")
-            )
+            if local:
+                head = "\n  " + self._T("gui.log.local_changed_head", n=len(changed))
+            else:
+                head = (
+                    "\n  "
+                    + self._T("gui.log.changed_head", n=len(changed))
+                    + self._T("gui.log.changed_skipped" if new_only else "gui.log.changed_hint")
+                    + self._T("gui.log.changed_tail")
+                )
             self._emit("log", line=head)
             for entry in changed[:cap]:
                 self._emit(
-                    "log", line=f"      ~ {entry.rel}  ({core.describe_changed(entry, remote)})"
+                    "log",
+                    line=f"      ~ {entry.rel}  ({core.describe_changed(entry, remote, where)})",
                 )
             if len(changed) > cap:
                 self._emit(
                     "log", line="      " + self._T("gui.log.more_in_file", n=len(changed) - cap)
                 )
         if new:
-            self._emit("log", line="\n  " + self._T("gui.log.new_head", n=len(new)))
+            head = "gui.log.local_new_head" if local else "gui.log.new_head"
+            self._emit("log", line="\n  " + self._T(head, n=len(new)))
             for entry in new[:cap]:
                 self._emit("log", line=f"      + {entry.rel}  ({human_size(entry.size)})")
             if len(new) > cap:
                 self._emit("log", line="      " + self._T("gui.log.more_in_file", n=len(new) - cap))
+        self._log_orphans(s)
 
         # Always dump the COMPLETE plan to a file so nothing is ever hidden behind a cap.
         try:
@@ -1351,6 +1519,24 @@ class App:
             )
         except OSError as e:
             self._emit("log", line="  " + self._T("gui.log.plan_save_failed", err=e))
+
+    def _log_orphans(self, s: dict) -> None:
+        """The files in a local copy that are no longer in its source, and their fate."""
+        orphans = s.get("orphans") or []
+        if not orphans:
+            return
+        if s.get("delete") == "list":
+            head = self._T("gui.log.orphans_list", n=len(orphans))
+        elif s.get("held"):
+            head = self._T("gui.log.orphans_held", n=len(orphans), total=len(s["remote"]))
+        else:
+            head = self._T("gui.log.orphans_mirror", n=len(orphans))
+        self._emit("log", line="\n  " + head)
+        cap = self.LOG_CAP
+        for d in orphans[:cap]:
+            self._emit("log", line=f"      - {d.rel}  ({human_size(d.size)})")
+        if len(orphans) > cap:
+            self._emit("log", line="      " + self._T("gui.log.more_in_file", n=len(orphans) - cap))
 
     def _log_section(self, title: str, items: list, marker: str = "-", limit: int = 25) -> None:
         if not items:

@@ -241,16 +241,23 @@ def test_ensure_dirs_creates_each_parent_once(fake_pysmb):
 
 def test_get_remote_scans_live_and_caches(fake_pysmb, tmp_path):
     cfg = {"host": "1.2.3.4", "_path": str(tmp_path / "hap_sync.json")}
-    lazy = core.LazySmb("1.2.3.4")
-    index, source = core.get_remote(cfg, lazy, "HAP_Internal", refresh=False)
+
+    def run(refresh):
+        # One LazySmb per run: within a run, a share is indexed once (see LazySmb.remotes).
+        lazy = core.LazySmb("1.2.3.4")
+        try:
+            return core.get_remote(cfg, lazy, "HAP_Internal", refresh=refresh)
+        finally:
+            lazy.close()
+
+    index, source = run(refresh=False)
     assert source.startswith("live scan, 3 files")
     assert core.load_cache(cfg, "HAP_Internal")["files"] == index
-    _, source = core.get_remote(cfg, lazy, "HAP_Internal", refresh=False)
+    _, source = run(refresh=False)
     assert source.startswith("cache ")
     fake_pysmb.fail_paths = {"/Artist"}
-    _, source = core.get_remote(cfg, lazy, "HAP_Internal", refresh=True)
+    _, source = run(refresh=True)
     assert "1 dirs unreadable" in source
-    lazy.close()
 
 
 def test_cli_list_and_refresh_commands(fake_pysmb, tmp_path, capsys):

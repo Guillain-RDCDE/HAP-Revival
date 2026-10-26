@@ -65,6 +65,29 @@ your paths. This file stays on your machine — it's git-ignored, so your person
 - `maps` — one line per folder→share pair. Each local folder's contents go to the **root** of its
   share, so lay them out as `D:/Music/Internal/<Artist>/<Album>/<tracks>`.
 
+### Optional: keep backup disks in step too
+
+The same run can copy a folder to a local destination (a second disk, a third, as many as you
+like) instead of a share. Write `dest` in place of `share`; in HAP Sync, pick **Local folder** in
+the line's target box. The HAP lines always run first, then the copies:
+
+```json
+{"local": "D:/Music/External", "dest": "F:/Backup/External", "delete": "mirror"}
+```
+
+- A copy carries **every format** (only junk is left out) and compares size **and** modification
+  time, so a re-tag that keeps the byte size is still copied. Copies keep their dates.
+- `delete` says what happens to files that are in the copy but no longer in the source:
+  `keep` never deletes (the default), `list` shows them in the plan, `mirror` deletes them so the
+  copy matches the source exactly. Folders a mirror empties are removed.
+- A mirror **holds its deletions back** when the source is empty, or when they would remove more
+  than half of the copy (once it holds at least 20 files): that is a wrong or unplugged source far
+  more often than a real clean-up. The plan says so; `sync --allow-mass-delete` lets them through.
+- A destination whose drive is not there (disk unplugged) skips that line with one message; a
+  destination folder that does not exist yet is created.
+
+Nothing is ever deleted on the HAP itself.
+
 ## 3. Daily workflow
 
 ```bash
@@ -82,7 +105,8 @@ Useful flags/commands:
 |---|---|
 | `plan` | preview only — never writes |
 | `sync` | transfer new/changed files to all shares |
-| `sync --only HAP_External` | just one share |
+| `sync --only HAP_External` | just one share (or one local `dest`) |
+| `sync --allow-mass-delete` | let a mirror delete more than half of a copy |
 | `sync --dry-run` | same as `plan` |
 | `sync --all` | also copy files normally flagged unsupported |
 | `sync --refresh` / `plan --refresh` | ignore the cache and re-scan the HAP first |
@@ -104,6 +128,11 @@ config:
   them and still doesn't need to re-scan.
 - If the HAP changed by some other route (you added files via FreeFileSync, or the device itself),
   run `refresh` (or `sync --refresh`) to rebuild the cache.
+- Because the plan comes from the cache, it can list files for `HAP_External` while the HAP is
+  not serving that share — typically a USB disk plugged in after start-up, which the HAP mounts
+  only once you confirm a prompt on its **front screen**. Before uploading, `sync` checks that
+  each share answers; one that does not is reported once and its files skipped, instead of every
+  upload failing on its own.
 
 Measured on a real unit: a full `refresh` took ~8 minutes (67,106 files); after that, `plan` ran in
 **0.6 s** and a `sync` in ~8 s (almost all of it the actual upload).

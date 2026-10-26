@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [hap-sync-v0.5.0] — 2026-10-26
+
+Everything since `hap-sync-v0.4.0` (2026-10-08). HAP Sync now keeps backup disks in step in the
+same run as the player, and says once — not fifty times — when the HAP has not mounted its USB
+disk. Installed copies of 0.4.0 offer this release in their footer.
+
+### Added (2026-10-26, HAP Sync keeps backup disks in step)
+
+- **A sync line can point at a local folder instead of a HAP share.** Write `"dest"` in place of
+  `"share"` in `hap_sync.json`, or pick **Local folder** in the line's target box in HAP Sync, and
+  the same run copies that folder to a second disk, a third, as many as you add. The HAP lines
+  run first; the copies follow. A copy carries every format (only junk is left out), compares
+  size and modification time, keeps the dates, and writes each file under a temporary name
+  before renaming it, so an interrupted run never leaves a truncated file.
+- **Each copy says what to do with files that left the source**: `keep` (never delete, the
+  default), `list` (show them in the plan) or `mirror` (delete them, and the folders that end up
+  empty). A mirror holds its deletions back when the source is empty or when they would remove
+  more than half of the copy — a wrong or unplugged source, far more often than a clean-up —
+  until `sync --allow-mass-delete`.
+
+### Fixed (2026-10-26, a USB disk the HAP has not mounted)
+
+- **A share the HAP does not serve is reported once, not once per file.** The plan comes from
+  the cache, so it listed fifty files for `HAP_External` while the HAP had not mounted its USB
+  disk (it waits for a confirmation on its front screen), and every upload then failed on its own
+  with a full SMB dump. `sync` now checks each share before uploading and names the cause.
+- **Two lines feeding the same share no longer lose each other's uploads from the cache**: within
+  one run a share is indexed once and both lines fold into the same index.
+
 ### Fixed (2026-10-12, push notifications on Windows)
 
 - **`hap_notify` no longer stops listening on Windows right after subscribing.** To open the

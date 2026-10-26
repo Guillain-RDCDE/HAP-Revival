@@ -381,7 +381,13 @@ def test_sync_transfers_through_the_engine(app, monkeypatch, tmp_path):
         lambda cfg, lazy, share, refresh, on_progress=None: ({"Artist/Album/01.flac": 10}, "cache"),
     )
 
+    class Conn:
+        def listPath(self, share, path):
+            return []
+
     class Session:
+        conn = Conn()
+
         def reconnect(self):
             pass
 
@@ -423,6 +429,106 @@ def test_sync_when_nothing_changed(app, monkeypatch, tmp_path):
     drain(app)
     assert "already in sync" in log_text(app.transfer_log)
     assert app.status_var.get() == "Already in sync."
+
+
+def test_a_local_row_shows_its_destination_and_round_trips(app, monkeypatch):
+    import hap_gui
+
+    before = len(app.map_rows)
+    app._add_map_row("D:/Music", dest="F:/Backup", delete="mirror")
+    entry = app.map_rows[-1]
+    assert entry["share"].get() == app.LOCAL and entry["dest_frame"].winfo_manager()
+    assert app._collect_maps()[-1] == {"local": "D:/Music", "dest": "F:/Backup", "delete": "mirror"}
+    assert entry["delete_box"].get() == "Exact mirror"
+
+    app._set_language("fr")
+    assert entry["target_box"].get() == "Dossier local"
+    assert entry["delete_box"].get() == "Miroir exact"
+    app._set_language("en")
+
+    entry["target_box"].set("HAP_External")
+    app._on_target_pick(entry)
+    assert not entry["dest_frame"].winfo_manager(), "a HAP line hides the destination"
+    assert app._collect_maps()[-1] == {"local": "D:/Music", "share": "HAP_External"}
+
+    entry["target_box"].set("Local folder")
+    app._on_target_pick(entry)
+    entry["delete_box"].set("List extras")
+    app._on_delete_pick(entry)
+    entry["dest"].set("")
+    warned = []
+    monkeypatch.setattr(hap_gui.messagebox, "showwarning", lambda *a, **k: warned.append(a[1]))
+    assert app._need_maps() is False and "destination folder" in warned[0]
+    entry["dest"].set("F:/Backup")
+    assert app._collect_maps()[-1]["delete"] == "list"
+    app._remove_map_row(entry)
+    assert len(app.map_rows) == before
+
+
+def test_sync_copies_to_a_local_folder_after_the_hap(app, monkeypatch, tmp_path):
+    import hap_sync
+
+    src = tmp_path / "src"
+    _ready_to_sync(app, monkeypatch, src)
+    dest = tmp_path / "backup"
+    (dest / "Old").mkdir(parents=True)
+    (dest / "Old" / "gone.flac").write_bytes(b"x")
+    app.map_rows[0]["local"].set(str(src))
+    app._add_map_row(str(src), dest=str(dest), delete="mirror")
+    monkeypatch.setattr(
+        hap_sync,
+        "get_remote",
+        lambda cfg, lazy, share, refresh, on_progress=None: (
+            {"Artist/Album/01.flac": 10, "Artist/Album/02.flac": 3},
+            "cache",
+        ),
+    )
+    app.on_plan()
+    drain(app)
+    text = log_text(app.transfer_log)
+    assert text.index("HAP_Internal") < text.index(str(dest)), "the HAP is analysed first"
+    assert "NEW — not in the copy yet (2)" in text and "will be DELETED (exact mirror)" in text
+    assert "Plus 1 file(s) to delete" in text
+
+    app.on_sync()
+    drain(app)
+    text = log_text(app.transfer_log)
+    assert f"Copying 3 item(s) to {dest}" in text and "deleted" in text
+    assert "Done: 2 transferred, 0 failed" in text and "1 file(s) deleted" in text
+    assert (dest / "Artist" / "Album" / "01.flac").read_bytes() == b"0123456789"
+    assert not (dest / "Old").exists()
+    app._remove_map_row(app.map_rows[-1])
+
+
+def test_sync_reports_a_share_the_hap_does_not_serve_once(app, monkeypatch, tmp_path):
+    import hap_sync
+
+    _ready_to_sync(app, monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        hap_sync,
+        "get_remote",
+        lambda cfg, lazy, share, refresh, on_progress=None: ({}, "cache"),
+    )
+
+    class Conn:
+        def listPath(self, share, path):
+            raise OSError("Unable to connect to shared device")
+
+    class Session:
+        conn = Conn()
+
+        def reconnect(self):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(hap_sync, "Smb", lambda host: Session())
+    monkeypatch.setattr(hap_sync, "transfer", lambda *a, **k: pytest.fail("nothing to upload"))
+    app.on_sync()
+    drain(app)
+    text = log_text(app.transfer_log)
+    assert text.count("is not served by the HAP") == 1 and "Done: 0 transferred, 2 failed" in text
 
 
 def test_listing_progress_updates_the_status_line(app):

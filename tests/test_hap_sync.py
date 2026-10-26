@@ -425,3 +425,191 @@ def test_main_plan_from_cache_counts_the_files(tmp_path, monkeypatch, capsys):
 
     assert core.main(["--config", str(cfg_path), "sync", "--dry-run"]) == 0
     assert "[dry-run] 3 file(s)" in capsys.readouterr().out
+
+
+# ---------- local copies (backup disks) ----------
+
+
+def _write(root, rel, data, mtime=None):
+    import os
+
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(data)
+    if mtime is not None:
+        os.utime(p, (mtime, mtime))
+    return p
+
+
+def _local_map(src, dest, mode="keep"):
+    return {"local": str(src), "dest": str(dest), "delete": mode}
+
+
+def _quiet(_s):
+    pass
+
+
+def test_load_config_accepts_local_maps_and_rejects_bad_ones(tmp_path):
+    path = tmp_path / "hap_sync.json"
+
+    def with_maps(maps):
+        path.write_text(json.dumps({"host": "h", "maps": maps}), encoding="utf-8")
+        return core.load_config(path)
+
+    cfg = with_maps([{"local": "D:/x", "dest": "F:/y", "delete": "mirror"}])
+    assert core.is_local_map(cfg["maps"][0]) and core.map_target(cfg["maps"][0]) == "F:/y"
+    with pytest.raises(ValueError, match="either 'share'"):
+        with_maps([{"local": "D:/x", "share": "HAP_Internal", "dest": "F:/y"}])
+    with pytest.raises(ValueError, match="either 'share'"):
+        with_maps([{"local": "D:/x"}])
+    with pytest.raises(ValueError, match="'delete'"):
+        with_maps([{"local": "D:/x", "dest": "F:/y", "delete": "wipe"}])
+
+
+def test_a_local_copy_carries_every_format_and_compares_dates(tmp_path):
+    src, dest = tmp_path / "src", tmp_path / "dest"
+    _build_tree(src)
+    _write(src, "Artist/Album/01 - a.flac", b"x" * 10, mtime=2_000_000)
+    _write(dest, "Artist/Album/01 - a.flac", b"y" * 10, mtime=1_000_000)  # same size, older
+    _write(dest, "Artist/Album/02 - b.mp3", b"y" * 20)
+    _write(dest, "Gone/old.flac", b"old")
+
+    s = core.scan_local_map(_local_map(src, dest, "list"), on_scan=_quiet)
+    statuses = {t.rel: t.status for t in s["todo"]}
+    assert statuses["Artist/Album/01 - a.flac"] == "changed", "a same-size re-tag is caught"
+    assert statuses["Artist/Album/movie.mkv"] == "new", "a backup keeps unsupported formats"
+    assert "Artist/Album/Thumbs.db" not in statuses, "junk is still left out"
+    assert [d.rel for d in s["orphans"]] == ["Gone/old.flac"]
+    assert core.deletions(s) == [], "the list mode never deletes"
+    assert core.scan_local_map(_local_map(src, dest), on_scan=_quiet)["orphans"] == []
+
+
+def test_sync_local_copies_then_mirrors(tmp_path):
+    src, dest = tmp_path / "src", tmp_path / "dest"
+    _write(src, "A/B/1.flac", b"new audio", mtime=1_500_000)
+    _write(src, "A/B/cover.jpg", b"img")
+    for i in range(3):
+        _write(dest, f"A/B/{i}.extra", b"e")
+    _write(dest, "Old/Album/x.flac", b"old")
+
+    s = core.scan_local_map(_local_map(src, dest, "mirror"), on_scan=_quiet)
+    assert not s["held"] and core.pending(s) == 6
+    events = []
+    done, failed, deleted = core.sync_local(s, on_event=lambda kind, **d: events.append(kind))
+    assert (done, failed, deleted) == (2, 0, 4)
+    assert (dest / "A/B/1.flac").read_bytes() == b"new audio"
+    assert (dest / "A/B/1.flac").stat().st_mtime == pytest.approx(1_500_000), "dates are kept"
+    assert not (dest / "Old").exists(), "folders emptied by the mirror are removed"
+    assert dest.exists(), "the destination itself stays"
+    assert events.count("file_done") == 2 and events.count("file_deleted") == 4
+    assert not list(dest.rglob("*" + core.PART_SUFFIX))
+
+    again = core.scan_local_map(_local_map(src, dest, "mirror"), on_scan=_quiet)
+    assert core.pending(again) == 0, "a second run has nothing left to do"
+
+
+def test_a_mirror_holds_back_a_mass_deletion(tmp_path):
+    src, dest = tmp_path / "src", tmp_path / "dest"
+    _write(src, "keep.flac", b"k")
+    for i in range(core.MASS_DELETE_MIN):
+        _write(dest, f"other/{i}.flac", b"o")
+
+    s = core.scan_local_map(_local_map(src, dest, "mirror"), on_scan=_quiet)
+    assert s["held"] and core.deletions(s) == []
+    assert "HELD BACK" in "\n".join(core.plan_file_lines(s))
+    s = core.scan_local_map(_local_map(src, dest, "mirror"), on_scan=_quiet, allow_mass_delete=True)
+    assert not s["held"] and len(core.deletions(s)) == core.MASS_DELETE_MIN
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    s = core.scan_local_map(_local_map(empty, dest, "mirror"), on_scan=_quiet)
+    assert s["held"], "an empty source never wipes a copy, however small"
+
+
+def test_local_map_problems_are_named(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    assert core.local_map_problem(_local_map(tmp_path / "nope", tmp_path / "d")) == "source_missing"
+    assert core.local_map_problem(_local_map(src, src / "backup")) == "overlap"
+    assert core.local_map_problem(_local_map(src, tmp_path / "new" / "dest")) is None, (
+        "a destination folder that does not exist yet is created"
+    )
+
+
+def test_the_hap_comes_first_and_local_scans_upload_nothing(tmp_path):
+    src, dest = tmp_path / "src", tmp_path / "dest"
+    _write(src, "a.flac", b"a")
+    cfg = {
+        "host": "h",
+        "_path": str(tmp_path / "hap_sync.json"),
+        "maps": [_local_map(src, dest), {"local": str(src), "share": "HAP_Internal"}],
+    }
+    core.save_cache(cfg, "HAP_Internal", {})
+    args = core.build_parser().parse_args(["plan"])
+    scans = core.scan_all(cfg, core.LazySmb("h"), args)
+    assert [core.scan_target(s) for s in scans] == ["HAP_Internal", str(dest)]
+    assert core.jobs_for(scans) == [core.Job("HAP_Internal", "a.flac", str(src / "a.flac"), 1)]
+    assert core.plan_totals(scans) == (2, 0)
+    assert core.write_plan_file(scans[1], tmp_path).name.startswith("hap_plan_")
+
+
+def test_two_maps_on_one_share_share_one_index(tmp_path):
+    cfg = {"host": "h", "_path": str(tmp_path / "hap_sync.json")}
+    core.save_cache(cfg, "HAP_Internal", {"x": 1})
+    lazy = core.LazySmb("h")
+    first, _ = core.get_remote(cfg, lazy, "HAP_Internal", refresh=False)
+    second, _ = core.get_remote(cfg, lazy, "HAP_Internal", refresh=True)
+    assert first is second, "the second map must fold its uploads into the same dict"
+
+
+def test_unreachable_shares_names_the_unmounted_disk():
+    class Conn:
+        def listPath(self, share, path):
+            if share == "HAP_External":
+                raise OSError("Unable to connect to shared device")
+            return []
+
+    smb = FakeSmb(Conn())
+    assert core.unreachable_shares(smb, ["HAP_Internal", "HAP_External"]) == ["HAP_External"]
+    assert smb.reconnects == 1, "one retry on a fresh session before giving up"
+
+
+def test_main_sync_skips_a_share_the_hap_does_not_serve(tmp_path, monkeypatch, capsys):
+    root = _build_tree(tmp_path / "music")
+    cfg_path = tmp_path / "hap_sync.json"
+    cfg_path.write_text(
+        json.dumps({"host": "h", "maps": [{"local": str(root), "share": "HAP_External"}]})
+    )
+    core.save_cache({"host": "h", "_path": str(cfg_path)}, "HAP_External", {})
+
+    class Dead(FakeConn):
+        def listPath(self, share, path):
+            raise OSError("Unable to connect to shared device")
+
+    class Session(FakeSmb):
+        def __init__(self, host):
+            super().__init__(Dead())
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(core, "Smb", Session)
+    assert core.main(["--config", str(cfg_path), "sync"]) == 1
+    out = capsys.readouterr().out
+    assert out.count("HAP_External is not served") == 1 and "FAILED" not in out
+    assert "Done: 0 transferred, 3 failed" in out
+
+
+def test_main_sync_mirrors_a_local_copy_without_touching_the_hap(tmp_path, monkeypatch, capsys):
+    src, dest = tmp_path / "src", tmp_path / "dest"
+    _write(src, "a.flac", b"a")
+    _write(dest, "b.flac", b"b")
+    cfg_path = tmp_path / "hap_sync.json"
+    cfg_path.write_text(json.dumps({"host": "h", "maps": [_local_map(src, dest, "mirror")]}))
+    monkeypatch.setattr(core, "Smb", lambda host: pytest.fail("no SMB for a local copy"))
+    assert core.main(["--config", str(cfg_path), "plan"]) == 0
+    assert "1 would be deleted" in capsys.readouterr().out
+    assert core.main(["--config", str(cfg_path), "sync"]) == 0
+    out = capsys.readouterr().out
+    assert "Done: 1 transferred, 0 failed, 1 deleted" in out
+    assert sorted(p.name for p in dest.iterdir()) == ["a.flac"]
