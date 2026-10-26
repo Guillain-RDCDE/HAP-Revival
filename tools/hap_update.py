@@ -66,7 +66,7 @@ from hap_common import (
 
 #: The version every tool reports. Bump it with the CHANGELOG entry; the
 #: release workflow refuses a tag that does not match it.
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 REPO = "Guillain-RDCDE/HAP-Revival"
 #: Release tags are `hap-sync-v<VERSION>`: the exe is what most people download.
 TAG_PREFIX = "hap-sync-v"
