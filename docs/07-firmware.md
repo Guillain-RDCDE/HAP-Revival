@@ -15,12 +15,23 @@ What we know — and don't know — about the on-device firmware.
 
 Each version is distributed as a single binary blob (extension reportedly `.SonyAP` or similar; format not publicly documented). The firmware updater on the device consumes this blob; **no one outside Sony has documented its container format**.
 
-## The firmware blob is OTA-only — there is no public copy
+## The firmware blob — one copy is now in hand (updated 2026-11-03)
 
-> **⚠️ You cannot download the HAP firmware. Confirmed by an exhaustive multi-source search
-> (2026-06-03): no copy of any HAP-Z1ES/HAP-S1 firmware version exists anywhere public** —
-> not on archive.org, GitHub, or the Japanese/Chinese modding communities. See
-> [`research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md).
+> **A working OTA URL has been contributed, and the CN 19404R blob is now downloaded.**
+> On 2026-11-03 @jimsmt supplied the HAP-S1 (China) update URL
+> (`http://hav.update.sony.net/HAP/PRD/1G/CN/10000201_4bcc0000.bin`,
+> [issue #6](https://github.com/Guillain-RDCDE/HAP-Revival/issues/6)); it is still live, and its
+> size — 77,776,256 bytes — matches the 19404R payload in the table above to the byte. This
+> **supersedes** the earlier finding (2026-06-03) that no public copy existed, and it confirms the
+> "static file on a public CDN, fetchable with `curl`" hypothesis below. The blob is encrypted
+> (an AES-ECB signature; the key is not in the file), so it stays sealed until a root shell yields
+> the key. Full analysis and the four other findings from that report are in
+> [`18-community-findings.md`](18-community-findings.md).
+
+The reconnaissance below (2026-06-03) is kept for context: no copy of any HAP-Z1ES/HAP-S1 firmware
+was found then on archive.org, GitHub, or the Japanese/Chinese modding communities (see
+[`research/notes/2026-06-03-os-acquisition-recon.md`](../research/notes/2026-06-03-os-acquisition-recon.md)).
+What changed is that the blob turned out to be directly addressable on Sony's CDN after all.
 
 The device fetches updates **over the air**: Settings → Network Update pulls the blob directly from
 Sony's update servers (`info.update.sony.net`) and applies it. The regional "download" support pages
@@ -61,6 +72,11 @@ what you would expect a 2014 device running Linux 3.0.35 to require.
 
 **So the blob is very likely a static file on a public CDN, fetchable with `curl`, if we learn its
 path.** That is a different problem from "dump the NAND over UART" — and a much smaller one.
+
+> **Confirmed 2026-11-03.** That is exactly what it turned out to be: the URL contributed in
+> [issue #6](https://github.com/Guillain-RDCDE/HAP-Revival/issues/6) is a plain-HTTP path on
+> Sony's Akamai store (`hav.update.sony.net`), fetched with `curl`, no device involved. See
+> [`18-community-findings.md`](18-community-findings.md).
 
 We do **not** know the path, and we will not find it by guessing at someone else's CDN. The way to
 learn it is to capture one update check from a real device (see below). If the version string turns
