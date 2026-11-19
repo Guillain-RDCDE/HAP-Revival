@@ -17,32 +17,49 @@ The LCD switches to a numeric menu. Navigate with the rotary encoder.
 
 ### DIAG menu contents
 
-| # | Item | Use |
-|---|---|---|
-| 1 | Version Info | Firmware version + build metadata |
-| 2 | LED / KEY Check | Test every button and indicator LED |
-| 3 | LCD Test | Color bar + backlight brightness |
-| 4 | RTC | Real-time clock |
-| 5 | Fan Speed Control | Override the fan curve manually |
-| 6 | HDD SMART Short (2 min) | Quick disk health check |
-| 7 | HDD SMART Long (2–4 h) | Full disk surface scan |
-| 8 | Audio Playback Test | Internal audio path verification |
-| 9 | Network | Wi-Fi + Ethernet diagnostics |
-| 10 | QUIT | Exit |
+**Photographed on a HAP-S1, firmware `0019404R`, region CEL** (@djordjevich-droid,
+2026-11-19, [issue #7](https://github.com/Guillain-RDCDE/HAP-Revival/issues/7)). This table
+replaces an earlier ten-line list taken from secondary sources, which was wrong: the SMART tests
+are not top-level entries, *RTC* and *Fan* live under *LCD/Others*, network is split in two,
+and there is an *ID Info* page nobody had listed.
 
-**Exit**: select QUIT, or press POWER (except during a SMART test, which will complete first).
+| # | Item | Sub-entries (as shown on screen) |
+|---|---|---|
+| 1 | Version Info | uCON ver., MPU ver., Region, Model, HW Rev.; scrolling further down shows **eMMC** |
+| 2 | ID Info | Service TAG, TV-ID ver., MAC Addr (Ether), MAC Addr (WiFi) |
+| 3 | LED/KEY | Power LED Check by MPU, ALL LED Check by uCON, KEY Check |
+| 4 | LCD/Others | LCD Color Bar, LCD Back light Check, RTC Check, FAN Control Check |
+| 5 | HDD | Model, Serial, Firmware Rev., SMART Data Read (Need USB Memory), SMART Short Test (2 min), SMART Long Test (2–4 hours) |
+| 6 | Audio | Play Audio Data, Select Input |
+| 7 | Wifi | Network/Module Info, Ping/RSSI |
+| 8 | Ether | Network Info, Ping |
+
+Every submenu ends with *Back to Main Menu*. [`10-uart-console.md`](10-uart-console.md) also
+lists a ninth entry, **IR Learning**, from the service manual; it was not in the photo set
+(the main menu only shows six lines at a time), so it is neither confirmed nor ruled out.
+
+What the S1 reported on its *Version Info* page: uCON `049`, MPU `0019404R`, region `CEL`,
+model `HAP-S1`, HW Rev. `1`, eMMC `SAMSUNG M4G1FB`. **uCON** is the front-panel/standby
+controller (the U-COM board in [`10-uart-console.md`](10-uart-console.md)); its firmware
+version had never been recorded before. The HDD page names the disk directly — here a
+WD20SPZX (2 TB 2.5"), where our Z1ES carries an HGST 1 TB.
+
+**Exit**: no QUIT entry appears on the photographed main menu. Leave by pressing POWER
+(not tested during a running SMART test — let it finish first).
 
 ### Safety
 
-DIAG mode is **read-only / diagnostic only**. There is no documented option in it to erase user data, flash firmware, or otherwise modify the device. Safe to explore.
+DIAG mode is **read-only / diagnostic only**. There is no documented option in it to erase user data, flash firmware, or otherwise modify the device. Safe to explore. The one entry that writes anything is *SMART Data Read*, and it writes to a USB stick you plug in, not to the player.
 
 ### What we want to learn from it but haven't yet
 
-- The "Network" diagnostic may dump useful info (IP, MAC, gateway, link speed) on the LCD — worth photographing.
-- The "Audio Playback Test" may reveal which test files are stored in the firmware and how they're routed — possibly useful for understanding the audio pipeline.
-- The "Version Info" output may include the bootloader version and a build date precise enough to cross-reference with the GPL release.
+- What *Wifi → Network/Module Info* and *Ether → Network Info* actually display (IP, gateway, link speed, Wi-Fi module part number) — the menus are known, their output screens are not.
+- What *Audio → Play Audio Data* plays, and which inputs *Select Input* offers — possibly useful for understanding the audio pipeline.
+- What *SMART Data Read* writes to the USB stick (file name and format).
+- *Version Info* shows no bootloader version or build date, so it cannot be cross-referenced with the GPL release on its own.
+- The same pages photographed on a **Z1ES**, to see which lines differ between the two models.
 
-If you have a HAP, photograph each DIAG submenu and submit the photos via the [hardware-finding issue template](../.github/ISSUE_TEMPLATE/hardware-finding.yml).
+If you have a HAP, photograph these screens and submit them via the [hardware-finding issue template](../.github/ISSUE_TEMPLATE/hardware-finding.yml).
 
 ## Special Mode (the SMB version selector)
 
@@ -54,7 +71,8 @@ Introduced in firmware **18777R** (mid-2018) to let users on modern OSes (which 
 2. Hold **HOME**, then press **POWER**.
 
 **Full menu contents, photographed on firmware 19404R** (Amos, 2026-08-22). This page previously
-listed only two entries; there are **five**:
+listed only two entries; there are **five**. A second unit — a HAP-S1, region CEL
+(@djordjevich-droid, 2026-11-19) — shows the same five entries in the same order:
 
 | Entry | What it does |
 |---|---|
@@ -94,7 +112,7 @@ dialog itself warns the database may need clearing, which on a full library mean
 
 ### Possible other entries
 
-The existence of a hidden menu structure strongly suggests Sony added other gated options across firmware revisions. We do not know what's there beyond the two documented entries. **Photograph anything else you see** in Special Mode and report it.
+The existence of a hidden menu structure strongly suggests Sony added other gated options across firmware revisions. Two units on `19404R` now show the same five entries, so on this firmware the list above looks complete. **Photograph anything else you see** in Special Mode and report it.
 
 #### Reported: a firmware downgrade entry (Amos, 2026-08-21 — unverified)
 

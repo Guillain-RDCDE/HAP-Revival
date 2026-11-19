@@ -7,6 +7,45 @@ point, it says so.
 
 ---
 
+## 2026-11-19 — @djordjevich-droid (HAP-S1): the DIAG menu in full, and S1 API readings
+
+Contributed in [issue #7](https://github.com/Guillain-RDCDE/HAP-Revival/issues/7), working
+through [`HELP-IN-5-MINUTES.md`](HELP-IN-5-MINUTES.md) on a HAP-S1, firmware `0019404R`,
+region **CEL**.
+
+### 1. The DIAG menu, every page photographed
+
+Eleven photos of the factory DIAG menu. They show **eight** top-level entries — Version Info,
+ID Info, LED/KEY, LCD/Others, HDD, Audio, Wifi, Ether — and every submenu. Our previous
+ten-line list, copied from secondary sources, was wrong in its structure. The corrected table
+is in [`05-diag-modes.md`](05-diag-modes.md). New facts from it: the front-panel controller
+firmware (**uCON `049`**), the eMMC as the chip names itself (**`SAMSUNG M4G1FB`**), and a
+*SMART Data Read* entry that dumps the disk's SMART data to a USB stick.
+
+### 2. Special Mode: the same five entries
+
+His Special Mode shows *SMB Version* (set to `1.0 – 3.1.1`), *Clear Database*, *Reset to
+Default Settings*, *Restore Previous Version* and *Restart* — exactly the list photographed on
+a different unit in August. Two units now agree.
+
+### 3. S1-only API calls answer
+
+- `volumelevel` answers (`200`), with no `min`/`max` fields. He sent `0` and `74` — the same
+  range Amos measured on his S1 in August.
+- `tonecontrolbass` = `0`, `tonecontroltreble` = `0`, `tonecontrolbypass` = `on`. First
+  readings of tone control from an S1 owner's own hands; they confirm the setting names and
+  value shapes documented from the Crestron module.
+- `powerstate`, `playinginfo` (source `tunein`), `externalinput` and `settings/sound/dsee`
+  answer exactly as on our Z1ES.
+
+### 4. Internet radio works on a CEL unit
+
+`hap_client.py radio-browse root` returns the full nine-folder TuneIn root (Local Radio,
+Trending, Music, Sports, News & Talk, Talk, Podcasts, By Location, By Language) — the same tree
+as on our French Z1ES. A second region, a second model, the same result.
+
+---
+
 ## 2026-11-03 — @jimsmt (HAP-S1): the OTA firmware URL, and four findings alongside it
 
 Contributed in [issue #6](https://github.com/Guillain-RDCDE/HAP-Revival/issues/6), with a

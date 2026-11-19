@@ -151,6 +151,12 @@ Photographed 2026-09-26 on the reference HAP-Z1ES
 Two transformers (`1-697-298-11`, `1-697-301-11`) feed the digital and analogue halves. The HDD
 is an HGST 1 TB 2.5" 5400 rpm on a plain SATA cable.
 
+On a **HAP-S1**, the DIAG *Version Info* page reports the eMMC as `SAMSUNG M4G1FB`
+(@djordjevich-droid, 2026-11-19 — see [`05-diag-modes.md`](05-diag-modes.md)). That is the
+name the chip gives itself, not the package marking, so it is consistent with the Samsung 4 GB
+`KLM4G1F…` part above without proving the two models carry the same chip. The same page on a
+Z1ES would settle it.
+
 The front-panel **test mode** (p25) is unrelated to the console: with the unit in standby, hold
 `HOME` + `BACK`, then press `↑` then `↓` — a "Main Menu" with Version Info, ID Info, LED/KEY,
 LCD/Others, HDD, Audio, WiFi, Ether, IR Learning appears on the display.

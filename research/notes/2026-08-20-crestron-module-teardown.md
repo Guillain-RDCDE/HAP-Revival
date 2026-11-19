@@ -294,6 +294,11 @@ is unusable here. `mute` (`"on"`/`"off"`) is present and behaves as documented.
 discoverable from the API — a client either hardcodes it or learns it. The earlier guess that the
 ceiling might be 50 was wrong.
 
+*Update 2026-11-19:* a second S1 (region CEL, @djordjevich-droid,
+[issue #7](https://github.com/Guillain-RDCDE/HAP-Revival/issues/7)) returned `volume_level` `0`
+and `74` on two successive reads, again with no `min`/`max` fields — the same range on an
+independent unit.
+
 **And the S1 runs `0019404R`, the same firmware as our Z1ES.** So the `volumelevel` divergence —
 `200` with data on the S1, `500` on the Z1ES — is a **model** difference, not a firmware one. The
 Z1ES has no volume stage and its daemon says so with a 500. That closes the question.

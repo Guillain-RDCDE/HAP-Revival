@@ -74,15 +74,18 @@ No commands, just your phone. Both menus are entered from **standby**:
 | **Special Mode** | Hold **HOME**, press **POWER** | The whole list of entries |
 | **DIAG** | Hold **HOME** + **BACK**, press **PLAY**, then **POWER** | Every submenu you can reach |
 
-Then back out with **Restart** or **QUIT**. Neither menu writes anything by itself.
+Then back out with **Restart** (Special Mode) or **POWER** (DIAG, which has no QUIT entry).
+Neither menu writes anything by itself.
 
 > **Do not select "Restore Previous Version".** It is a firmware downgrade. It is one-shot — the
 > player keeps exactly one spare image and re-flashing burns it — and there is no recovery from a
 > failed flash short of a JTAG rig. Photograph the screen; don't press Yes.
 
 **Why we want it:** we documented Special Mode as having two entries for months. A contributor
-photographed it in August 2026 and it has **five**. We are certainly still wrong about the DIAG
-menu, and a photo is the whole fix.
+photographed it in August 2026 and it has **five**. Our DIAG menu was wrong too, until an S1
+owner photographed every page in November 2026. What we still lack is the **same DIAG pages on
+a Z1ES**, and the output screens of *Wifi*, *Ether* and *Audio* — see
+[`05-diag-modes.md`](05-diag-modes.md).
 
 ---
 
@@ -98,7 +101,8 @@ curl.exe http://192.168.1.28:60200/sony/contentplayer/v100/settings/sound/toneco
 ```
 
 If `volumelevel` answers, also send us a reading at **minimum** and at **maximum** volume — the
-range is not discoverable from the API and we only have one datapoint for it (`0`–`74`).
+range is not discoverable from the API. Two S1 units have now reported `0` and `74`; a third
+would make it a rule.
 
 **Why we want it:** on a Z1ES `volumelevel` returns a 500, because it has no volume stage. Tone
 control is S1-only and appears in no documentation but ours. You are the only people who can
