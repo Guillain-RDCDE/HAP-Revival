@@ -15,22 +15,24 @@ region **CEL**.
 
 ### 1. The DIAG menu, every page photographed
 
-Eleven photos of the factory DIAG menu. They show **eight** top-level entries — Version Info,
-ID Info, LED/KEY, LCD/Others, HDD, Audio, Wifi, Ether — and every submenu. Our previous
-ten-line list, copied from secondary sources, was wrong in its structure. The corrected table
-is in [`05-diag-modes.md`](05-diag-modes.md). New facts from it: the front-panel controller
-firmware (**uCON `049`**), the eMMC as the chip names itself (**`SAMSUNG M4G1FB`**), and a
-*SMART Data Read* entry that dumps the disk's SMART data to a USB stick.
+Ten photos of the factory DIAG menu, one of Special Mode. They show the top-level entries
+Version Info, ID Info, LED/KEY, LCD/Others, HDD, Audio, Wifi, Ether, and every submenu. Our
+previous list, copied from secondary sources, was wrong in its structure. Checked against the
+Sony service manual (pp. 25–30), the photos match it line for line; the manual adds two entries
+below the fold of the main menu, *IR Learning* and *Quit*. The corrected table is in
+[`05-diag-modes.md`](05-diag-modes.md). New facts from it: the front-panel controller firmware
+on an S1 (**uCON `049`**), the eMMC as the chip names itself (**`SAMSUNG M4G1FB`**), and the
+disk model straight from the HDD page.
 
 ### 2. Special Mode: the same five entries
 
-His Special Mode shows *SMB Version* (set to `1.0 – 3.1.1`), *Clear Database*, *Reset to
+The S1's Special Mode shows *SMB Version* (set to `1.0 – 3.1.1`), *Clear Database*, *Reset to
 Default Settings*, *Restore Previous Version* and *Restart* — exactly the list photographed on
 a different unit in August. Two units now agree.
 
 ### 3. S1-only API calls answer
 
-- `volumelevel` answers (`200`), with no `min`/`max` fields. He sent `0` and `74` — the same
+- `volumelevel` answers (`200`), with no `min`/`max` fields. Two reads gave `0` and `74` — the same
   range Amos measured on his S1 in August.
 - `tonecontrolbass` = `0`, `tonecontroltreble` = `0`, `tonecontrolbypass` = `on`. First
   readings of tone control from an S1 owner's own hands; they confirm the setting names and

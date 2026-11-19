@@ -158,8 +158,9 @@ name the chip gives itself, not the package marking, so it is consistent with th
 Z1ES would settle it.
 
 The front-panel **test mode** (p25) is unrelated to the console: with the unit in standby, hold
-`HOME` + `BACK`, then press `↑` then `↓` — a "Main Menu" with Version Info, ID Info, LED/KEY,
-LCD/Others, HDD, Audio, WiFi, Ether, IR Learning appears on the display.
+`HOME` + `BACK`, then press `▶II` (PLAY) then `POWER` — a "Main Menu" with Version Info, ID Info,
+LED/KEY, LCD/Others, HDD, Audio, WiFi, Ether, IR Learning, Quit appears on the display. Full
+menu in [`05-diag-modes.md`](05-diag-modes.md).
 
 ## Session plan (what we do once connected)
 

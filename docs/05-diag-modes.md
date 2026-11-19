@@ -18,10 +18,11 @@ The LCD switches to a numeric menu. Navigate with the rotary encoder.
 ### DIAG menu contents
 
 **Photographed on a HAP-S1, firmware `0019404R`, region CEL** (@djordjevich-droid,
-2026-11-19, [issue #7](https://github.com/Guillain-RDCDE/HAP-Revival/issues/7)). This table
-replaces an earlier ten-line list taken from secondary sources, which was wrong: the SMART tests
-are not top-level entries, *RTC* and *Fan* live under *LCD/Others*, network is split in two,
-and there is an *ID Info* page nobody had listed.
+2026-11-19, [issue #7](https://github.com/Guillain-RDCDE/HAP-Revival/issues/7)), and checked
+line by line against the Sony service manual, pages 25–30. The two agree. This table replaces an
+earlier list taken from secondary sources, which was wrong in its structure: the SMART tests are
+not top-level entries, *RTC* and *Fan* live under *LCD/Others*, network is split in two, and
+there is an *ID Info* page nobody had listed.
 
 | # | Item | Sub-entries (as shown on screen) |
 |---|---|---|
@@ -33,19 +34,39 @@ and there is an *ID Info* page nobody had listed.
 | 6 | Audio | Play Audio Data, Select Input |
 | 7 | Wifi | Network/Module Info, Ping/RSSI |
 | 8 | Ether | Network Info, Ping |
+| 9 | IR Learning | *(service manual only — not photographed yet)* |
+| 10 | Quit | Leaves DIAG mode |
 
-Every submenu ends with *Back to Main Menu*. [`10-uart-console.md`](10-uart-console.md) also
-lists a ninth entry, **IR Learning**, from the service manual; it was not in the photo set
-(the main menu only shows six lines at a time), so it is neither confirmed nor ruled out.
+The main menu shows six lines at a time. Entries 7 and 8 are confirmed by their own submenu
+photos; 9 and 10 sit below the fold and come from the service manual. Every submenu ends with
+*Back to Main Menu*.
 
 What the S1 reported on its *Version Info* page: uCON `049`, MPU `0019404R`, region `CEL`,
 model `HAP-S1`, HW Rev. `1`, eMMC `SAMSUNG M4G1FB`. **uCON** is the front-panel/standby
-controller (the U-COM board in [`10-uart-console.md`](10-uart-console.md)); its firmware
-version had never been recorded before. The HDD page names the disk directly — here a
-WD20SPZX (2 TB 2.5"), where our Z1ES carries an HGST 1 TB.
+controller (the U-COM board in [`10-uart-console.md`](10-uart-console.md)); the manual's example
+screen, a Z1ES on firmware `0007321R`, shows uCON `040` and HW Rev. `0`. The HDD page names the
+disk directly — here a WD20SPZX (2 TB 2.5"), where our Z1ES carries an HGST 1 TB.
 
-**Exit**: no QUIT entry appears on the photographed main menu. Leave by pressing POWER
-(not tested during a running SMART test — let it finish first).
+What the manual adds about the submenus:
+
+- **FAN Control Check** offers *fan off* (HAP-Z1ES only), *fan slow*, *fan mid* (HAP-S1 only)
+  and *fan high* — one of the few places where Sony spells out a hardware difference between
+  the two models.
+- **Audio → Select Input** is marked "cannot use in this unit" in the Z1ES manual. The Z1ES has
+  no inputs; the S1 does, so this entry is presumably live on an S1 only.
+- **Audio → Play Audio Data** plays 1 kHz test tones at 0 dB: DSD, PCM 32-bit/48 kHz and
+  32-bit/44.1 kHz, and the same two in *PCM Direct*. The DSD tone stops by itself after a few
+  seconds.
+- **SMART Data Read** shows the SMART table on screen and, with a FAT32 USB stick plugged in,
+  saves it as `hap_smart_data_<model>_<serial>.log` (plain text, LF line endings). Sony's own
+  pass/fail rule: the raw values of IDs 5, 196, 197 and 198 must all be `0`, otherwise replace
+  the disk.
+- **Wifi → Network/Module Info** shows IP address, subnet mask, gateway, **SSID, KEY**, module
+  S/N and module HW ver. **The KEY line is your Wi-Fi password in clear text — hide it before
+  posting a photo.** *Ping/RSSI* pings the gateway and gives the RSSI of each of the two antennas.
+
+**Exit**: select **10. Quit**, or press **POWER** — except during *KEY Check* and the two
+*SMART* tests, where POWER is not taken (service manual, p25).
 
 ### Safety
 
@@ -53,11 +74,11 @@ DIAG mode is **read-only / diagnostic only**. There is no documented option in i
 
 ### What we want to learn from it but haven't yet
 
-- What *Wifi → Network/Module Info* and *Ether → Network Info* actually display (IP, gateway, link speed, Wi-Fi module part number) — the menus are known, their output screens are not.
-- What *Audio → Play Audio Data* plays, and which inputs *Select Input* offers — possibly useful for understanding the audio pipeline.
-- What *SMART Data Read* writes to the USB stick (file name and format).
+- What *Ether → Network Info* displays — that manual page is missing from our copy.
+- What *IR Learning* does.
+- Which inputs *Audio → Select Input* offers on an **S1**.
 - *Version Info* shows no bootloader version or build date, so it cannot be cross-referenced with the GPL release on its own.
-- The same pages photographed on a **Z1ES**, to see which lines differ between the two models.
+- The *Version Info* page of a **Z1ES** on `19404R`, to see whether both models carry the same eMMC and uCON firmware.
 
 If you have a HAP, photograph these screens and submit them via the [hardware-finding issue template](../.github/ISSUE_TEMPLATE/hardware-finding.yml).
 

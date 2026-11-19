@@ -74,8 +74,9 @@ No commands, just your phone. Both menus are entered from **standby**:
 | **Special Mode** | Hold **HOME**, press **POWER** | The whole list of entries |
 | **DIAG** | Hold **HOME** + **BACK**, press **PLAY**, then **POWER** | Every submenu you can reach |
 
-Then back out with **Restart** (Special Mode) or **POWER** (DIAG, which has no QUIT entry).
-Neither menu writes anything by itself.
+Then back out with **Restart** (Special Mode), or **Quit** — the last entry, below the fold —
+or **POWER** (DIAG). Neither menu writes anything by itself. In DIAG, *Wifi → Network/Module
+Info* shows your Wi-Fi password on screen: hide it before posting that photo.
 
 > **Do not select "Restore Previous Version".** It is a firmware downgrade. It is one-shot — the
 > player keeps exactly one spare image and re-flashing burns it — and there is no recovery from a
@@ -83,8 +84,8 @@ Neither menu writes anything by itself.
 
 **Why we want it:** we documented Special Mode as having two entries for months. A contributor
 photographed it in August 2026 and it has **five**. Our DIAG menu was wrong too, until an S1
-owner photographed every page in November 2026. What we still lack is the **same DIAG pages on
-a Z1ES**, and the output screens of *Wifi*, *Ether* and *Audio* — see
+owner photographed every page in November 2026. What we still lack is the *Ether* output screen, *IR Learning*,
+and on an S1 the list behind *Audio → Select Input* — see
 [`05-diag-modes.md`](05-diag-modes.md).
 
 ---
