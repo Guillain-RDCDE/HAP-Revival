@@ -25,6 +25,7 @@ Consequence: **swapping the HDD cannot brick the bootloader or the OS**. The dev
 | **KIOXIA SSD** | ✅ works reliably | [kakaku SortID=24642226](https://bbs.kakaku.com/bbs/K0000579959/SortID=24642226/) |
 | 2 TB SSD (with alu heatsink) | ✅ — 2 TB is the **maximum** | [aku_ari rakuten 2021-09](https://plaza.rakuten.co.jp/akuari/diary/202109230002/) |
 | Seagate ST2000LM003 2 TB HDD | ✅ works in HAP-S1 (9.5 mm) | [Head-Fi #801939](https://www.head-fi.org/threads/sony-hap-s1.801939/) |
+| WD Blue WD20SPZX 2 TB HDD | ✅ works in HAP-S1 — fitted by the owner in place of the factory 500 GB, seen on the DIAG HDD page | [issue #7](https://github.com/Guillain-RDCDE/HAP-Revival/issues/7) (2026-11-19) |
 
 **Recommendations**:
 

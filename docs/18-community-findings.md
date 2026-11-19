@@ -46,6 +46,13 @@ a different unit in August. Two units now agree.
 Trending, Music, Sports, News & Talk, Talk, Podcasts, By Location, By Language) — the same tree
 as on our French Z1ES. A second region, a second model, the same result.
 
+### 5. A 2 TB hard disk in an S1, fitted by the owner
+
+The DIAG HDD page shows a **WD20SPZX** (WD Blue, 2 TB, 2.5"), where the S1 ships with 500 GB.
+Asked, @djordjevich-droid confirmed he swapped the disk himself. That makes two S1s running a
+2 TB hard disk (the other one, a Seagate ST2000LM003, comes from Head-Fi). Added to the
+compatibility list in [`06-hdd-swap.md`](06-hdd-swap.md).
+
 ---
 
 ## 2026-11-03 — @jimsmt (HAP-S1): the OTA firmware URL, and four findings alongside it
