@@ -32,6 +32,22 @@ The hardware still sings. This is the rest of the story.
 
 <br>
 
+> [!CAUTION]
+> **Sony switched off Spotify on the HAP-Z1ES and the HAP-S1 on 17 November 2026.**
+>
+> No firmware, no warning on the player, no replacement: a support notice, and Spotify Connect is
+> gone from a high-end machine that still works perfectly. For many owners, Spotify was what this
+> player was for. For the person who runs this project, it was 98% of all listening. The player
+> still announces itself on the network as a Spotify device, but it no longer answers, so it has
+> vanished from the Spotify app. Your own files and internet radio are not affected.
+>
+> We think this is a shameful way to treat the people who bought these players. It only makes us
+> more determined to open the player up and put Spotify back on it ourselves. What we measured,
+> what you can do today, and what we are doing about it:
+> [Spotify, switched off by Sony](docs/REFERENCE.md#spotify-switched-off-by-sony-on-17-november-2026).
+
+<br>
+
 ---
 
 <!-- opening -->

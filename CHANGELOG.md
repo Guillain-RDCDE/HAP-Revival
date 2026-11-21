@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (2026-11-21, Sony switched off Spotify on the HAP)
+
+- **Spotify Connect no longer works on the HAP-Z1ES or the HAP-S1.** Sony ended its network
+  services on 71 older products on 17 November 2026, both HAP players included. A notice at the top
+  of the README; the Spotify section of [`docs/REFERENCE.md`](docs/REFERENCE.md#spotify-switched-off-by-sony-on-17-november-2026)
+  rewritten with Sony's notice references, what we measured on our player on 21 November (still
+  announced in mDNS, `getInfo` answers `102 ERROR-BAD-REQUEST`, gone from the Spotify app), what
+  still works, what owners can do today, and the two routes this project now takes to bring
+  Spotify back. The earlier lossless measurement is kept as history.
+
 ## [hap-sync-v0.5.0] — 2026-10-26
 
 Everything since `hap-sync-v0.4.0` (2026-10-08). HAP Sync now keeps backup disks in step in the

@@ -155,13 +155,69 @@ python tools/hap_fixit.py <hap-ip> report
 
 <br>
 
-### What it cannot do yet: Spotify in lossless
+### Spotify: switched off by Sony on 17 November 2026
 
-Spotify still works on the HAP. In the Spotify app on your phone, pick **HAP-Z1ES** from the list of
-devices (Spotify Connect) and the music plays through the player.
+**Spotify no longer works on the HAP-Z1ES or the HAP-S1.** On 17 November 2026 Sony ended its
+network services on 71 older audio and home-cinema products, and both HAP players are on the list.
+Spotify Connect went with them. If your HAP has disappeared from the Spotify app, this is why: it is
+not your router, not your phone, not your settings, and nothing you can change on your side brings
+it back.
 
-The quality stops at **Very High**: compressed audio, up to 320 kbps. Since September 2025, Spotify
-Premium also offers **Lossless** — FLAC, up to 24-bit/44.1 kHz — but the app greys that option out
+What Sony published, as reported by the press (Sony's own support pages refuse automated reading,
+so we cite them through those reports): support article **00398725** (international, and the
+Canadian `hap-z1es` page) and **00401117** (Ireland, Germany), giving 17 November 2026 as the end of
+service and 18 November for the icons to disappear from the menus. Sony gives no reason. Spotify's
+own help page says some older devices use a connection technology that no longer meets its security
+standards. Sources: [TechTimes, 17 November 2026](https://www.techtimes.com/articles/330934/20261117/sony-ends-spotify-google-cast-71-products-today-hap-z1es-music-server-keeps-local-playback.htm),
+[Stereo-Guide](https://stereoguide.com/guides/news/sony-is-discontinuing-spotify-and-google-cast-on-many-of-its-soundbars-wi-fi-speakers-and-av-receivers/).
+
+Our view, plainly: this is a shameful way to treat the owners of a flagship player. The hardware is
+fine. Only a switch was flipped, and nobody was asked.
+
+**What we measured on our own HAP-Z1ES, on 21 November 2026** (firmware 19404R, on Wi-Fi):
+
+- Restarting the player, the phone and the router changes nothing: the player is missing from the
+  Spotify app's device list.
+- The player **still announces itself** as a Spotify device on the local network: mDNS service
+  `_spotify-connect._tcp`, instance `HAP-Z1ES`, port 60200, `CPath=/sony/spotifyConnect`.
+- The question a Spotify app asks a device before using it, `GET /sony/spotifyConnect?action=getInfo`,
+  gets an error, with or without a `version` parameter:
+  `{"status": 102, "spotifyError": 0, "statusString": "ERROR-BAD-REQUEST"}`.
+- The same address answers a `POST` with `{"status": 302, ... "ERROR-INVALID-ACTION"}`, so the
+  player's Spotify module is running and reading requests. It is not crashed; it simply no longer
+  serves.
+- Honest limit: we never recorded `getInfo` before the cutoff, so we cannot show that the `102` is
+  new. What is certain is the result: the Spotify app no longer offers the player.
+- Unaffected: your own files on the player, internet radio, and Sony's control app on the phone,
+  checked the same evening by browsing and playing FLAC from it.
+
+**What you can do today:**
+
+- **Add a small Spotify Connect streamer** (WiiM, Bluesound and the like) on a free input of your
+  amplifier. The HAP-Z1ES has no inputs of its own, so the streamer goes to the amplifier, not to
+  the player. The HAP-S1 is an amplifier too, so check its own inputs first. Many of these streamers
+  also play Spotify Lossless, which the HAP never could.
+- **Keep playing your own FLAC files** on the HAP. They were always the best thing it played.
+
+**What we are doing about it.** This makes getting inside the player the project's first priority.
+There are two routes, and we will document both, failures included:
+
+1. **Spotify as a radio station.** The HAP still plays internet radio in MP3 and AAC. An open-source
+   Spotify Connect receiver running on a computer of your network can turn Spotify into such a
+   stream, and the player can be pointed at it as if it were a station. Spotify only ever sent this
+   player about 320 kbps (measured below), so nothing would be lost against what it had. Our
+   August attempt to redirect the player failed (it was done by ARP from a PC, which sent the
+   player into a DNS storm); the next one uses a plain DNS setting instead.
+2. **Spotify back inside the player.** Through the serial console on `CN4007`, root access, then an
+   open-source Spotify Connect client on the player's own Linux. The cleaner fix, and the longer one.
+
+#### Before the cutoff: capped at Very High
+
+Until 17 November 2026, Spotify worked on the HAP. In the Spotify app on your phone, you picked
+**HAP-Z1ES** from the list of devices (Spotify Connect) and the music played through the player.
+
+The quality stopped at **Very High**: compressed audio, up to 320 kbps. Since September 2025, Spotify
+Premium also offers **Lossless** — FLAC, up to 24-bit/44.1 kHz — but the app greyed that option out
 for the HAP:
 
 <div align="center">
@@ -178,16 +234,10 @@ January 2021. We measured it on 2026-09-26: a three-minute track arrived as abou
 average of about 273 kbps. That is Very High, exactly as the app says. The same track in Lossless
 would be three to four times larger.
 
-Two things you can do today:
-
-- **In the Spotify app, set the HAP to Very High** rather than Automatic, so the quality never
-  drops lower. The setting is in the app's audio-quality settings, under the HAP-Z1ES.
-- **Play your own FLAC files instead.** Copied onto the player (see step 1), they play at full
-  quality, well beyond what any streaming service sends it.
-
-Getting streamed lossless music onto this player is one of this project's main goals. It needs our
-own software running on the player, which is what the later phases of the [roadmap](#roadmap) are
-about.
+Until the cutoff, the advice was to set the HAP to **Very High** rather than Automatic in the
+Spotify app, and to play your own FLAC files for full quality. Getting streamed music back onto this
+player, lossless if possible, is now this project's main goal; it needs our own software running on
+the player, which is what the later phases of the [roadmap](#roadmap) are about.
 
 <br>
 
