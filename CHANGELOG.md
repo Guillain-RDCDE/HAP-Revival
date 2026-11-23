@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-11-23, a root path that does not need the UART)
+
+- **New analysis: i.MX6 serial download as a second way to a root shell**, written up in
+  [`docs/19-imx6-serial-download.md`](docs/19-imx6-serial-download.md). Derived from Sony's own
+  published GPL U-Boot and the service manual, not from hardware yet. The player's production
+  U-Boot is built **unsigned** (`CONFIG_SECURE_BOOT` is not set for the `mx6_anap` board, and the
+  boot header's CSF pointer is `0`), which is the build for a part with **open** secure-boot fuses.
+  Such a part will run our own unsigned U-Boot in RAM over USB through the boot ROM's Serial
+  Download Protocol — no signature, and no UART. From there the **eMMC** rootfs (the ANAP U-Boot
+  boots `root=/dev/mmcblk0p1`, which also corrects the raw-NAND/JFFS2 assumption in
+  [`docs/14-nand-extract.md`](docs/14-nand-extract.md)) can be dumped to recover the firmware AES
+  key. The one obstacle is that `BOOT_MODE[1:0]` is strapped to internal boot (`0b10`), so SDP must
+  be triggered by a boot-failure fallback or a one-resistor rework. All of it is pending the next
+  bench session; the fuse state is inferred from the shipped build, not yet read from silicon.
+
 ### Changed (2026-11-23, first console session: the UART is silent)
 
 - **First bench session on the serial console, on the reference HAP-Z1ES — negative.** The PC side

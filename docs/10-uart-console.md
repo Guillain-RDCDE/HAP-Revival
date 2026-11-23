@@ -176,6 +176,11 @@ The first real attempt, on the reference HAP-Z1ES (firmware `0019404R`). Everyth
 was proven before the player was touched; the result is a clean negative, kept here in full so
 nobody has to repeat it blind.
 
+> **The console being silent does not close the root path.** Sony's own GPL U-Boot is built
+> unsigned, so the i.MX6 boot ROM should accept our own U-Boot over USB and let us dump the eMMC
+> without the UART at all. That alternative is worked out in
+> [`19-imx6-serial-download.md`](19-imx6-serial-download.md).
+
 ### The bench
 
 A Windows 11 laptop next to the player, a CH340 adapter (USB `1a86:7523`, jumper on 3V3), driven
