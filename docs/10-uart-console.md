@@ -8,9 +8,13 @@ The live-device software vectors (Samba symlink traversal, HTTP path traversal) 
 leaves the **UART serial console** — long flagged here as the highest-leverage hardware
 opportunity — as the realistic path to a root shell and a NAND/rootfs dump.
 
-This page is the working guide. Status (2026-09-26): **the console is located, and it is reachable
-from the outside of the closed unit** through the small slot on the rear panel. Parts are on order;
-no byte has been read yet.
+This page is the working guide. Status (2026-11-23): **the console is located but silent.** The
+wiring is traced, the bench works end to end, and the player was listened to at boot, after boot
+and in DIAG mode — **zero bytes, and no voltage on the console lines even at the factory header
+inside the player.** The most likely cause is that the 0 Ω links feeding the console on the MAIN
+board were left unfitted at the factory. That is unconfirmed: it needs the MAIN board uncovered.
+Read [Bench session 2026-11-23](#bench-session-2026-11-23--the-console-is-silent) before buying
+anything.
 
 ## The short version
 
@@ -19,7 +23,9 @@ no byte has been read yet.
   console UART (UART1, `ttymxc0`) at **3.3 V** — plus a reset line and a 3.3 V rail you must not
   touch.
 - You need a **7-way 1.0 mm FFC cable**, an **FFC-to-2.54 mm breakout board** (1.0 mm side), three
-  jumper wires and a **3.3 V USB–TTL adapter**. Nothing to open, nothing to solder.
+  jumper wires and a **3.3 V USB–TTL adapter**. Nothing to open, nothing to solder — in theory.
+  On our unit the console carried nothing (see the bench session below), and the rear socket came
+  off the board on the first insertion.
 - **115200 8N1**, no flow control. Open the terminal, then power the player on.
 
 ![Rear panel: the service slot next to the EXT USB socket](../research/captures/2026-09-26-rear-service-slot.jpg)
@@ -34,8 +40,10 @@ no byte has been read yet.
 | Female-female jumper wires | breakout → adapter |
 | Multimeter | to find GND by continuity to the chassis (identifies the cable orientation) |
 
-Verified on Amazon.fr, 2026-09-26: cable `B08493L4KZ` (20 × 150 mm, 8.72 €) and breakout
-`B0D84641C2` (0.5 mm front / 1.0 mm back, right-angle header soldered, 6.88 €).
+Verified on Amazon.fr, 2026-09-26: cable `B08493L4KZ` (20 × 150 mm, 8.72 €). **Correction
+(2026-10-12):** the breakout first listed here, `B0D84641C2`, is too small — its only real socket is
+0.5 mm; the "1.0 mm back" is bare pads that need soldering. What worked: an "FPC-8P 1.0 mm" board
+with the 1.0 mm socket fitted and a 2 × 4 right-angle header already soldered (eBay, ~10 €).
 
 ### ⚠️ Three rules that prevent frying the SoC
 
@@ -161,6 +169,97 @@ The front-panel **test mode** (p25) is unrelated to the console: with the unit i
 `HOME` + `BACK`, then press `▶II` (PLAY) then `POWER` — a "Main Menu" with Version Info, ID Info,
 LED/KEY, LCD/Others, HDD, Audio, WiFi, Ether, IR Learning, Quit appears on the display. Full
 menu in [`05-diag-modes.md`](05-diag-modes.md).
+
+## Bench session 2026-11-23 — the console is silent
+
+The first real attempt, on the reference HAP-Z1ES (firmware `0019404R`). Everything on the PC side
+was proven before the player was touched; the result is a clean negative, kept here in full so
+nobody has to repeat it blind.
+
+### The bench
+
+A Windows 11 laptop next to the player, a CH340 adapter (USB `1a86:7523`, jumper on 3V3), driven
+remotely over SSH. A small Python logger (`pyserial`, 115200 8N1) runs permanently, finds the
+adapter by its USB ID whatever COM number Windows gives it, and writes every byte to a raw `.bin`
+plus a timestamped `.log`. **Loopback test passed** (TX tied to RX: 120 bytes of text and 256 random
+bytes came back identical), so a silent log means a silent player, not a broken bench.
+
+![CH340 adapter: GND, RXD, TXD used; 3V3 and 5V left free](../research/captures/2026-11-23-ch340-adapter-wiring.jpg)
+
+### The rear socket `CN4007` is fragile
+
+- The seven contacts sit on the **top** side of the slot. The FFC goes in **contacts facing up**.
+- With the FFC fully home (about 1 cm deep), only the GND conductor showed continuity; the other
+  six read open. Shortly after, **the socket came off the IO board** while the cable was being
+  re-seated. It is a surface-mount LIF part held by its pads; treat it gently.
+- The board survived: the seven pads and the two hold-down tabs are clean. With the socket gone, a
+  bare FFC end pressed **contacts down** on the pads (tape and a weight) makes contact — which
+  reverses the conductor order, so re-find GND by continuity every time you change anything.
+- With contacts up in an intact socket, GND is the **2nd conductor from the left, seen from the
+  back of the player**. On our 8-way breakout that came out as the mapping below (GND verified by
+  continuity; the rest follows the service-manual order).
+
+![FPC-8P breakout: which pin goes to which adapter wire (socket intact, FFC contacts up)](../research/captures/2026-11-23-cn4007-breakout-wiring.jpg)
+
+### What was measured
+
+| Test | Result |
+|---|---|
+| Listen during cold boot (5 min), after boot, and in DIAG mode | **0 bytes** |
+| Voltages on the breakout, player on, DC 20 V range, black probe on chassis | **0 V on every pin** |
+| Same check **directly on the factory header `CN4008`**, player on: pin 1 (3.3 V) and pin 4 (TXD, console out) | **0 V on both** |
+| Sanity check of the meter on the EXT USB socket, player on | 5.29 V |
+| Resistance to chassis, player off (pads, contacts down) | GND = 0 Ω, one neighbour 52.7 kΩ, the rest open |
+
+An idle UART output sits at the logic-high level (3.3 V here). **0 V on the console-out line at the
+factory header, with the player running, means that line is not driven at all** — so the rear port
+and our cable are not the problem. The 3.3 V pin of the same header is dead too.
+
+Caveat: the `CN4008` check was done by touching the 0.6 mm tails of the header with a standard
+probe — hard to do cleanly. It deserves to be repeated with a fine probe before it is taken as final.
+
+### Why this is not a software lock
+
+- The Sony GPL kernel (`board-mx6q_sabresd.c` in the `linux-3.0.35` patch) registers **UART1** and
+  sets up an **early console** on it, on exactly the two balls traced here (`CSI0_DAT10/11`, M1/M3,
+  "UART1 for debug"). The software expects a console on these pins.
+- **DIAG mode** (front panel: `HOME` + `BACK`, then `▶II`, then `POWER`) does not wake it: still 0
+  bytes. The `DON` line on the service port goes straight (R762, 0 Ω) to the SoC's `DIAG_EN` input
+  (`EIM_D28`, ball G23, "Diag mode enable signal input"), which the kernel never reads — so pulling
+  `DON` is unlikely to give more than the front-panel combo already does.
+
+### The most likely cause: unfitted 0 Ω links on MAIN
+
+On the MAIN-board schematic (p47) every console line reaches `CN701` through a 0 Ω link:
+
+| `CN701` pin | Signal | Link |
+|---|---|---|
+| 1 | 3.3 V | **R705** (0 Ω) from the 3.3 V rail |
+| 3 | RXD (console in) | **R701** (0 Ω) |
+| 4 | TXD (console out) | **R702** (0 Ω), then R749 to ball M1 |
+| 5 | DON | **R762** (0 Ω) to `DIAG_EN` |
+
+Leaving such links off production boards is a common way to disconnect a debug port. **Both dead
+lines we measured (3.3 V and TXD) pass through one of them**, which fits. It is a hypothesis: none of
+these parts has been seen yet.
+
+**Where they are:** the MAIN board sits in the metal cage on the left of the chassis, next to the
+HDD, **under the FPGA-DSP daughter board** (the one marked `FORZA`). The grey 4-wire cable from
+`CN4008` runs to it. It cannot be seen without lifting the DSP board.
+
+**If you can get there** (a repair shop can): photograph the area around `CN701` and check whether
+R701, R702 and R705 are fitted. If the pads are empty, bridging them (or wiring straight to the
+SoC side of each link) should bring the console back — and that would be the first root shell on a
+HAP. Sony notes that IC101 is not replaceable on its own: a damaged MAIN board means a whole new
+board, so this is a job for steady hands.
+
+### A side finding: the factory Wi-Fi test network
+
+In DIAG mode, **Wifi → Network/Module Info** shows the network the factory test uses:
+**SSID `SONY_HAP_TEST`, key `SONY_HAP_TEST`**. A phone hotspot with that name and password (2.4 GHz)
+is joined at once: the page then shows an IP, mask and gateway, and *Ping/RSSI* succeeds. The player
+answers ping (TTL 64) but **a full TCP scan, ports 1–65535, found nothing open** — not even the
+ports it serves in normal use (60100–60400). DIAG mode opens no maintenance door on the network.
 
 ## Session plan (what we do once connected)
 

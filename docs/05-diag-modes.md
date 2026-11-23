@@ -78,7 +78,14 @@ DIAG mode is **read-only / diagnostic only**. There is no documented option in i
 - What *IR Learning* does.
 - Which inputs *Audio → Select Input* offers on an **S1**.
 - *Version Info* shows no bootloader version or build date, so it cannot be cross-referenced with the GPL release on its own.
-- The *Version Info* page of a **Z1ES** on `19404R`, to see whether both models carry the same eMMC and uCON firmware.
+- The **eMMC** line of a **Z1ES** on `19404R` (scroll down on *Version Info*), to see whether both models carry the same chip.
+
+**Z1ES on `19404R`, photographed 2026-11-23** (reference unit): uCON `049`, MPU `0019404R`, region
+`CEL`, model `HAP-Z1ES`, HW Rev. `1` — the same uCON firmware as the S1 above. In *Wifi → Network/Module
+Info* the Wi-Fi module reports HW ver. `19`, and the page shows the **factory test network**
+`SONY_HAP_TEST` / `SONY_HAP_TEST`: a hotspot with that name and key is joined from DIAG mode, but the
+player opens no TCP port at all while in it (full scan, see
+[`10-uart-console.md`](10-uart-console.md#a-side-finding-the-factory-wi-fi-test-network)).
 
 If you have a HAP, photograph these screens and submit them via the [hardware-finding issue template](../.github/ISSUE_TEMPLATE/hardware-finding.yml).
 

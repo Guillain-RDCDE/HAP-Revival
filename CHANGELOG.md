@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (2026-11-23, first console session: the UART is silent)
+
+- **First bench session on the serial console, on the reference HAP-Z1ES — negative.** The PC side
+  was proven by loopback, then the player was listened to at boot, after boot and in DIAG mode:
+  zero bytes. Measured with the player running, the console-out line and the 3.3 V pin are at 0 V
+  **even on the factory header `CN4008`**, so the rear port is not the cause. The Sony kernel does
+  expect a console on these pins; the leading explanation is unfitted 0 Ω links (R701, R702, R705)
+  on the MAIN board, under the DSP daughter board — unverified. Full account, measurements and what
+  to check next in [`docs/10-uart-console.md`](docs/10-uart-console.md#bench-session-2026-11-23--the-console-is-silent).
+- **The rear socket `CN4007` is fragile**: it came off the IO board while the cable was re-seated.
+  Contacts are on the top of the slot (FFC contacts up). Two wiring diagrams added under
+  `research/captures/2026-11-23-*`.
+- **Breakout board correction**: `B0D84641C2` is 0.5 mm only; a board with a fitted 1.0 mm socket
+  is needed.
+- **DIAG mode** ([`docs/05-diag-modes.md`](docs/05-diag-modes.md)): Z1ES *Version Info* on `19404R`
+  recorded (uCON `049`, HW Rev. `1`), and the factory Wi-Fi test network `SONY_HAP_TEST` /
+  `SONY_HAP_TEST` found and joined — no TCP port open in that mode.
+
 ### Changed (2026-11-21, Sony switched off Spotify on the HAP)
 
 - **Spotify Connect no longer works on the HAP-Z1ES or the HAP-S1.** Sony ended its network
