@@ -188,6 +188,10 @@ fine. Only a switch was flipped, and nobody was asked.
   serves.
 - Honest limit: we never recorded `getInfo` before the cutoff, so we cannot show that the `102` is
   new. What is certain is the result: the Spotify app no longer offers the player.
+- **Same result on a HAP-S1**, measured by an owner on 24 November 2026 (firmware 0019404R): the S1
+  still announces `_spotify-connect._tcp` (instance `HAP-S1`, same port and `CPath`) and answers
+  `getInfo` with the same `102`, in standby and with the player on. The cutoff is not specific to
+  the Z1ES. Details: [`18-community-findings.md`](18-community-findings.md).
 - Unaffected: your own files on the player, internet radio, and Sony's control app on the phone,
   checked the same evening by browsing and playing FLAC from it.
 

@@ -7,6 +7,48 @@ point, it says so.
 
 ---
 
+## 2026-11-24 — @thomasmomot (HAP-S1): a third S1, a 500 that means "standby", and Spotify gone on the S1 too
+
+Contributed in [issue #8](https://github.com/Guillain-RDCDE/HAP-Revival/issues/8). A third HAP-S1,
+firmware `0019404R`, tested from a Mac on the same LAN with the read-only commands of
+[`HELP-IN-5-MINUTES.md`](HELP-IN-5-MINUTES.md) (§1, §2, §4) and the Spotify checks of
+[`REFERENCE.md`](REFERENCE.md#spotify-switched-off-by-sony-on-17-november-2026). Every request was
+sent one at a time.
+
+### 1. In standby, almost everything answers `500`
+
+With the player in standby (`powerstate` = `off`), every `contentplayer` endpoint he tried except
+`powerstate` returned **HTTP `500` Internal Server Error**: `playinginfo`, `externalinput`,
+`settings/sound/dsee`, `volumelevel`, and the three tone-control settings. With the player on, all of
+them returned `200`. So on an S1 a `500` can simply mean "the player is in standby", not "this
+feature does not exist". Read `powerstate` first. Added to [`16-gotchas.md`](16-gotchas.md) §5.
+
+### 2. S1-only reads: a third unit agrees
+
+- `volumelevel` answers, range **0 to 74** (set to minimum, then maximum, on the unit itself; mute
+  `off` both times). Third S1 with the same range, after Amos in August and @djordjevich-droid on
+  2026-11-19.
+- `tonecontrolbass` = `-3`, `tonecontroltreble` = `5`, `tonecontrolbypass` = `off`. These are the
+  first non-default tone values we have seen read back, which confirms the values are signed
+  integers in a string.
+- `playinginfo` on a paused local album: `source_type` `hdd`, `repeat_mode` `all`, `shuffle_mode`
+  `album`, and a `codec` block (`bit_width` 16, `sample_rate` 44100, `bit_rate` 814000) with an
+  empty `codec_type`.
+
+### 3. Spotify is switched off on the S1 too
+
+The S1 still announces `_spotify-connect._tcp` over mDNS (instance `HAP-S1`, port 60200,
+`CPath=/sony/spotifyConnect`), exactly like our Z1ES. And
+`GET /sony/spotifyConnect?action=getInfo` returns the same
+`{"status": 102, "spotifyError": 0, "statusString": "ERROR-BAD-REQUEST"}` with HTTP 200 — in
+standby, then again with the player on, with and without `&version=2.9.0`. The 17 November cutoff
+is therefore **not specific to the Z1ES**: both models now give the same answer.
+
+Limit, as he wrote himself: there is no reading from before the cutoff, so we still cannot show the
+`102` is new. Only the result is certain.
+
+---
+
 ## 2026-11-24 — @jimsmt (HAP-S1): the console is alive on the S1, and the connectors are renumbered
 
 Following up in [issue #6](https://github.com/Guillain-RDCDE/HAP-Revival/issues/6), @jimsmt reopened

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-11-24, a third HAP-S1 report)
+
+- **Issue #8 from @thomasmomot, a third HAP-S1 on `0019404R`**, folded into
+  [`docs/18-community-findings.md`](docs/18-community-findings.md). Three facts: in standby, every
+  `contentplayer` endpoint except `powerstate` answers `500` (new trap, added to
+  [`docs/16-gotchas.md`](docs/16-gotchas.md) §5); the S1 volume range is again 0–74, with the first
+  non-default tone-control values read back; and **Spotify Connect is switched off on the S1 as
+  well** — same mDNS announcement, same `getInfo` status `102`, player on or in standby (noted in
+  [`docs/REFERENCE.md`](docs/REFERENCE.md#spotify-switched-off-by-sony-on-17-november-2026)).
+
 ### Added (2026-11-23, a root path that does not need the UART)
 
 - **New analysis: i.MX6 serial download as a second way to a root shell**, written up in

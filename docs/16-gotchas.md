@@ -94,6 +94,11 @@ subscription endpoint reported a timeout that was pure collateral damage.
 - `…/playinginfo` returns `500` when the queue is merely empty, and `…/volumelevel` returns `500`
   permanently on a Z1ES. Reading either as "device is asleep" — which the Crestron module does —
   reports a live player as offline.
+- The reverse trap exists too. On a HAP-S1 **in standby**, every `contentplayer` endpoint except
+  `powerstate` returns `500` — including `volumelevel`, which answers fine on that model once the
+  player is on (measured by @thomasmomot, 2026-11-24, see
+  [`18-community-findings.md`](18-community-findings.md)). A `500` can mean "asleep", "empty
+  queue" or "not on this model". Read `powerstate` first, then decide.
 
 **Do instead.** Read the state back after every write. `play_station(..., verify=True)` does exactly
 that, and it exists because the device will happily report success for a station it never started.
