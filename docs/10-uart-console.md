@@ -395,9 +395,20 @@ That is exactly the appeal of the [i.MX6 USB serial-download path](19-imx6-seria
 bypasses both the silent U-Boot prompt and the console-input problem. @jimsmt's boot log stays
 valuable as the reference to confirm a USB-loaded U-Boot is driving the real board.
 
-> **Open question.** @jimsmt reports the S1 UART reaching a **rear-panel** port wired to `CN4013`
-> by long leads, but the service manual places `CN4013` on the digital/IO board. Whether that rear
-> port is original or owner-added is still to confirm.
+### How @jimsmt reached it, and his fix for a dead header
+
+On the "rear-panel port" wording from his first message: there is no extra rear service port on the
+S1. @jimsmt reached the console by pushing **two sewing needles straight into the `CN4013` female
+connector** (RXD and TXD), with the board in place. He has since **soldered two long leads to the
+TX/RX pins** so he can reach the console without opening the player again — which is why he first
+described it as coming out "at the rear."
+
+For a header that reads 0 V like ours, his advice is direct and matches the schematic: follow the
+console wires to **the other end on the MAIN board, look for empty solder pads where the 0 Ω links
+(R701 / R702 / R705) belong, and simply bridge them with a solder blob**. That is the concrete fix
+behind the "unfitted 0 Ω links" theory above. On our unit it is still blocked only by access — the
+MAIN board is under the DSP board and we cannot split the two without help — not by any doubt about
+the cause.
 
 ## Safety nets
 
