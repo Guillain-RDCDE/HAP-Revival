@@ -25,7 +25,10 @@ Each version is distributed as a single binary blob (extension reportedly `.Sony
 > **supersedes** the earlier finding (2026-06-03) that no public copy existed, and it confirms the
 > "static file on a public CDN, fetchable with `curl`" hypothesis below. The blob is encrypted
 > (an AES-ECB signature; the key is not in the file), so it stays sealed until a root shell yields
-> the key. Full analysis and the four other findings from that report are in
+> the key. This AES lock is not an obstacle to the planned root route — it is its target; why
+> neither the firmware signature nor secure boot blocks a read-only eMMC dump is set out in
+> [`19-imx6-serial-download.md`](19-imx6-serial-download.md#two-protections-two-paths--and-why-neither-blocks-the-dump).
+> Full analysis and the four other findings from that report are in
 > [`18-community-findings.md`](18-community-findings.md).
 
 The reconnaissance below (2026-06-03) is kept for context: no copy of any HAP-Z1ES/HAP-S1 firmware

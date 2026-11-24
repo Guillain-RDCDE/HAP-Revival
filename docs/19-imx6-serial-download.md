@@ -59,6 +59,40 @@ production bootloader. The most consistent reading is that the HAB fuses on this
 and an unsigned image loaded over SDP will therefore run. This is inference from the shipped build,
 not yet a reading of the fuse bank — see the open questions below.
 
+## Two protections, two paths — and why neither blocks the dump
+
+A fair question when a device has resisted this long (raised by @jimsmt in
+[issue #6](https://github.com/Guillain-RDCDE/HAP-Revival/issues/6)): *what if there is more
+protection — an RSA signature check somewhere?* There **is** signing in this product. But the two
+protections that exist sit on **two different paths**, and the route on this page deliberately uses
+neither check.
+
+| Protection | What it guards | Where it acts | Does it block this route? |
+|---|---|---|---|
+| **Secure boot (HAB)** | that the SoC runs only a *signed* bootloader | i.MX6 boot ROM, at power-on | **No.** Sony's own U-Boot is built unsigned (`CONFIG_SECURE_BOOT` undefined, `app_code_csf = 0`), so the fuses are almost certainly open and the ROM will run our unsigned U-Boot over SDP. |
+| **Firmware image signature / encryption** | that the *updater* applies only a genuine Sony `.bin` | the OTA update tool, on the running system | **No.** We never run the updater. The 19404R blob is AES-ECB encrypted and may also be signed, but we read the eMMC directly instead of feeding a blob to the updater. |
+
+The point is that these two live on different paths, and our route takes a third one:
+
+- **Secure boot** would stop us only if we tried to run a *modified* bootloader on a *secure* part.
+  The part is not secure (proven from source), and in any case SDP loads U-Boot into **RAM** — we
+  never replace the stored bootloader.
+- **The firmware signature/encryption** would stop us only if we tried to *flash a forged update*.
+  We do the opposite: we **read**. Dumping the eMMC and lifting the AES key off the running rootfs
+  needs no signature to be produced or verified, because nothing is written or installed.
+
+So the AES encryption on the blob
+([`07-firmware.md`](07-firmware.md#the-firmware-blob--one-copy-is-now-in-hand-updated-2026-11-03))
+is not a lock on *this* route — it is the very thing the route exists to open. The blob stays sealed
+today only because the key lives on the device; a read-only eMMC dump is exactly how we reach that
+key, and it passes through neither protection.
+
+**What could still bite** is the honest unknown already on the record: the HAB fuse state is
+*inferred* from Sony's shipped build, not yet read from silicon. If — against the evidence — the
+fuses were blown closed, the boot ROM would reject our unsigned U-Boot and the path would stall at
+the first step. That is precisely why the make-or-break bench check is the **free USB-enumeration
+test** (route step 2 below): everything downstream assumes the fuses are open.
+
 ## The boot mode is strapped to normal internal boot
 
 From the i.MX6 ball list in the service manual:
