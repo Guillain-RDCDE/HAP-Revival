@@ -14,7 +14,8 @@ and in DIAG mode — **zero bytes, and no voltage on the console lines even at t
 inside the player.** The most likely cause is that the 0 Ω links feeding the console on the MAIN
 board were left unfitted at the factory. That is unconfirmed: it needs the MAIN board uncovered.
 Read [Bench session 2026-11-23](#bench-session-2026-11-23--the-console-is-silent) before buying
-anything.
+anything. On a HAP-S1 the same header **is** live (@jimsmt, 2026-11-24) — see the
+[cross-model notes](#cross-model-the-s1-console-is-live-and-the-s1-to-z1es-connector-map-2026-11-24).
 
 ## The short version
 
@@ -326,6 +327,77 @@ Also documented in the IC101 pin table (p75–79): the i.MX6 **boot-mode straps*
 **JTAG** (TDO/TMS/TDI/TCK) is present but marked "Not used". The neighbouring UARTs are explicitly
 tied to other blocks — `CSI0_DAT12/13` (M2/T1) to the system controller, `CSI0_DAT14/15` to the
 remote-commander code-learning processor — which is what makes M1/M3 the general console.
+
+## Cross-model: the S1 console is live, and the S1 to Z1ES connector map (2026-11-24)
+
+@jimsmt reopened a HAP-S1 ([issue #6](https://github.com/Guillain-RDCDE/HAP-Revival/issues/6))
+and got the serial console working — the direct counter-case to our silent Z1ES bench above. Two
+things came out of it: a confirmed live pinout, and the fact that **Sony renumbered the connectors
+between the two models**, a trap worth spelling out.
+
+### Connectors are renumbered between S1 and Z1ES
+
+Both service manuals list the same parts under different `CN` numbers. Matched by Sony **part
+number** — the only reliable key — the console header is the same component on both machines. It is
+simply called `CN4008` on the Z1ES and `CN4013` on the S1.
+
+| Function | Sony part no. | HAP-Z1ES | HAP-S1 |
+|---|---|---|---|
+| LAN jack (10/100/1000) | 1-842-235-11 | CN4001 | CN4001 |
+| USB-A (5 V 1 A, `EXT`) | 1-822-423-11 | CN4002 | CN4002 |
+| Pin header, 11P 1.5 mm | 1-779-268-21 | CN4003 | CN4003 |
+| Pin header, 6P 1.5 mm | 1-573-806-21 | CN4005 | CN4005 |
+| **UART console, 5P 1.5 mm** | **1-573-768-21** | **CN4008** | **CN4013** |
+| FFC/FPC LIF, 7P | 1-784-859-51 | CN4007 | CN4011 |
+
+**Do not trust the `CN` label across models.** From the same parts lists:
+
+- **`CN4006` is a different connector on each model** — a 3-pin 1.5 mm header on the Z1ES
+  (1-691-550-11), a 24-pin FFC/FPC on the S1 (1-815-763-32).
+- The **7-pin flat-flex** that is our rear service port (`CN4007` on the Z1ES) is **`CN4011`** on
+  the S1.
+- The S1 carries connectors the Z1ES does not: on the S1, `CN4007` (22P FFC), `CN4008` (13P),
+  `CN4009` (4P) and `CN4010` (2P) are all distinct parts. The Z1ES 40xx range stops at `CN4008`.
+
+The console header pinout is identical on both (Z1ES `CN4008` = S1 `CN4013`):
+
+| Pin | Signal |
+|---|---|
+| 1 | 3.3 V |
+| 2 | GND |
+| 3 | RXD |
+| 4 | TXD |
+| 5 | DON |
+| 6 | N.C. |
+
+### What the S1 shows that the Z1ES did not
+
+On @jimsmt's S1 the header is **live**: 3.3 V present, RX/TX good, and a boot log appears at
+power-on. That is the direct counter-case to
+[our silent Z1ES header](#bench-session-2026-11-23--the-console-is-silent), and it strengthens the
+unfitted-0-Ω-links / board-revision theory — the same connector, powered on one unit and dead on
+ours.
+
+But even on the live port, two limits appear, and they shape the whole approach:
+
+- **U-Boot is silent and does not break in.** Several key combinations held while applying AC power
+  did nothing.
+- **The running Linux system ignores UART input entirely.** Boot messages come out up to an
+  `-init-` line, then nothing accepts a keystroke.
+
+Read together, this looks less like "input is broken" and more like **no interactive shell is
+offered on `ttymxc0`**: the kernel console is output-only (no `getty`/login) and U-Boot has little
+or no interrupt window. If that holds, typing into the running system will never drop you to a
+shell — the shell has to come from **U-Boot** (booting `init=/bin/sh` or single-user), not from the
+live console.
+
+That is exactly the appeal of the [i.MX6 USB serial-download path](19-imx6-serial-download.md): it
+bypasses both the silent U-Boot prompt and the console-input problem. @jimsmt's boot log stays
+valuable as the reference to confirm a USB-loaded U-Boot is driving the real board.
+
+> **Open question.** @jimsmt reports the S1 UART reaching a **rear-panel** port wired to `CN4013`
+> by long leads, but the service manual places `CN4013` on the digital/IO board. Whether that rear
+> port is original or owner-added is still to confirm.
 
 ## Safety nets
 

@@ -7,6 +7,34 @@ point, it says so.
 
 ---
 
+## 2026-11-24 — @jimsmt (HAP-S1): the console is alive on the S1, and the connectors are renumbered
+
+Following up in [issue #6](https://github.com/Guillain-RDCDE/HAP-Revival/issues/6), @jimsmt reopened
+a HAP-S1 and got the serial console working — the direct counter-case to our silent Z1ES bench on
+2026-11-23.
+
+### 1. The console header is the same part on both models, relabelled
+
+Matched by Sony part number `1-573-768-21` (5-pin 1.5 mm, `3.3V / GND / RXD / TXD / DON`), the
+console header is `CN4008` on the Z1ES and `CN4013` on the S1 — the very connector we probed. The
+full S1-to-Z1ES connector map, and the traps (e.g. `CN4006` is a different connector on each model),
+is in [`10-uart-console.md`](10-uart-console.md#connectors-are-renumbered-between-s1-and-z1es).
+
+### 2. On the S1 the header is powered and emits a boot log
+
+3.3 V present, RX/TX good — where our Z1ES header read 0 V. This supports the standing theory that
+the console's 0 Ω links are unfitted on our MAIN board, or that it is a board revision.
+
+### 3. But the live port still gives no shell
+
+U-Boot is silent and will not break in, and the running Linux ignores all UART input — consistent
+with an output-only console (no `getty`) and a near-zero U-Boot interrupt window. Further reason to
+favour the [i.MX6 USB serial-download path](19-imx6-serial-download.md), which needs neither the
+console nor U-Boot's prompt.
+[Detail and reasoning](10-uart-console.md#what-the-s1-shows-that-the-z1es-did-not).
+
+---
+
 ## 2026-11-19 — @djordjevich-droid (HAP-S1): the DIAG menu in full, and S1 API readings
 
 Contributed in [issue #7](https://github.com/Guillain-RDCDE/HAP-Revival/issues/7), working
